@@ -1,0 +1,81 @@
+// NEXTi18
+module.exports = {
+  debug: process.env.NODE_ENV === "development",
+  i18n: {
+    defaultLocale: "en",
+    locales: ["en", "es"],
+  },
+};
+
+------------------------------
+//NEXTCONFIG
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+};
+
+const { i18n } = require('./next-i18next.config');
+module.exports = {
+  ...nextConfig,
+  i18n,
+};
+
+export default nextConfig;
+
+------------------------------------
+// APP.TSX
+import "@/styles/globals.css";
+import { appWithTranslation } from "next-i18next";
+import type { AppProps } from "next/app";
+
+const App = ({ Component, pageProps }: AppProps) => {
+  return <Component {...pageProps} />;
+};
+
+export default appWithTranslation(App);
+
+------------------------------------
+// INDEX.TSX
+import React, { useEffect, useState } from 'react';
+import Head from 'next/head';
+import Header from '@components/header';
+import HomePageInfomation from '@components/HomePageInformation';
+import { GetServerSideProps } from 'next';
+
+import { serverSideTranslations } from "next-i18next/serverSideTranslations";
+import { useTranslation } from "next-i18next";
+
+const HomePage: React.FC = () => {
+
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <Head>
+        <title>{t('app.title')}</title>
+      </Head>
+      <Header />
+      <main className="d-flex flex-column justify-content-center align-items-center">
+        <section>
+          <HomePageInfomation />
+        </section>
+      </main>
+    </>
+  );
+};
+
+interface ServerSideProps {
+  locale: string;
+}
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { locale } = context;
+
+  return {
+    props: {
+      ...(await serverSideTranslations(locale ?? "en", ["common"])),
+    },
+  };
+};
+
+export default HomePage;
