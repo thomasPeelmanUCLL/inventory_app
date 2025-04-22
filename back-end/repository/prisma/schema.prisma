@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int       @id @default(autoincrement())
+  email    String    @unique
+  password String
+  name     String
+  role     String
+  age      Int
+  setups   Setup[]
+  comments Comment[]
+
+  @@map("users") // Explicit table naming
+}
+
+model Image {
+  id      Int     @id @default(autoincrement())
+  url     String  @unique
+  details String
+  setups  Setup[]
+
+  @@map("images")
+}
+
+model Setup {
+  id                 Int                 @id @default(autoincrement())
+  ownerId            Int
+  owner              User                @relation(fields: [ownerId], references: [id])
+  hardwareComponents HardwareComponent[]
+  images             Image[]
+  details            String
+  lastUpdated        DateTime            @updatedAt
+  comments           Comment[]
+
+  @@map("setups")
+}
+
+model HardwareComponent {
+  id      Int     @id @default(autoincrement())
+  name    String
+  details String
+  price   Float
+  setups  Setup[]
+
+  @@map("hardware_components")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int // Consistent naming convention
+  setup     Setup    @relation(fields: [setupId], references: [id])
+  setupId   Int // Consistent naming convention
+  content   String
+  createdAt DateTime @default(now()) // Added timestamp
+
+  @@map("comments")
+}
