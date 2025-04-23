@@ -4,6 +4,11 @@ import { AuthenticationResponse, UserInput, LoginInput } from '../types';
 import { generateJwtToken } from '../util/jwt';
 import { User } from '../model/user';
 
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+
 const getAllUsers = async (): Promise<User[]> => userDB.getAllUsers();
 
 const getUserByName = async ({ name }: { name: string }): Promise<User> => {

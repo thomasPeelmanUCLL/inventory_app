@@ -2,8 +2,15 @@ import jwt from 'jsonwebtoken';
 import { Role } from '../types';
 
 const generateJwtToken = ({ email, role }: { email: string; role: Role }): string => {
+    console.log('JWT_SECRET:', process.env.JWT_SECRET); // Debugging
+    console.log('JWT_EXPIRES_HOURS:', process.env.JWT_EXPIRES_HOURS); // Debugging
+
+    const expiresIn = process.env.JWT_EXPIRES_HOURS
+        ? `${process.env.JWT_EXPIRES_HOURS}h`
+        : '1h'; // Default to 1 hour if not set
+
     const options = {
-        expiresIn: `${process.env.JWT_EXPIRES_HOURS}h`,
+        expiresIn,
         issuer: 'http://localhost:3000',
     };
 

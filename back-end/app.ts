@@ -28,6 +28,7 @@ app.use(
             '/status,',
             '/images',
             '/hardwareComponents',
+            '/inventory',
             //'/setup',
             //'/comments',
             // Read-only routes
@@ -75,21 +76,10 @@ app.listen(port || 3000, () => {
 import { userRouter } from './controller/user.routes';
 app.use('/users', userRouter);
 
-// HARDWARE COMPONENTS ROUTES
-import { hardwareComponentsRouter } from './controller/hardwareComponent.router';
-app.use('/hardwareComponents', hardwareComponentsRouter);
+// INVENTORY ROUTES
+import { inventoryRouter } from './controller/inventory.routes';
+app.use('/inventory', inventoryRouter);
 
-// IMAGES ROUTES
-import { imagesRouter } from './controller/images.router';
-app.use('/images', imagesRouter);
-
-// SETUP ROUTES
-import { setupRouter } from './controller/setup.router';
-app.use('/setup', setupRouter);
-
-// COMMENT ROUTES
-import { commentRouter } from './controller/comment.router';
-app.use('/comments', commentRouter);
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     if (err.name === 'UnauthorizedError') {
