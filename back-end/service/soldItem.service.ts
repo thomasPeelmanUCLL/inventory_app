@@ -25,11 +25,13 @@ const getSoldItemsByItemId = async ({ itemId }: { itemId: number }): Promise<Sol
 const createSoldItem = async ({ 
     itemId, 
     sellingPrice, 
+    payedCash = false, 
     quantity, 
     soldAt 
 }: { 
     itemId: number; 
     sellingPrice: number; 
+    payedCash?: boolean;
     quantity: number; 
     soldAt?: Date 
 }): Promise<SoldItem> => {
@@ -45,8 +47,9 @@ const createSoldItem = async ({
     const soldItem = new SoldItem({
         itemId,
         sellingPrice,
+        payedCash,
         quantity,
-        soldAt: soldAt || new Date()
+        soldAt
     });
 
     const createdSoldItem = await soldItemDB.createSoldItem(soldItem);
@@ -72,11 +75,13 @@ const createSoldItem = async ({
 const updateSoldItem = async ({ 
     id, 
     sellingPrice, 
+    payedCash, 
     quantity, 
     soldAt 
 }: { 
     id: number; 
     sellingPrice?: number; 
+    payedCash?: boolean;
     quantity?: number; 
     soldAt?: Date 
 }): Promise<SoldItem> => {
@@ -105,6 +110,7 @@ const updateSoldItem = async ({
         id: existingSoldItem.getId(),
         itemId: existingSoldItem.getItemId(),
         sellingPrice: sellingPrice !== undefined ? sellingPrice : existingSoldItem.getSellingPrice(),
+        payedCash: payedCash !== undefined ? payedCash : existingSoldItem.isPayedCash(),
         quantity: quantity !== undefined ? quantity : existingSoldItem.getQuantity(),
         soldAt: soldAt !== undefined ? soldAt : existingSoldItem.getSoldAt(),
         createdAt: existingSoldItem.getCreatedAt()
@@ -112,6 +118,11 @@ const updateSoldItem = async ({
 
     // Update the sold item
     const result = await soldItemDB.updateSoldItem(updatedSoldItem);
+
+    // Check if the update was successful
+    if (!result) {
+        throw new Error(`Failed to update SoldItem with ID: ${id}`);
+    }
 
     // Update the item quantity if necessary
     if (quantityDifference !== 0) {

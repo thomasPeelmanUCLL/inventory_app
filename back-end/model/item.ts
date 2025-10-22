@@ -6,6 +6,7 @@ export class Item extends BaseModel {
     private description: string;
     private price: number;
     private buyedAt?: Date;
+    private inventoryId?: number;
 
     constructor(item: {
         id?: number;
@@ -15,6 +16,7 @@ export class Item extends BaseModel {
         quantity: number;
         buyedAt?: Date;
         createdAt?: Date;
+        inventoryId?: number;
     }) {
         super({
             id: item.id,
@@ -26,6 +28,7 @@ export class Item extends BaseModel {
         this.description = item.description;
         this.price = item.price;
         this.buyedAt = item.buyedAt;
+        this.inventoryId = item.inventoryId;
     }
 
     getName(): string {
@@ -42,6 +45,10 @@ export class Item extends BaseModel {
 
     getBuyedAt(): Date | undefined {
         return this.buyedAt;
+    }
+
+    getInventoryId(): number | undefined {
+        return this.inventoryId;
     }
 
     validate(inventory: {
@@ -79,6 +86,7 @@ export class Item extends BaseModel {
             quantity: itemPrisma.quantity,
             buyedAt: itemPrisma.buyedAt || undefined,
             createdAt: itemPrisma.createdAt,
+            inventoryId: itemPrisma.inventoryId || undefined,
         });
     }
 

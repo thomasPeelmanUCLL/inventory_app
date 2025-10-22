@@ -1,21 +1,27 @@
 import {Inventory as InventoryPrisma} from '@prisma/client';
+import { Item } from './item';
 
 export class Inventory {
     private id?: number;
     private name: string;
     private description: string;
+    private items: Item[] = [];
 
 
     constructor(inventory: {
         id?: number;
         name: string;
         description: string;
+        items?: Item[];
     }) {
         this.validate(inventory);
 
         this.id = inventory.id || 0;
         this.name = inventory.name;
         this.description = inventory.description;
+        if (inventory.items) {
+            this.items = inventory.items;
+        }
     }
 
     getId(): number {
@@ -33,10 +39,19 @@ export class Inventory {
         return this.description;
     }
 
+    getItems(): Item[] {
+        return this.items;
+    }
+
+    setItems(items: Item[]): void {
+        this.items = items;
+    }
+
     validate(inventory: {
         id?: number;
         name: string;
         description: string;
+        items?: Item[];
     }) {
         if (!inventory.name) {
             throw new Error('Name is required');
@@ -50,12 +65,14 @@ export class Inventory {
 
     }
 
-    static from(inventoryPrisma: InventoryPrisma): Inventory {
-        return new Inventory({
+    static from(inventoryPrisma: InventoryPrisma, items: Item[] = []): Inventory {
+        const inventory = new Inventory({
             id: inventoryPrisma.id,
             name: inventoryPrisma.name,
             description: inventoryPrisma.description,
         });
+        inventory.setItems(items);
+        return inventory;
     }
 
 }

@@ -5,12 +5,14 @@ import { BaseModel } from './base.model';
 export class SoldItem extends BaseModel {
     private itemId: number;
     private sellingPrice: number;
-    private soldAt: Date;
+    private payedCash: boolean;
+    private soldAt?: Date;
 
     constructor(soldItem: {
         id?: number;
         itemId: number;
         sellingPrice: number;
+        payedCash: boolean;
         quantity: number;
         soldAt?: Date;
         createdAt?: Date;
@@ -23,7 +25,8 @@ export class SoldItem extends BaseModel {
         this.validate(soldItem);
         this.itemId = soldItem.itemId;
         this.sellingPrice = soldItem.sellingPrice;
-        this.soldAt = soldItem.soldAt || new Date();
+        this.payedCash = soldItem.payedCash;
+        this.soldAt = soldItem.soldAt;
     }
 
     getItemId(): number {
@@ -34,7 +37,11 @@ export class SoldItem extends BaseModel {
         return this.sellingPrice;
     }
 
-    getSoldAt(): Date {
+    isPayedCash(): boolean {
+        return this.payedCash;
+    }
+
+    getSoldAt(): Date | undefined {
         return this.soldAt;
     }
 
@@ -42,6 +49,7 @@ export class SoldItem extends BaseModel {
         id?: number;
         itemId: number;
         sellingPrice: number;
+        payedCash: boolean;
         quantity: number;
         soldAt?: Date;
         createdAt?: Date;
@@ -55,6 +63,9 @@ export class SoldItem extends BaseModel {
         if (soldItem.sellingPrice < 0) {
             throw new Error('Selling price must be a positive number');
         }
+        if (soldItem.payedCash === undefined || soldItem.payedCash === null) {
+            throw new Error('Payed cash status is required');
+        }
         if (soldItem.quantity <= 0) {
             throw new Error('Quantity must be a positive number');
         }
@@ -65,8 +76,9 @@ export class SoldItem extends BaseModel {
             id: soldItemPrisma.id,
             itemId: soldItemPrisma.itemId,
             sellingPrice: soldItemPrisma.sellingPrice,
+            payedCash: soldItemPrisma.payedCash,
             quantity: soldItemPrisma.quantity,
-            soldAt: soldItemPrisma.soldAt,
+            soldAt: soldItemPrisma.soldAt || undefined,
             createdAt: soldItemPrisma.createdAt,
         });
     }

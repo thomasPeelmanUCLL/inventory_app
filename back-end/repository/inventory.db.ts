@@ -3,8 +3,19 @@ import database from './database';
 
 const getAllInventories = async (): Promise<Inventory[]> => {
     try {
-        const inventoriesPrisma = await database.inventory.findMany();
-        return inventoriesPrisma.map((inventoryPrisma) => Inventory.from(inventoryPrisma));
+        const inventoriesPrisma = await database.inventory.findMany({
+            include: {
+                items: true
+            }
+        });
+
+        return inventoriesPrisma.map((inventoryPrisma) => {
+            const items = inventoryPrisma.items.map(itemPrisma => {
+                const { Item } = require('../model/item');
+                return Item.from(itemPrisma);
+            });
+            return Inventory.from(inventoryPrisma, items);
+        });
     } catch (error) {
         console.error(error);
         throw new Error('Database error. See server log for details.');
@@ -15,9 +26,21 @@ const getInventoryById = async ({ id }: { id: number }): Promise<Inventory | nul
     try {
         const inventoryPrisma = await database.inventory.findUnique({
             where: { id },
+            include: {
+                items: true
+            }
         });
 
-        return inventoryPrisma ? Inventory.from(inventoryPrisma) : null;
+        if (!inventoryPrisma) {
+            return null;
+        }
+
+        const items = inventoryPrisma.items.map(itemPrisma => {
+            const { Item } = require('../model/item');
+            return Item.from(itemPrisma);
+        });
+
+        return Inventory.from(inventoryPrisma, items);
     } catch (error) {
         console.error(error);
         throw new Error('Database error. See server log for details.');
@@ -28,9 +51,21 @@ const getInventoryByName = async ({ name }: { name: string }): Promise<Inventory
     try {
         const inventoryPrisma = await database.inventory.findFirst({
             where: { name },
+            include: {
+                items: true
+            }
         });
 
-        return inventoryPrisma ? Inventory.from(inventoryPrisma) : null;
+        if (!inventoryPrisma) {
+            return null;
+        }
+
+        const items = inventoryPrisma.items.map(itemPrisma => {
+            const { Item } = require('../model/item');
+            return Item.from(itemPrisma);
+        });
+
+        return Inventory.from(inventoryPrisma, items);
     } catch (error) {
         console.error(error);
         throw new Error('Database error. See server log for details.');

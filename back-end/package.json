@@ -10,7 +10,11 @@
     },
     "scripts": {
         "test": "jest",
-        "start": "nodemon -L app.ts --delay 3"
+        "start": "nodemon -L app.ts --delay 3",
+        "prisma:migrate": "prisma migrate deploy",
+        "prisma:generate": "prisma generate",
+        "prisma:studio": "prisma studio",
+        "setup:db": "node setup-database.js"
     },
     "nodemonConfig": {
         "ext": "ts",

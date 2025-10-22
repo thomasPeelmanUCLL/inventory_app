@@ -63,6 +63,26 @@ const deleteInventory = async ({ id }: { id: number }): Promise<void> => {
     await inventoryDB.deleteInventory({ id });
 };
 
+const addItemToInventory = async ({ inventoryId, itemId }: { inventoryId: number; itemId: number }): Promise<void> => {
+    // Check if the inventory exists
+    const inventory = await getInventoryById({ id: inventoryId });
+    if (!inventory) {
+        throw new Error(`Inventory with ID: ${inventoryId} does not exist.`);
+    }
+
+    // Check if the item exists
+    const item = await prisma.item.findUnique({ where: { id: itemId } });
+    if (!item) {
+        throw new Error(`Item with ID: ${itemId} does not exist.`);
+    }
+
+    // Update the item to associate it with the inventory
+    await prisma.item.update({
+        where: { id: itemId },
+        data: { inventoryId }
+    });
+};
+
 export default {
     getAllInventories,
     getInventoryById,
@@ -70,4 +90,5 @@ export default {
     createInventory,
     updateInventory,
     deleteInventory,
+    addItemToInventory,
 };

@@ -1,6 +1,6 @@
 const getAllInventories = async () => {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/inventory`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/inventory/`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -116,12 +116,34 @@ const deleteInventory = async (id: number) => {
   }
 };
 
+const addItemToInventory = async (inventoryId: number, itemId: number) => {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/inventory/${inventoryId}/items/${itemId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorDetails = await response.text();
+      throw new Error(`Failed to add item to inventory: ${errorDetails}`);
+    }
+
+    return true; // Successfully added
+  } catch (error) {
+    console.error('Error adding item to inventory:', error);
+    throw error;
+  }
+};
+
 const InventoryService = {
   getAllInventories,
   getInventoryById,
   createInventory,
   updateInventory,
   deleteInventory,
+  addItemToInventory,
 };
 
 export default InventoryService;

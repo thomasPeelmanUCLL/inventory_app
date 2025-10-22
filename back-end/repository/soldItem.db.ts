@@ -43,6 +43,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         const data = {
             itemId: soldItem.getItemId(),
             sellingPrice: soldItem.getSellingPrice(),
+            payedCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
             // createdAt will be set automatically by Prisma
@@ -57,6 +58,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
     async updateSoldItem(soldItem: SoldItem): Promise<SoldItem | null> {
         const data = {
             sellingPrice: soldItem.getSellingPrice(),
+            payedCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
             // createdAt should not be updated

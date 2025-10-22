@@ -22,19 +22,22 @@ model Inventory {
   id          Int    @id @default(autoincrement())
   name        String
   description String
+  items       Item[]
 
   @@map("inventorys") // Explicit table naming
 }
 
 model Item {
-  id          Int      @id @default(autoincrement())
+  id          Int        @id @default(autoincrement())
   name        String
   description String
   price       Float
   quantity    Int
   buyedAt     DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
   soldItems   SoldItem[]
+  inventory   Inventory? @relation(fields: [inventoryId], references: [id])
+  inventoryId Int?
 
   @@map("items") // Explicit table naming
 }
@@ -45,7 +48,8 @@ model SoldItem {
   itemId       Int
   sellingPrice Float
   quantity     Int
-  soldAt       DateTime @default(now())
+  payedCash    Boolean  @default(false)
+  soldAt       DateTime?
   createdAt    DateTime @default(now())
 
   @@map("sold_items") // Explicit table naming

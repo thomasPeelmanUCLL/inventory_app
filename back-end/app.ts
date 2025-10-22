@@ -26,19 +26,9 @@ app.use(
             '/users/login',
             '/users/signup',
             '/status,',
-            '/images',
-            '/hardwareComponents',
             /^\/inventory(\/.*)?$/,
             /^\/item(\/.*)?$/,
             /^\/soldItem(\/.*)?$/,
-
-            //'/setup',
-            //'/comments',
-            // Read-only routes
-            { url: /^\/images$/, methods: ['GET'] },
-            { url: /^\/hardwareComponents$/, methods: ['GET'] },
-            { url: /^\/setup\/.*/, methods: ['GET'] },
-            { url: /^\/comments\/.*/, methods: ['GET'] },
         ],
     })
 );
@@ -52,7 +42,7 @@ const swaggerOptions = {
     definition: {
         openapi: '3.0.0',
         info: {
-            title: 'Courses API',
+            title: 'Inventory API',
             version: '1.0.0',
         },
         components: {
@@ -95,7 +85,7 @@ app.use('/soldItem', soldItemRouter);
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     if (err.name === 'UnauthorizedError') {
         res.status(401).json({ status: 'unauthorized', message: err.message });
-    } else if (err.name === 'CoursesError') {
+    } else if (err.name === 'InventoryError') {
         res.status(400).json({ status: 'domain error', message: err.message });
     } else {
         res.status(400).json({ status: 'application error', message: err.message });

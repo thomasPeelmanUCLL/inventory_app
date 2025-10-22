@@ -28,6 +28,7 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
             price: item.getPrice(),
             quantity: item.getQuantity(),
             buyedAt: item.getBuyedAt(),
+            inventoryId: item.getInventoryId(),
             // createdAt will be set automatically by Prisma
         };
         return this.create(data);
@@ -40,6 +41,7 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
             price: item.getPrice(),
             quantity: item.getQuantity(),
             buyedAt: item.getBuyedAt(),
+            inventoryId: item.getInventoryId(),
             // createdAt should not be updated
         };
         return this.update(item, data);
