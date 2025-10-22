@@ -24,7 +24,7 @@ const getInventoryByName = async ({ name }: { name: string }): Promise<Inventory
     return inventory;
 };
 
-const createInventory = async ({ name, description, userId }: { name: string; description: string; userId: number }): Promise<Inventory> => {
+const createInventory = async ({ name, description }: { name: string; description: string }): Promise<Inventory> => {
     const existingInventory = await inventoryDB.getInventoryByName({ name });
 
     if (existingInventory) {

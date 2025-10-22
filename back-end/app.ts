@@ -28,7 +28,10 @@ app.use(
             '/status,',
             '/images',
             '/hardwareComponents',
-            '/inventory',
+            /^\/inventory(\/.*)?$/,
+            /^\/item(\/.*)?$/,
+            /^\/soldItem(\/.*)?$/,
+
             //'/setup',
             //'/comments',
             // Read-only routes
@@ -79,6 +82,14 @@ app.use('/users', userRouter);
 // INVENTORY ROUTES
 import { inventoryRouter } from './controller/inventory.routes';
 app.use('/inventory', inventoryRouter);
+
+// ITEM ROUTES
+import { itemRouter } from './controller/item.routes';
+app.use('/item', itemRouter);
+
+// SOLD ITEM ROUTES
+import { soldItemRouter } from './controller/soldItem.routes';
+app.use('/soldItem', soldItemRouter);
 
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

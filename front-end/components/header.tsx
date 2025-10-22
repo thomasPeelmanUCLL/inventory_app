@@ -35,7 +35,7 @@ const Header: React.FC = () => {
           className="fs-2 fw-bold text-white text-decoration-none"
           style={{ fontSize: "1.5rem" }}
         >
-          Setup Showcase
+          Inventory Management
         </a>
 
         {/* Top Right User Actions */}
@@ -78,22 +78,10 @@ const Header: React.FC = () => {
           HomePage
         </Link>
         <Link
-          href="/SetupOverview"
+          href="/Inventory"
           className="nav-link fs-5 text-white hover:underline"
         >
-          SetupOverview
-        </Link>
-        <Link
-          href="/CreateNewSetup"
-          className="nav-link fs-5 text-white hover:underline"
-        >
-          CreateNewSetup
-        </Link>
-        <Link
-          href="/EditYourSetupPage"
-          className="nav-link fs-5 text-white hover:underline"
-        >
-          EditYourSetup
+          Inventory
         </Link>
       </nav>
     </header>
@@ -101,8 +89,3 @@ const Header: React.FC = () => {
 };
 
 export default Header;
-
-
-
-
-

@@ -1,7 +1,4 @@
 import React from 'react';
-import vecteezyImage from '../images/vecteezy.jpeg';
-import setup2 from '../images/setup2.png';
-import setup32 from '../images/setup32.png';
 
 interface HomePageInformationProps {
   language: 'en' | 'es';
@@ -10,14 +7,16 @@ interface HomePageInformationProps {
 const HomePageInformation: React.FC<HomePageInformationProps> = ({ language }) => {
   const text = {
     en: {
-      title: "About us",
-      paragraph1: "Welcome to our site, a unique space designed to connect. Here, you'll find a diverse collection of setups that showcases creativity and technology.",
-      paragraph2: "Our platform is designed so everyone can share their setups and inspire others to make their own setups that little bit better."
+      title: "Inventory Management",
+      paragraph1: "Welcome to our Inventory Management System, a powerful tool designed to help you track and manage your inventory efficiently.",
+      paragraph2: "Our platform allows you to create inventories, add items, track quantities, and monitor sales to ensure you always have the right products in stock.",
+      paragraph3: "Use our comprehensive inventory management system to help you keep track of your items and equipment. Visit our Inventory page to manage your collections efficiently."
     },
     es: {
-      title: "Sobre nosotros",
-      paragraph1: "Bienvenido a nuestro sitio, un espacio único diseñado para conectar. Aquí encontrarás una colección diversa de configuraciones que muestran creatividad y tecnología.",
-      paragraph2: "Nuestra plataforma está diseñada para que todos puedan compartir sus configuraciones e inspirar a otros a mejorar sus propias configuraciones."
+      title: "Gestión de Inventario",
+      paragraph1: "Bienvenido a nuestro Sistema de Gestión de Inventario, una herramienta potente diseñada para ayudarte a rastrear y administrar tu inventario de manera eficiente.",
+      paragraph2: "Nuestra plataforma te permite crear inventarios, agregar artículos, rastrear cantidades y monitorear ventas para asegurarte de tener siempre los productos correctos en stock.",
+      paragraph3: "Utiliza nuestro sistema integral de gestión de inventario para ayudarte a realizar un seguimiento de tus artículos y equipos. Visita nuestra página de Inventario para gestionar tus colecciones de manera eficiente."
     }
   };
 
@@ -32,37 +31,37 @@ const HomePageInformation: React.FC<HomePageInformationProps> = ({ language }) =
         <p className="text-gray-700 leading-relaxed">
           {text[language].paragraph2}
         </p>
+        <p className="text-gray-700 leading-relaxed">
+          {text[language].paragraph3}
+        </p>
+        <a href="/Inventory" className="inline-block mt-4 px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-300 ease-in-out">
+          {language === 'en' ? 'Go to Inventory' : 'Ir al Inventario'}
+        </a>
       </div>
 
       {/* Image Section */}
       <div className="md:w-2/3 flex items-center justify-center relative mt-8">
-        {/* Image 1 */}
-        <img
-          src={vecteezyImage.src}
-          alt="Image 1"
-          className="w-52 h-52 md:w-80 md:h-80 object-cover shadow-lg rounded-lg relative z-10 transform rotate-2 -mr-8"
-        />
-
-        {/* Image 2 */}
-        <img
-          src={setup32.src}
-          alt="Image 2"
-          className="w-44 h-44 md:w-64 md:h-64 object-cover shadow-lg rounded-lg relative z-20 transform -rotate-2 -ml-16 -mt-8"
-        />
-
-        {/* Image 3 */}
-        <img
-          src={setup2.src}
-          alt="Image 3"
-          className="w-64 h-64 md:w-96 md:h-96 object-cover shadow-lg rounded-lg relative z-30 transform rotate-1 -ml-24 -mt-16"
-        />
+        <div className="bg-blue-100 p-8 rounded-lg shadow-lg text-center">
+          <h2 className="text-2xl font-bold text-blue-800 mb-4">Efficient Inventory Management</h2>
+          <p className="text-blue-700 mb-4">Track your items, monitor stock levels, and manage sales with our easy-to-use system.</p>
+          <div className="flex justify-center">
+            <div className="bg-white p-4 rounded-lg shadow-md mx-2">
+              <h3 className="font-bold text-blue-600">Create</h3>
+              <p>Add new inventories</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-md mx-2">
+              <h3 className="font-bold text-blue-600">Track</h3>
+              <p>Monitor your items</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-md mx-2">
+              <h3 className="font-bold text-blue-600">Manage</h3>
+              <p>Handle sales efficiently</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 export default HomePageInformation;
-
-
-
-

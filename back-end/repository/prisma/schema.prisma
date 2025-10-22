@@ -8,28 +8,45 @@ datasource db {
 }
 
 model User {
-  id       Int       @id @default(autoincrement())
-  email    String    @unique
+  id       Int    @id @default(autoincrement())
+  email    String @unique
   password String
   name     String
   role     String
   age      Int
-  inventories Inventory[]
 
   @@map("users") // Explicit table naming
 }
 
 model Inventory {
-  id          Int      @id @default(autoincrement())
+  id          Int    @id @default(autoincrement())
   name        String
   description String
-  userId     Int
-  user        User     @relation(fields: [userId], references: [id])
 
   @@map("inventorys") // Explicit table naming
 }
 
+model Item {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  price       Float
+  quantity    Int
+  buyedAt     DateTime?
+  createdAt   DateTime @default(now())
+  soldItems   SoldItem[]
 
+  @@map("items") // Explicit table naming
+}
 
+model SoldItem {
+  id           Int      @id @default(autoincrement())
+  item         Item     @relation(fields: [itemId], references: [id])
+  itemId       Int
+  sellingPrice Float
+  quantity     Int
+  soldAt       DateTime @default(now())
+  createdAt    DateTime @default(now())
 
-
+  @@map("sold_items") // Explicit table naming
+}

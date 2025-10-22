@@ -13,7 +13,7 @@ const HomePage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>HomePage</title>
+        <title>Inventory Management</title>
       </Head>
       <Header />
       <main className="d-flex flex-column justify-content-center align-items-center">
@@ -38,5 +38,3 @@ const HomePage: React.FC = () => {
 export default HomePage;
 
 // HomePageInformation component remains unchanged
-
-
