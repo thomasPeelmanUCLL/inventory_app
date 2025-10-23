@@ -8,14 +8,62 @@ datasource db {
 }
 
 model User {
-  id       Int    @id @default(autoincrement())
-  email    String @unique
-  password String
-  name     String
-  role     String
-  age      Int
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  name          String
+  // REMOVED password field - Better Auth stores it in Account table
+  role          String    @default("user")
+  age           Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
 
-  @@map("users") // Explicit table naming
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
+}
+
+model Account {
+  id           String    @id @default(cuid())
+  userId       String
+  accountId    String
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+  expiresAt    DateTime?
+  password     String? // Password IS stored here!
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([identifier, value])
+  @@map("verifications")
 }
 
 model Inventory {
@@ -24,7 +72,7 @@ model Inventory {
   description String
   items       Item[]
 
-  @@map("inventorys") // Explicit table naming
+  @@map("inventorys")
 }
 
 model Item {
@@ -39,18 +87,18 @@ model Item {
   inventory   Inventory? @relation(fields: [inventoryId], references: [id])
   inventoryId Int?
 
-  @@map("items") // Explicit table naming
+  @@map("items")
 }
 
 model SoldItem {
-  id           Int      @id @default(autoincrement())
-  item         Item     @relation(fields: [itemId], references: [id])
+  id           Int       @id @default(autoincrement())
+  item         Item      @relation(fields: [itemId], references: [id])
   itemId       Int
   sellingPrice Float
   quantity     Int
-  payedCash    Boolean  @default(false)
+  payedCash    Boolean   @default(false)
   soldAt       DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
-  @@map("sold_items") // Explicit table naming
+  @@map("sold_items")
 }

@@ -1,60 +1,103 @@
-import Head from "next/head";
-import Header from "@components/header";
-import LoginForm from "@components/loginform";
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import { signIn } from '../../lib/auth-client';
+import Link from 'next/link';
 
-const RegisterPage: React.FC = () => {
-  const exampleUsers = [
-    { email: "linda.lawson@ucll.be", password: "lindas123", role: "admin" },
-    { email: "john.doe@example.com", password: "john123", role: "user" },
-    { email: "max.mustermann@example.com", password: "max123", role: "user" },
-    { email: "guestuser@example.com", password: "guest123", role: "guest" },
-  ];
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const result = await signIn.email({
+        email,
+        password,
+      });
+
+      if (result.error) {
+        setError(result.error.message || 'Login failed');
+      } else {
+        router.push('/');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during login');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <Head>
-        <title>login</title>
-      </Head>
-      <main>
-        <Header />
-        <div className="flex flex-col items-center justify-start min-h-screen">
-          <h1 className="text-[#1f0d38] mb-6 text-center font-bold mt-4">
-            login
-          </h1>
-          <div
-            className="w-full max-w-md p-8 rounded-lg shadow-md mx-auto"
-            style={{ background: "linear-gradient(10deg, #065290, #0a74da)" }}
-          >
-            <LoginForm />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+        <div className="max-w-md w-full space-y-8">
+          <div>
+            <h2 className="text-center text-3xl font-extrabold text-gray-900">
+              Sign in to your account
+            </h2>
           </div>
 
-          {/* Example User Data Grid */}
-          <div className="mt-8 w-full max-w-4xl mx-auto p-4 bg-white rounded-lg shadow-md">
-            <h2 className="text-lg font-bold mb-4 text-center">Example Users</h2>
-            <table className="w-full border-collapse border border-gray-300">
-              <thead>
-                <tr>
-                  <th className="border border-gray-300 px-4 py-2">Email</th>
-                  <th className="border border-gray-300 px-4 py-2">Password</th>
-                  <th className="border border-gray-300 px-4 py-2">Role</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exampleUsers.map((user, index) => (
-                  <tr key={index} className="text-center">
-                    <td className="border border-gray-300 px-4 py-2">{user.email}</td>
-                    <td className="border border-gray-300 px-4 py-2">{user.password}</td>
-                    <td className="border border-gray-300 px-4 py-2">{user.role}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                  {error}
+                </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Email address
+                </label>
+                <input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Email address"
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <input
+                    id="password"
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Password"
+                />
+              </div>
+            </div>
+
+            <div>
+              <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
+
+            <div className="text-center">
+              <Link href="/Register" className="text-blue-600 hover:text-blue-500">
+                Don't have an account? Sign up
+              </Link>
+            </div>
+          </form>
         </div>
-      </main>
-    </>
+      </div>
   );
-};
-
-export default RegisterPage;
-
+}

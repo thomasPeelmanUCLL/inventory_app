@@ -1,27 +1,24 @@
-// src/model/user.ts
 import { User as UserPrisma } from '@prisma/client';
 import { Role } from '../types';
-// import bcrypt from 'bcryptjs';
 
 export class User {
-    private id?: number;
+    private id?: string;
     private name: string;
     private email: string;
-    private password: string;
-    private role: Role;
-    private age: number;
+    private password: string;  // Still keep for internal use in old routes
+    private role?: Role;
+    private age?: number;
 
     constructor(user: {
-        id?: number;
+        id?: string;
         email: string;
         password: string;
         name: string;
-        age: number;
-        role: Role;
+        age?: number;
+        role?: Role;
     }) {
         this.validate(user);
-
-        this.id = user.id || 0;
+        this.id = user.id;
         this.name = user.name;
         this.email = user.email;
         this.password = user.password;
@@ -29,8 +26,7 @@ export class User {
         this.role = user.role;
     }
 
-    // In User class
-    getId(): number {
+    getId(): string {
         if (this.id === undefined) {
             throw new Error('User ID is undefined');
         }
@@ -49,21 +45,21 @@ export class User {
         return this.email;
     }
 
-    getAge(): number {
+    getAge(): number | undefined {
         return this.age;
     }
 
-    getRole(): Role {
+    getRole(): Role | undefined {
         return this.role;
     }
 
     validate(user: {
-        id?: number;
+        id?: string;
         name: string;
         email: string;
         password: string;
-        role: Role;
-        age: number;
+        role?: Role;
+        age?: number;
     }) {
         if (!user.name?.trim()) {
             throw new Error('Username is required');
@@ -73,12 +69,6 @@ export class User {
         }
         if (!user.password?.trim()) {
             throw new Error('Password is required');
-        }
-        if (!user.role) {
-            throw new Error('Role is required');
-        }
-        if (!user.age) {
-            throw new Error('Age is required');
         }
     }
 
@@ -92,14 +82,15 @@ export class User {
         );
     }
 
-    static from({ id, email, password, name, role, age }: UserPrisma): User {
+    // FIXED: Removed password from destructuring
+    static from({ id, email, name, role, age }: UserPrisma): User {
         return new User({
             id,
             email,
-            password,
+            password: '', // Dummy password since it's in Account table
             name,
-            role: role as Role,
-            age,
+            role: role ? (role as Role) : undefined,
+            age: age ?? undefined,
         });
     }
 }

@@ -4,31 +4,8 @@ import InventoryService from '../../../services/InventoryService';
 import ItemService from '../../../services/ItemService';
 import SoldItemService from '../../../services/SoldItemService';
 import Link from 'next/link';
+import {Inventory, Item, SoldItem} from "@types";
 
-interface Item {
-    id: number;
-    name: string;
-    description: string;
-    price: number;
-    quantity: number;
-}
-
-interface Inventory {
-    id: number;
-    name: string;
-    description: string;
-    items: Item[];
-}
-
-interface SoldItem {
-    id: number;
-    itemId: number;
-    sellingPrice: number;
-    quantity: number;
-    payedCash: boolean;
-    soldAt: string;
-    item?: Item;
-}
 
 export default function SalesHistory() {
     const [inventory, setInventory] = useState<Inventory | null>(null);

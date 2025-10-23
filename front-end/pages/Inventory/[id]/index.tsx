@@ -2,21 +2,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import InventoryService from '../../../services/InventoryService';
 import Link from 'next/link';
+import {Inventory} from "@types";
 
-interface Item {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  quantity: number;
-}
 
-interface Inventory {
-  id: number;
-  name: string;
-  description: string;
-  items: Item[];
-}
 
 export default function InventoryDetail() {
   const [inventory, setInventory] = useState<Inventory | null>(null);

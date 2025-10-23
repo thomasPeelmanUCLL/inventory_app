@@ -4,29 +4,13 @@ import InventoryService from '../../../services/InventoryService';
 import ItemService from '../../../services/ItemService';
 import SoldItemService from '../../../services/SoldItemService';
 import Link from 'next/link';
+import {Inventory, Item, SoldItem} from "@types";
 
-interface Item {
-    id: number;
-    name: string;
-    description: string;
+interface CartItem {
+    item: Item;
+    quantity: number;
     price: number;
-    quantity: number;
-}
-
-interface Inventory {
-    id: number;
-    name: string;
-    description: string;
-    items: Item[];
-}
-
-interface SoldItem {
-    id: number;
-    itemId: number;
-    sellingPrice: number;
-    quantity: number;
-    payedCash: boolean;
-    soldAt: string;
+    lastSoldPrice: number | null;
 }
 
 export default function SellItems() {
@@ -43,6 +27,7 @@ export default function SellItems() {
     const [loadingLastPrice, setLoadingLastPrice] = useState(false);
     const [payedCash, setPayedCash] = useState(true);
     const [selling, setSelling] = useState(false);
+    const [cart, setCart] = useState<CartItem[]>([]);
 
     const router = useRouter();
     const { id } = router.query;
@@ -76,7 +61,6 @@ export default function SellItems() {
             const soldItems = await SoldItemService.getSoldItemsByItemId(itemId);
 
             if (soldItems && soldItems.length > 0) {
-                // Sort by soldAt date to get the most recent
                 const sortedItems = soldItems.sort((a: SoldItem, b: SoldItem) => {
                     return new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime();
                 });
@@ -104,10 +88,110 @@ export default function SellItems() {
         setError(null);
         setSuccess(null);
 
-        // Fetch last sold price and set it as the quick sell price
         const lastPrice = await fetchLastSoldPrice(item.id);
         const priceToUse = lastPrice !== null ? lastPrice : item.price;
         setSellPrice(priceToUse);
+    };
+
+    const handleAddToCart = () => {
+        if (!selectedItem) return;
+
+        if (sellQuantity > selectedItem.quantity) {
+            setError(`Cannot add more than ${selectedItem.quantity} items`);
+            return;
+        }
+
+        if (sellQuantity <= 0) {
+            setError('Quantity must be greater than 0');
+            return;
+        }
+
+        if (sellMode === 'custom' && sellPrice <= 0) {
+            setError('Price must be greater than 0');
+            return;
+        }
+
+        // Check if item already in cart
+        const existingCartItem = cart.find(ci => ci.item.id === selectedItem.id);
+
+        if (existingCartItem) {
+            // Update quantity
+            setCart(cart.map(ci =>
+                ci.item.id === selectedItem.id
+                    ? { ...ci, quantity: ci.quantity + sellQuantity, price: sellPrice }
+                    : ci
+            ));
+        } else {
+            // Add new item to cart
+            setCart([...cart, {
+                item: selectedItem,
+                quantity: sellQuantity,
+                price: sellPrice,
+                lastSoldPrice: lastSoldPrice
+            }]);
+        }
+
+        setSuccess(`Added ${sellQuantity}x ${selectedItem.name} to cart`);
+        setTimeout(() => setSuccess(null), 2000);
+
+        // Reset selection
+        setSelectedItem(null);
+        setLastSoldPrice(null);
+        setSellQuantity(1);
+    };
+
+    const handleRemoveFromCart = (itemId: number) => {
+        setCart(cart.filter(ci => ci.item.id !== itemId));
+    };
+
+    const calculateCartTotal = () => {
+        return cart.reduce((total, ci) => total + (ci.price * ci.quantity), 0);
+    };
+
+    const handleCheckoutCart = async () => {
+        if (cart.length === 0) {
+            setError('Cart is empty');
+            return;
+        }
+
+        if (!id) return;
+
+        try {
+            setSelling(true);
+            setError(null);
+
+            // Process each cart item
+            for (const cartItem of cart) {
+                // Create sold item record
+                await SoldItemService.createSoldItem({
+                    itemId: cartItem.item.id,
+                    sellingPrice: cartItem.price,
+                    quantity: cartItem.quantity,
+                    payedCash: payedCash,
+                    soldAt: new Date().toISOString()
+                });
+
+                // Update item quantity
+                await ItemService.updateItem(cartItem.item.id, {
+                    ...cartItem.item,
+                    quantity: cartItem.item.quantity - cartItem.quantity
+                });
+            }
+
+            setSuccess(`Successfully sold ${cart.length} item(s) for $${calculateCartTotal().toFixed(2)}!`);
+            setCart([]);
+            await fetchInventory(Number(id));
+            setTimeout(() => setSuccess(null), 3000);
+        } catch (err) {
+            if (err instanceof Error) {
+                setError(`Failed to complete checkout: ${err.message}`);
+            } else {
+                setError('Failed to complete checkout');
+            }
+            console.error(err);
+        } finally {
+            setSelling(false);
+        }
     };
 
     const handleQuickSell = async () => {
@@ -127,7 +211,6 @@ export default function SellItems() {
             setSelling(true);
             setError(null);
 
-            // Use the current sellPrice (which is either last sold price or base price)
             await SoldItemService.createSoldItem({
                 itemId: selectedItem.id,
                 sellingPrice: sellPrice,
@@ -136,7 +219,6 @@ export default function SellItems() {
                 soldAt: new Date().toISOString()
             });
 
-            // Update item quantity
             await ItemService.updateItem(selectedItem.id, {
                 ...selectedItem,
                 quantity: selectedItem.quantity - sellQuantity
@@ -189,7 +271,6 @@ export default function SellItems() {
                 soldAt: new Date().toISOString()
             });
 
-            // Update item quantity
             await ItemService.updateItem(selectedItem.id, {
                 ...selectedItem,
                 quantity: selectedItem.quantity - sellQuantity
@@ -212,12 +293,13 @@ export default function SellItems() {
         }
     };
 
-    const filteredItems = inventory?.items.filter(item =>
+    const filteredItems = (inventory?.items || []).filter(item =>
             item.quantity > 0 && (
                 item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.description.toLowerCase().includes(searchTerm.toLowerCase())
             )
-    ) || [];
+    );
+
 
     if (loading) {
         return <div className="container mx-auto p-4">Loading...</div>;
@@ -234,7 +316,6 @@ export default function SellItems() {
         );
     }
 
-    // Helper function to check if tab is active
     const isActive = (path: string) => {
         return router.pathname === path;
     };
@@ -243,7 +324,6 @@ export default function SellItems() {
         <div className="container mx-auto p-4">
             <h1 className="text-3xl font-bold mb-4">Sell Items from {inventory.name}</h1>
 
-            {/* Navigation */}
             <div className="mb-6">
                 <Link
                     href={`/Inventory/${id}`}
@@ -253,7 +333,6 @@ export default function SellItems() {
                 </Link>
             </div>
 
-            {/* Navigation Tabs */}
             <div className="mb-6 border-b border-gray-200">
                 <nav className="flex gap-4">
                     <Link
@@ -266,7 +345,6 @@ export default function SellItems() {
                     >
                         Overview
                     </Link>
-
                     <Link
                         href={`/Inventory/${id}/add`}
                         className={`py-2 px-4 border-b-2 font-medium ${
@@ -277,7 +355,6 @@ export default function SellItems() {
                     >
                         Add Items
                     </Link>
-
                     <Link
                         href={`/Inventory/${id}/manage`}
                         className={`py-2 px-4 border-b-2 font-medium ${
@@ -288,7 +365,6 @@ export default function SellItems() {
                     >
                         Manage Items
                     </Link>
-
                     <Link
                         href={`/Inventory/${id}/sell`}
                         className={`py-2 px-4 border-b-2 font-medium ${
@@ -299,7 +375,6 @@ export default function SellItems() {
                     >
                         Sell Items
                     </Link>
-
                     <Link
                         href={`/Inventory/${id}/history`}
                         className={`py-2 px-4 border-b-2 font-medium ${
@@ -325,7 +400,7 @@ export default function SellItems() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Available Items */}
                 <div className="bg-white shadow-md rounded px-8 pt-6 pb-8">
                     <h2 className="text-xl font-semibold mb-4">Available Items</h2>
@@ -346,7 +421,6 @@ export default function SellItems() {
                                 <thead className="bg-gray-100">
                                 <tr>
                                     <th className="py-2 px-4 border-b text-left">Name</th>
-                                    <th className="py-2 px-4 border-b text-left">Description</th>
                                     <th className="py-2 px-4 border-b text-left">Available</th>
                                     <th className="py-2 px-4 border-b text-left">Action</th>
                                 </tr>
@@ -359,7 +433,6 @@ export default function SellItems() {
                                         onClick={() => handleSelectItem(item)}
                                     >
                                         <td className="py-2 px-4 border-b">{item.name}</td>
-                                        <td className="py-2 px-4 border-b">{item.description}</td>
                                         <td className="py-2 px-4 border-b">{item.quantity}</td>
                                         <td className="py-2 px-4 border-b">
                                             <button
@@ -401,16 +474,13 @@ export default function SellItems() {
                                 <p className="text-gray-600 mt-2">Available: {selectedItem.quantity}</p>
                             </div>
 
-                            {/* Sell Mode Toggle */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-bold mb-2">
                                     Sell Mode
                                 </label>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={() => {
-                                            setSellMode('quick');
-                                        }}
+                                        onClick={() => setSellMode('quick')}
                                         disabled={lastSoldPrice === null}
                                         className={`flex-1 py-2 px-4 rounded ${
                                             sellMode === 'quick'
@@ -440,7 +510,6 @@ export default function SellItems() {
                                 )}
                             </div>
 
-                            {/* Quantity */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-bold mb-2">
                                     Quantity
@@ -455,7 +524,6 @@ export default function SellItems() {
                                 />
                             </div>
 
-                            {/* Custom Price */}
                             {sellMode === 'custom' && (
                                 <div className="mb-4">
                                     <label className="block text-gray-700 text-sm font-bold mb-2">
@@ -472,7 +540,6 @@ export default function SellItems() {
                                 </div>
                             )}
 
-                            {/* Show current quick sell price */}
                             {sellMode === 'quick' && lastSoldPrice !== null && (
                                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
                                     <p className="text-sm text-gray-700">
@@ -482,7 +549,6 @@ export default function SellItems() {
                                 </div>
                             )}
 
-                            {/* Payment Method */}
                             <div className="mb-4">
                                 <label className="block text-gray-700 text-sm font-bold mb-2">
                                     Payment Method
@@ -509,14 +575,12 @@ export default function SellItems() {
                                 </div>
                             </div>
 
-                            {/* Total */}
                             <div className="mb-4 p-4 bg-blue-50 rounded">
                                 <p className="text-xl font-bold">
                                     Total: ${(sellPrice * sellQuantity).toFixed(2)}
                                 </p>
                             </div>
 
-                            {/* Sell Buttons */}
                             <div className="flex gap-2">
                                 {sellMode === 'quick' ? (
                                     <button
@@ -536,6 +600,13 @@ export default function SellItems() {
                                     </button>
                                 )}
                                 <button
+                                    onClick={handleAddToCart}
+                                    disabled={selling}
+                                    className="flex-1 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400"
+                                >
+                                    Add to Cart
+                                </button>
+                                <button
                                     onClick={() => {
                                         setSelectedItem(null);
                                         setLastSoldPrice(null);
@@ -548,6 +619,66 @@ export default function SellItems() {
                         </div>
                     ) : (
                         <p className="text-gray-500">Select an item from the list to sell.</p>
+                    )}
+                </div>
+
+                {/* Shopping Cart */}
+                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8">
+                    <h2 className="text-xl font-semibold mb-4">Shopping Cart ({cart.length})</h2>
+
+                    {cart.length > 0 ? (
+                        <div>
+                            <div className="max-h-96 overflow-y-auto mb-4">
+                                {cart.map((cartItem) => (
+                                    <div key={cartItem.item.id} className="border-b border-gray-200 py-3 last:border-b-0">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex-1">
+                                                <h3 className="font-semibold text-gray-800">{cartItem.item.name}</h3>
+                                                <p className="text-sm text-gray-600">
+                                                    {cartItem.quantity}x @ ${cartItem.price.toFixed(2)}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveFromCart(cartItem.item.id)}
+                                                className="text-red-500 hover:text-red-700 ml-2"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <p className="text-right font-bold text-gray-800">
+                                            ${(cartItem.price * cartItem.quantity).toFixed(2)}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="border-t-2 border-gray-300 pt-4 mb-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-xl font-bold">Total:</span>
+                                    <span className="text-2xl font-bold text-blue-600">
+                                        ${calculateCartTotal().toFixed(2)}
+                                    </span>
+                                </div>
+
+                                <button
+                                    onClick={handleCheckoutCart}
+                                    disabled={selling}
+                                    className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400"
+                                >
+                                    {selling ? 'Processing...' : 'Checkout Cart'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                            <p className="text-gray-500">Your cart is empty</p>
+                            <p className="text-sm text-gray-400 mt-2">Add items to start selling</p>
+                        </div>
                     )}
                 </div>
             </div>

@@ -3,29 +3,9 @@ import { useRouter } from 'next/router';
 import InventoryService from '../../../services/InventoryService';
 import ItemService from '../../../services/ItemService';
 import Link from 'next/link';
+import {Inventory, Item, NewItemForm} from "@types";
 
-interface Item {
-    id: number;
-    name: string;
-    description: string;
-    price: number;
-    quantity: number;
-    inventoryId?: number;
-}
 
-interface Inventory {
-    id: number;
-    name: string;
-    description: string;
-    items: Item[];
-}
-
-interface NewItemForm {
-    name: string;
-    description: string;
-    price: number;
-    quantity: number;
-}
 
 export default function AddItemsToInventory() {
     const [inventory, setInventory] = useState<Inventory | null>(null);

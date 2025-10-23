@@ -1,79 +1,51 @@
+import { PrismaClient } from '@prisma/client';
 import { User } from '../model/user';
-import database from './database';
-import { User as UserPrisma } from '@prisma/client';
 
+const prisma = new PrismaClient();
 
 const getAllUsers = async (): Promise<User[]> => {
-    try {
-        const usersPrisma = await database.user.findMany();
-        return usersPrisma.map((userPrisma) => User.from(userPrisma));
-    } catch (error) {
-        console.error(error);
-        throw new Error('Database error. See server log for details.');
-    }
+    const users = await prisma.user.findMany();
+    return users.map((user) => User.from(user));
 };
 
-const getUserById = async ({ id }: { id: number }): Promise<User | null> => {
-    try {
-        const userPrisma = await database.user.findUnique({
-            where: { id },
-        });
-
-        return userPrisma ? User.from(userPrisma) : null;
-    } catch (error) {
-        console.error(error);
-        throw new Error('Database error. See server log for details.');
-    }
+const getUserById = async ({ id }: { id: string }): Promise<User | null> => {
+    const userPrisma = await prisma.user.findUnique({
+        where: { id },
+    });
+    return userPrisma ? User.from(userPrisma) : null;
 };
 
 const getUserByName = async ({ name }: { name: string }): Promise<User | null> => {
-    try {
-        const userPrisma = await database.user.findFirst({
-            where: { name },
-        });
-
-        return userPrisma ? User.from(userPrisma) : null;
-    } catch (error) {
-        console.error(error);
-        throw new Error('Database error. See server log for details.');
-    }
+    const userPrisma = await prisma.user.findFirst({
+        where: { name },
+    });
+    return userPrisma ? User.from(userPrisma) : null;
 };
 
 const getUserByEmail = async ({ email }: { email: string }): Promise<User | null> => {
-    try {
-        const userPrisma = await database.user.findFirst({
-            where: { email },
-        });
-
-        return userPrisma ? User.from(userPrisma) : null;
-    } catch (error) {
-        console.error(error);
-        throw new Error('Database error. See server log for details.');
-    }
+    const userPrisma = await prisma.user.findUnique({
+        where: { email },
+    });
+    return userPrisma ? User.from(userPrisma) : null;
 };
 
 const createUser = async (user: User): Promise<User> => {
-    try {
-        const userPrisma = await database.user.create({
-            data: {
-                name: user.getName(),
-                email: user.getEmail(),
-                password: user.getPassword(),
-                role: user.getRole(),
-                age: user.getAge(),
-            },
-        });
-        return User.from(userPrisma);
-    } catch (error) {
-        console.error(error);
-        throw new Error('Database error. See server log for details.');
-    }
+    const userPrisma = await prisma.user.create({
+        data: {
+            name: user.getName(),
+            // REMOVED password - it's stored in Account table by Better Auth
+            email: user.getEmail(),
+            age: user.getAge() || 0,
+            role: user.getRole() || 'user',
+        },
+    });
+    return User.from(userPrisma);
 };
 
 export default {
     getAllUsers,
-    createUser,
     getUserById,
     getUserByName,
     getUserByEmail,
+    createUser,
 };
