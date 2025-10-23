@@ -137,6 +137,30 @@ const addItemToInventory = async (inventoryId: number, itemId: number) => {
   }
 };
 
+
+const removeItemFromInventory = async (inventoryId: number, itemId: number) => {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/inventory/${inventoryId}/items/${itemId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorDetails = await response.text();
+      throw new Error(`Failed to remove item from inventory: ${errorDetails}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error removing item from inventory:', error);
+    throw error;
+  }
+};
+
+
+
 const InventoryService = {
   getAllInventories,
   getInventoryById,
@@ -144,6 +168,7 @@ const InventoryService = {
   updateInventory,
   deleteInventory,
   addItemToInventory,
+  removeItemFromInventory
 };
 
 export default InventoryService;

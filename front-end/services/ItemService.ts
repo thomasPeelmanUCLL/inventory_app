@@ -1,3 +1,12 @@
+interface ItemInput {
+  name: string;
+  description: string;
+  price: number;
+  quantity: number;
+  buyedAt?: string;
+  inventoryId?: number;
+}
+
 const getAllItems = async () => {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/item`, {
@@ -48,15 +57,6 @@ const getItemById = async (id: number) => {
   }
 };
 
-interface ItemInput {
-  name: string;
-  description: string;
-  price: number;
-  quantity: number;
-  buyedAt?: string;
-  inventoryId?: number;
-}
-
 const createItem = async (item: ItemInput) => {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/item`, {
@@ -79,7 +79,7 @@ const createItem = async (item: ItemInput) => {
   }
 };
 
-const updateItem = async (id: number, updatedItem: ItemInput) => {
+const updateItem = async (id: number, updatedItem: Partial<ItemInput>) => {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/item/${id}`, {
       method: 'PUT',
