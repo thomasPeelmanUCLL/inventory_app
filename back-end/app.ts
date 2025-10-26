@@ -1,110 +1,132 @@
-import * as dotenv from 'dotenv';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import * as bodyParser from 'body-parser';
-import swaggerJSDoc from 'swagger-jsdoc';
+import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
-import { expressjwt } from 'express-jwt';
-import helmet from 'helmet';
+import { userRouter } from './controller/user.routes';
+import { inventoryRouter } from './controller/inventory.routes';
+import { itemRouter } from './controller/item.routes';
+import { soldItemRouter } from './controller/soldItem.routes';
 import { auth } from './lib/auth';
-import { toNodeHandler } from "better-auth/node";
+import { toNodeHandler } from 'better-auth/node';
 
-// BASIC CONFIGURATION
 const app = express();
-dotenv.config();
-const port = process.env.APP_PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
+// CORS configuration - must specify exact origin when using credentials
 app.use(cors({
-    origin: 'http://localhost:8080', // Your Next.js frontend
-    credentials: true
+    origin: 'http://localhost:8080',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
+
+// Better Auth routes - must be BEFORE express.json() middleware
+app.all('/api/auth/*', toNodeHandler(auth));
+
+// JSON parsing middleware - AFTER auth routes
 app.use(express.json());
-app.use(helmet());
 
-// BETTER AUTH HANDLER - Must be BEFORE JWT middleware
-app.all('/api/auth/*', toNodeHandler(auth.handler));
-
-// JWT MIDDLEWARE
-app.use(
-    expressjwt({
-        secret: process.env.JWT_SECRET || 'default_secret',
-        algorithms: ['HS256'],
-    }).unless({
-        path: [
-            '/api-docs',
-            /^\/api-docs\/.*/,
-            '/users/login',
-            '/users/signup',
-            '/status',
-            /^\/api\/auth\/.*/,  // Allow Better Auth routes
-            /^\/inventory(\/.*)?$/,
-            /^\/item(\/.*)?$/,
-            /^\/soldItem(\/.*)?$/,
-        ],
-    })
-);
-
-app.get('/status', (req, res) => {
-    res.json({ message: 'Back-end is running...' });
-});
-
-// Swagger setup
+// Swagger Configuration
 const swaggerOptions = {
     definition: {
         openapi: '3.0.0',
         info: {
-            title: 'Inventory API',
+            title: 'Inventory Management API',
             version: '1.0.0',
+            description: `API for managing inventories, items, and sales.
+
+**Authentication:**
+
+This API uses Better Auth for session-based authentication with cookies.
+
+**Better Auth Endpoints:**
+- POST \`/api/auth/sign-up/email\` - Register new user
+- POST \`/api/auth/sign-in/email\` - Login user
+- POST \`/api/auth/sign-out\` - Logout user
+- GET \`/api/auth/get-session\` - Get current session
+
+**For authenticated requests:**
+After signing in, the session cookie will be automatically included in requests.
+For API clients (like Swagger), you can also use Bearer token authentication with the session token.`,
         },
+        servers: [
+            {
+                url: `http://localhost:${PORT}`,
+                description: 'Development server',
+            },
+        ],
         components: {
             securitySchemes: {
-                bearerAuth: {
+                betterAuth: {
                     type: 'http',
                     scheme: 'bearer',
-                    bearerFormat: 'JWT',
+                    bearerFormat: 'Session Token',
+                    description: 'Better Auth session token (obtained from /api/auth/sign-in/email)',
+                },
+                cookieAuth: {
+                    type: 'apiKey',
+                    in: 'cookie',
+                    name: 'better-auth.session_token',
+                    description: 'Session cookie (automatically set after login)',
                 },
             },
         },
+        security: [
+            { betterAuth: [] },
+            { cookieAuth: [] }
+        ],
     },
-    apis: ['./controller/*.ts'],
+    apis: ['./controller/*.ts', './controller/*.js'],
 };
 
-const swaggerSpec = swaggerJSDoc(swaggerOptions);
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
+// Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// USER ROUTES
-import { userRouter } from './controller/user.routes';
+// Routes
 app.use('/users', userRouter);
+app.use('/inventorys', inventoryRouter);
+app.use('/items', itemRouter);
+app.use('/soldItems', soldItemRouter);
 
-// INVENTORY ROUTES
-import { inventoryRouter } from './controller/inventory.routes';
-app.use('/inventory', inventoryRouter);
+// Health check
+app.get('/health', (req: Request, res: Response) => {
+    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
-// ITEM ROUTES
-import { itemRouter } from './controller/item.routes';
-app.use('/item', itemRouter);
+// Root route
+app.get('/', (req: Request, res: Response) => {
+    res.json({
+        message: 'Inventory Management API',
+        documentation: `/api-docs`,
+        health: `/health`,
+        auth: '/api/auth/*'
+    });
+});
 
-// SOLD ITEM ROUTES
-import { soldItemRouter } from './controller/soldItem.routes';
-app.use('/soldItem', soldItemRouter);
-
-// ERROR HANDLERS
+// Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-    if (err.name === 'UnauthorizedError') {
-        res.status(401).json({ status: 'unauthorized', message: err.message });
-    } else if (err.name === 'InventoryError') {
-        res.status(400).json({ status: 'domain error', message: err.message });
-    } else {
-        res.status(400).json({ status: 'application error', message: err.message });
-    }
+    console.error('Error:', err.message);
+    res.status(400).json({
+        error: err.message || 'An error occurred',
+        timestamp: new Date().toISOString(),
+    });
 });
 
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-    console.error(err.stack);
-    res.status(500).json({ message: 'Something broke!' });
+// 404 handler
+app.use((req: Request, res: Response) => {
+    res.status(404).json({
+        error: 'Route not found',
+        path: req.path,
+        method: req.method,
+    });
 });
 
-// START SERVER
-app.listen(port || 3000, () => {
-    console.log(`Back-end is running on port ${port}.`);
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+    console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
 });
+
+export default app;

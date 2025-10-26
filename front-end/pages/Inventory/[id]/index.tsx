@@ -1,210 +1,269 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import InventoryService from '../../../services/InventoryService';
 import Link from 'next/link';
-import {Inventory} from "@types";
+import Header from '../../../components/header';
+import InventoryHeader from '../../../components/InventoryHeader';
+import ItemsGrid from '../../../components/ItemsGrid';
+import SellModal from '../../../components/SellModal';
+import CartSidebar from '../../../components/CartSidebar';
+import ManageUsersModal from '../../../components/ManageUsersModal';
+import { getInventoryById, createSoldItem } from '../../../lib/api';
+import { useSession } from '../../../lib/auth-client';
 
+type Item = {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  quantity: number;
+  buyedAt?: string;
+  createdAt: string;
+};
 
+type Inventory = {
+  id: number;
+  name: string;
+  description: string;
+  items: Item[];
+  users?: Array<{
+    role: string;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  }>;
+};
 
-export default function InventoryDetail() {
-  const [inventory, setInventory] = useState<Inventory | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type CartItem = {
+  item: Item;
+  quantityToSell: number;
+  sellingPrice: number;
+};
+
+type SellModalData = {
+  item: Item;
+  quantity: number;
+  price: number;
+  paymentMethod: 'cash' | 'card';
+};
+
+const InventoryDetailPage = () => {
   const router = useRouter();
   const { id } = router.query;
+  const { data: session } = useSession();
+
+  const [inventory, setInventory] = useState<Inventory | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showManageUsers, setShowManageUsers] = useState(false);
+  const [sellModal, setSellModal] = useState<SellModalData | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [showCart, setShowCart] = useState(false);
 
   useEffect(() => {
     if (id) {
-      fetchInventory(Number(id));
+      fetchInventory();
     }
   }, [id]);
 
-  const fetchInventory = async (inventoryId: number) => {
+  const fetchInventory = async () => {
     try {
       setLoading(true);
-      const data = await InventoryService.getInventoryById(inventoryId);
+      const data = await getInventoryById(Number(id));
       setInventory(data);
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(`Failed to load inventory: ${err.message}`);
-      } else {
-        setError('Failed to load inventory');
-      }
-      console.error(err);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!inventory) return;
+  const getUserRole = () => {
+    if (!inventory || !session?.user) return 'viewer';
+    return inventory.users?.find(u => u.user.id === session.user.id)?.role || 'viewer';
+  };
 
-    if (window.confirm(`Are you sure you want to delete "${inventory.name}"?`)) {
-      try {
-        await InventoryService.deleteInventory(inventory.id);
-        router.push('/Inventory');
-      } catch (err) {
-        if (err instanceof Error) {
-          setError(`Failed to delete inventory: ${err.message}`);
-        } else {
-          setError('Failed to delete inventory');
-        }
-        console.error(err);
+  const handleItemClick = (item: Item) => {
+    setSellModal({
+      item,
+      quantity: 1,
+      price: item.price,
+      paymentMethod: 'cash'
+    });
+  };
+
+  const handleAddToCart = () => {
+    if (!sellModal) return;
+
+    const existingItemIndex = cart.findIndex(cartItem => cartItem.item.id === sellModal.item.id);
+
+    if (existingItemIndex >= 0) {
+      const updatedCart = [...cart];
+      updatedCart[existingItemIndex].quantityToSell += sellModal.quantity;
+      setCart(updatedCart);
+    } else {
+      setCart([...cart, {
+        item: sellModal.item,
+        quantityToSell: sellModal.quantity,
+        sellingPrice: sellModal.price
+      }]);
+    }
+
+    setShowCart(true);
+    setSellModal(null);
+  };
+
+  const handleBuyNow = async () => {
+    if (!sellModal) return;
+
+    try {
+      await createSoldItem({
+        itemId: sellModal.item.id,
+        sellingPrice: sellModal.price,
+        quantity: sellModal.quantity,
+        payedCash: sellModal.paymentMethod === 'cash',
+        soldAt: new Date().toISOString()
+      } as any);
+
+      setSellModal(null);
+      fetchInventory();
+      alert('Item sold successfully!');
+    } catch (error) {
+      console.error('Error selling item:', error);
+      alert('Failed to sell item');
+    }
+  };
+
+  const handleRemoveFromCart = (itemId: number) => {
+    setCart(cart.filter(cartItem => cartItem.item.id !== itemId));
+    if (cart.length <= 1) {
+      setShowCart(false);
+    }
+  };
+
+  const handleClearCart = () => {
+    if (confirm('Clear all items from cart?')) {
+      setCart([]);
+      setShowCart(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+
+    try {
+      for (const cartItem of cart) {
+        await createSoldItem({
+          itemId: cartItem.item.id,
+          sellingPrice: cartItem.sellingPrice,
+          quantity: cartItem.quantityToSell,
+          payedCash: true,
+          soldAt: new Date().toISOString()
+        } as any);
       }
+
+      setCart([]);
+      setShowCart(false);
+      fetchInventory();
+      alert('All items sold successfully!');
+    } catch (error) {
+      console.error('Error checking out:', error);
+      alert('Failed to checkout');
     }
   };
 
   if (loading) {
-    return <div className="container mx-auto p-4">Loading inventory data...</div>;
-  }
-
-  if (error && !inventory) {
     return (
-        <div className="container mx-auto p-4">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
+        <>
+          <Header />
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-xl">Loading...</div>
           </div>
-          <Link href="/Inventory" className="text-blue-500 hover:underline">
-            Back to Inventory List
-          </Link>
-        </div>
+        </>
     );
   }
 
   if (!inventory) {
     return (
-        <div className="container mx-auto p-4">
-          <p className="text-gray-600">Inventory not found</p>
-          <Link href="/Inventory" className="text-blue-500 hover:underline">
-            Back to Inventory List
-          </Link>
-        </div>
+        <>
+          <Header />
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-xl">Inventory not found</div>
+          </div>
+        </>
     );
   }
 
-  // Helper function to check if tab is active
-  const isActive = (path: string) => {
-    return router.pathname === path;
-  };
+  const role = getUserRole();
+  const canEdit = role === 'owner' || role === 'editor';
+  const isOwner = role === 'owner';
 
   return (
-      <div className="container mx-auto p-4">
-        <div className="mb-4">
-          <h1 className="text-3xl font-bold mb-4">{inventory.name}</h1>
-          <div className="flex gap-2 mb-4">
-            <Link
-                href="/Inventory"
-                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Back to List
-            </Link>
-            <Link
-                href={`/Inventory/edit/${inventory.id}`}
-                className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Edit
-            </Link>
-            <button
-                onClick={handleDelete}
-                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-
-        {/* Navigation Tabs - CHANGED TO LINK COMPONENTS */}
-        <div className="mb-6 border-b border-gray-200">
-          <nav className="flex gap-4">
-            <Link
-                href={`/Inventory/${id}`}
-                className={`py-2 px-4 border-b-2 font-medium ${
-                    isActive('/Inventory/[id]')
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-            >
-              Overview
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <Link href="/Inventory" className="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block">
+              ← Back to Inventories
             </Link>
 
-            <Link
-                href={`/Inventory/${id}/add`}
-                className={`py-2 px-4 border-b-2 font-medium ${
-                    isActive('/Inventory/[id]/add')
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-            >
-              Add Items
-            </Link>
 
-            <Link
-                href={`/Inventory/${id}/manage`}
-                className={`py-2 px-4 border-b-2 font-medium ${
-                    isActive('/Inventory/[id]/manage')
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-            >
-              Manage Items
-            </Link>
+            <InventoryHeader
+                inventory={inventory}
+                role={role}
+                canEdit={canEdit}
+                isOwner={isOwner}
+                activeTab="overview"
+                onManageUsers={() => setShowManageUsers(true)}
+            />
 
-            <Link
-                href={`/Inventory/${id}/sell`}
-                className={`py-2 px-4 border-b-2 font-medium ${
-                    isActive('/Inventory/[id]/sell')
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-            >
-              Sell Items
-            </Link>
 
-            <Link
-                href={`/Inventory/${id}/history`}
-                className={`py-2 px-4 border-b-2 font-medium ${
-                    isActive('/Inventory/[id]/history')
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-            >
-              Sales History
-            </Link>
-          </nav>
-        </div>
-
-        <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-          <h2 className="text-xl font-semibold mb-4">Details</h2>
-          <p className="text-gray-700 mb-4">{inventory.description}</p>
-
-          <h2 className="text-xl font-semibold mb-4">Items</h2>
-          {inventory.items && inventory.items.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border">
-                  <thead className="bg-gray-100">
-                  <tr>
-                    <th className="py-2 px-4 border-b text-left">Name</th>
-                    <th className="py-2 px-4 border-b text-left">Description</th>
-                    <th className="py-2 px-4 border-b text-left">Price</th>
-                    <th className="py-2 px-4 border-b text-left">Quantity</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  {inventory.items.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        <td className="py-2 px-4 border-b">{item.name}</td>
-                        <td className="py-2 px-4 border-b">{item.description}</td>
-                        <td className="py-2 px-4 border-b">${item.price.toFixed(2)}</td>
-                        <td className="py-2 px-4 border-b">{item.quantity}</td>
-                      </tr>
-                  ))}
-                  </tbody>
-                </table>
+            <div className="flex gap-6">
+              <div className={`${showCart ? 'flex-1' : 'w-full'} transition-all duration-300`}>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Items</h2>
+                <ItemsGrid
+                    items={inventory.items}
+                    inventoryId={inventory.id}
+                    canEdit={canEdit}
+                    onItemClick={handleItemClick}
+                />
               </div>
-          ) : (
-              <p className="text-gray-500">No items in this inventory.</p>
+
+              {showCart && cart.length > 0 && (
+                  <CartSidebar
+                      cart={cart}
+                      onClose={() => setShowCart(false)}
+                      onRemoveItem={handleRemoveFromCart}
+                      onClearCart={handleClearCart}
+                      onCheckout={handleCheckout}
+                  />
+              )}
+            </div>
+          </div>
+
+          {sellModal && (
+              <SellModal
+                  sellModal={sellModal}
+                  onClose={() => setSellModal(null)}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  onChange={setSellModal}
+              />
+          )}
+
+          {showManageUsers && inventory && (
+              <ManageUsersModal
+                  inventoryId={inventory.id}
+                  isOwner={isOwner}
+                  onClose={() => {
+                    setShowManageUsers(false);
+                    fetchInventory();
+                  }}
+              />
           )}
         </div>
-      </div>
+      </>
   );
-}
+};
+
+export default InventoryDetailPage;

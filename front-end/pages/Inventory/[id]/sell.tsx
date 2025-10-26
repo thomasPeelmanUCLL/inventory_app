@@ -1,687 +1,397 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import InventoryService from '../../../services/InventoryService';
-import ItemService from '../../../services/ItemService';
-import SoldItemService from '../../../services/SoldItemService';
 import Link from 'next/link';
-import {Inventory, Item, SoldItem} from "@types";
+import Header from '../../../components/header';
+import InventoryHeader from '../../../components/InventoryHeader';
+import ManageUsersModal from '../../../components/ManageUsersModal';
+import { getInventoryById, createSoldItem } from '../../../lib/api';
+import { useSession } from '../../../lib/auth-client';
 
-interface CartItem {
+type Item = {
+    id: number;
+    name: string;
+    description: string;
+    price: number;
+    quantity: number;
+    createdAt: string;
+};
+
+type Inventory = {
+    id: number;
+    name: string;
+    description: string;
+    items: Item[];
+    users?: Array<{
+        role: string;
+        user: {
+            id: string;
+            name: string;
+            email: string;
+        };
+    }>;
+};
+
+type CartItem = {
     item: Item;
     quantity: number;
     price: number;
-    lastSoldPrice: number | null;
-}
+};
 
-export default function SellItems() {
-    const [inventory, setInventory] = useState<Inventory | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-    const [sellMode, setSellMode] = useState<'quick' | 'custom'>('quick');
-    const [sellQuantity, setSellQuantity] = useState(1);
-    const [sellPrice, setSellPrice] = useState(0);
-    const [lastSoldPrice, setLastSoldPrice] = useState<number | null>(null);
-    const [loadingLastPrice, setLoadingLastPrice] = useState(false);
-    const [payedCash, setPayedCash] = useState(true);
-    const [selling, setSelling] = useState(false);
-    const [cart, setCart] = useState<CartItem[]>([]);
-
+const SellPage = () => {
     const router = useRouter();
     const { id } = router.query;
+    const { data: session } = useSession();
+
+    const [inventory, setInventory] = useState<Inventory | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [showManageUsers, setShowManageUsers] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+    const [cart, setCart] = useState<CartItem[]>([]);
+    const [sellQuantity, setSellQuantity] = useState(1);
+    const [sellPrice, setSellPrice] = useState(0);
+    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
 
     useEffect(() => {
         if (id) {
-            fetchInventory(Number(id));
+            fetchInventory();
         }
     }, [id]);
 
-    const fetchInventory = async (inventoryId: number) => {
+    const fetchInventory = async () => {
         try {
             setLoading(true);
-            const data = await InventoryService.getInventoryById(inventoryId);
+            const data = await getInventoryById(Number(id));
             setInventory(data);
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(`Failed to load inventory: ${err.message}`);
-            } else {
-                setError('Failed to load inventory');
-            }
-            console.error(err);
+        } catch (error) {
+            console.error('Error fetching inventory:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchLastSoldPrice = async (itemId: number) => {
-        try {
-            setLoadingLastPrice(true);
-            const soldItems = await SoldItemService.getSoldItemsByItemId(itemId);
-
-            if (soldItems && soldItems.length > 0) {
-                const sortedItems = soldItems.sort((a: SoldItem, b: SoldItem) => {
-                    return new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime();
-                });
-
-                const lastPrice = sortedItems[0].sellingPrice;
-                setLastSoldPrice(lastPrice);
-                return lastPrice;
-            } else {
-                setLastSoldPrice(null);
-                return null;
-            }
-        } catch (err) {
-            console.error('Error fetching last sold price:', err);
-            setLastSoldPrice(null);
-            return null;
-        } finally {
-            setLoadingLastPrice(false);
-        }
+    const getUserRole = () => {
+        if (!inventory || !session?.user) return 'viewer';
+        return inventory.users?.find(u => u.user.id === session.user.id)?.role || 'viewer';
     };
 
-    const handleSelectItem = async (item: Item) => {
+    const handleSelectItem = (item: Item) => {
         setSelectedItem(item);
         setSellQuantity(1);
-        setSellMode('quick');
-        setError(null);
-        setSuccess(null);
-
-        const lastPrice = await fetchLastSoldPrice(item.id);
-        const priceToUse = lastPrice !== null ? lastPrice : item.price;
-        setSellPrice(priceToUse);
+        setSellPrice(item.price);
     };
 
     const handleAddToCart = () => {
         if (!selectedItem) return;
 
-        if (sellQuantity > selectedItem.quantity) {
-            setError(`Cannot add more than ${selectedItem.quantity} items`);
-            return;
-        }
+        const existingItemIndex = cart.findIndex(cartItem => cartItem.item.id === selectedItem.id);
 
-        if (sellQuantity <= 0) {
-            setError('Quantity must be greater than 0');
-            return;
-        }
-
-        if (sellMode === 'custom' && sellPrice <= 0) {
-            setError('Price must be greater than 0');
-            return;
-        }
-
-        // Check if item already in cart
-        const existingCartItem = cart.find(ci => ci.item.id === selectedItem.id);
-
-        if (existingCartItem) {
-            // Update quantity
-            setCart(cart.map(ci =>
-                ci.item.id === selectedItem.id
-                    ? { ...ci, quantity: ci.quantity + sellQuantity, price: sellPrice }
-                    : ci
-            ));
+        if (existingItemIndex >= 0) {
+            const updatedCart = [...cart];
+            updatedCart[existingItemIndex].quantity += sellQuantity;
+            setCart(updatedCart);
         } else {
-            // Add new item to cart
             setCart([...cart, {
                 item: selectedItem,
                 quantity: sellQuantity,
-                price: sellPrice,
-                lastSoldPrice: lastSoldPrice
+                price: sellPrice
             }]);
         }
 
-        setSuccess(`Added ${sellQuantity}x ${selectedItem.name} to cart`);
-        setTimeout(() => setSuccess(null), 2000);
-
-        // Reset selection
         setSelectedItem(null);
-        setLastSoldPrice(null);
-        setSellQuantity(1);
+        alert('Item added to cart!');
     };
 
-    const handleRemoveFromCart = (itemId: number) => {
-        setCart(cart.filter(ci => ci.item.id !== itemId));
-    };
-
-    const calculateCartTotal = () => {
-        return cart.reduce((total, ci) => total + (ci.price * ci.quantity), 0);
-    };
-
-    const handleCheckoutCart = async () => {
-        if (cart.length === 0) {
-            setError('Cart is empty');
-            return;
-        }
-
-        if (!id) return;
+    const handleSellNow = async () => {
+        if (!selectedItem) return;
 
         try {
-            setSelling(true);
-            setError(null);
+            await createSoldItem({
+                itemId: selectedItem.id,
+                sellingPrice: sellPrice,
+                quantity: sellQuantity,
+                payedCash: paymentMethod === 'cash',
+                soldAt: new Date().toISOString()
+            } as any);
 
-            // Process each cart item
+            setSelectedItem(null);
+            fetchInventory();
+            alert('Item sold successfully!');
+        } catch (error) {
+            console.error('Error selling item:', error);
+            alert('Failed to sell item');
+        }
+    };
+
+    const handleCheckout = async () => {
+        if (cart.length === 0) return;
+
+        try {
             for (const cartItem of cart) {
-                // Create sold item record
-                await SoldItemService.createSoldItem({
+                await createSoldItem({
                     itemId: cartItem.item.id,
                     sellingPrice: cartItem.price,
                     quantity: cartItem.quantity,
-                    payedCash: payedCash,
+                    payedCash: true,
                     soldAt: new Date().toISOString()
-                });
-
-                // Update item quantity
-                await ItemService.updateItem(cartItem.item.id, {
-                    ...cartItem.item,
-                    quantity: cartItem.item.quantity - cartItem.quantity
-                });
+                } as any);
             }
 
-            setSuccess(`Successfully sold ${cart.length} item(s) for $${calculateCartTotal().toFixed(2)}!`);
             setCart([]);
-            await fetchInventory(Number(id));
-            setTimeout(() => setSuccess(null), 3000);
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(`Failed to complete checkout: ${err.message}`);
-            } else {
-                setError('Failed to complete checkout');
-            }
-            console.error(err);
-        } finally {
-            setSelling(false);
+            fetchInventory();
+            alert('All items sold successfully!');
+        } catch (error) {
+            console.error('Error checking out:', error);
+            alert('Failed to checkout');
         }
     };
 
-    const handleQuickSell = async () => {
-        if (!selectedItem || !id) return;
-
-        if (sellQuantity > selectedItem.quantity) {
-            setError(`Cannot sell more than ${selectedItem.quantity} items`);
-            return;
-        }
-
-        if (sellQuantity <= 0) {
-            setError('Quantity must be greater than 0');
-            return;
-        }
-
-        try {
-            setSelling(true);
-            setError(null);
-
-            await SoldItemService.createSoldItem({
-                itemId: selectedItem.id,
-                sellingPrice: sellPrice,
-                quantity: sellQuantity,
-                payedCash: payedCash,
-                soldAt: new Date().toISOString()
-            });
-
-            await ItemService.updateItem(selectedItem.id, {
-                ...selectedItem,
-                quantity: selectedItem.quantity - sellQuantity
-            });
-
-            await fetchInventory(Number(id));
-            setSelectedItem(null);
-            setLastSoldPrice(null);
-            setSuccess(`Successfully sold ${sellQuantity} x ${selectedItem.name}!`);
-            setTimeout(() => setSuccess(null), 3000);
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(`Failed to complete sale: ${err.message}`);
-            } else {
-                setError('Failed to complete sale');
-            }
-            console.error(err);
-        } finally {
-            setSelling(false);
-        }
+    const getTotalCartValue = () => {
+        return cart.reduce((total, cartItem) => total + (cartItem.price * cartItem.quantity), 0);
     };
 
-    const handleCustomSell = async () => {
-        if (!selectedItem || !id) return;
-
-        if (sellQuantity > selectedItem.quantity) {
-            setError(`Cannot sell more than ${selectedItem.quantity} items`);
-            return;
-        }
-
-        if (sellQuantity <= 0) {
-            setError('Quantity must be greater than 0');
-            return;
-        }
-
-        if (sellPrice <= 0) {
-            setError('Price must be greater than 0');
-            return;
-        }
-
-        try {
-            setSelling(true);
-            setError(null);
-
-            await SoldItemService.createSoldItem({
-                itemId: selectedItem.id,
-                sellingPrice: sellPrice,
-                quantity: sellQuantity,
-                payedCash: payedCash,
-                soldAt: new Date().toISOString()
-            });
-
-            await ItemService.updateItem(selectedItem.id, {
-                ...selectedItem,
-                quantity: selectedItem.quantity - sellQuantity
-            });
-
-            await fetchInventory(Number(id));
-            setSelectedItem(null);
-            setLastSoldPrice(null);
-            setSuccess(`Successfully sold ${sellQuantity} x ${selectedItem.name} at $${sellPrice.toFixed(2)} each!`);
-            setTimeout(() => setSuccess(null), 3000);
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(`Failed to complete sale: ${err.message}`);
-            } else {
-                setError('Failed to complete sale');
-            }
-            console.error(err);
-        } finally {
-            setSelling(false);
-        }
+    const removeFromCart = (itemId: number) => {
+        setCart(cart.filter(cartItem => cartItem.item.id !== itemId));
     };
-
-    const filteredItems = (inventory?.items || []).filter(item =>
-            item.quantity > 0 && (
-                item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.description.toLowerCase().includes(searchTerm.toLowerCase())
-            )
-    );
-
 
     if (loading) {
-        return <div className="container mx-auto p-4">Loading...</div>;
+        return (
+            <>
+                <Header />
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-xl">Loading...</div>
+                </div>
+            </>
+        );
     }
 
     if (!inventory) {
         return (
-            <div className="container mx-auto p-4">
-                <p>Inventory not found</p>
-                <Link href="/Inventory" className="text-blue-500 hover:underline">
-                    Back to Inventory List
-                </Link>
-            </div>
+            <>
+                <Header />
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-xl">Inventory not found</div>
+                </div>
+            </>
         );
     }
 
-    const isActive = (path: string) => {
-        return router.pathname === path;
-    };
+    const role = getUserRole();
+    const canEdit = role === 'owner' || role === 'editor';
+    const isOwner = role === 'owner';
+    const availableItems = inventory.items.filter(item => item.quantity > 0);
 
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-3xl font-bold mb-4">Sell Items from {inventory.name}</h1>
-
-            <div className="mb-6">
-                <Link
-                    href={`/Inventory/${id}`}
-                    className="text-blue-500 hover:underline mr-4"
-                >
-                    ← Back to Inventory
-                </Link>
-            </div>
-
-            <div className="mb-6 border-b border-gray-200">
-                <nav className="flex gap-4">
-                    <Link
-                        href={`/Inventory/${id}`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Overview
+        <>
+            <Header />
+            <div className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <Link href="/Inventory" className="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block">
+                        ← Back to Inventories
                     </Link>
-                    <Link
-                        href={`/Inventory/${id}/add`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/add')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Add Items
-                    </Link>
-                    <Link
-                        href={`/Inventory/${id}/manage`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/manage')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Manage Items
-                    </Link>
-                    <Link
-                        href={`/Inventory/${id}/sell`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/sell')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Sell Items
-                    </Link>
-                    <Link
-                        href={`/Inventory/${id}/history`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/history')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Sales History
-                    </Link>
-                </nav>
-            </div>
 
-            {success && (
-                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                    {success}
-                </div>
-            )}
+                    <InventoryHeader
+                        inventory={inventory}
+                        role={role}
+                        canEdit={canEdit}
+                        isOwner={isOwner}
+                        activeTab="sell"
+                        onManageUsers={() => setShowManageUsers(true)}
+                    />
 
-            {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                    {error}
-                </div>
-            )}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Available Items */}
+                        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <h2 className="text-xl font-bold text-gray-900 mb-6">Available Items</h2>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Available Items */}
-                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8">
-                    <h2 className="text-xl font-semibold mb-4">Available Items</h2>
-
-                    <div className="mb-4">
-                        <input
-                            type="text"
-                            placeholder="Search items..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        />
-                    </div>
-
-                    {filteredItems.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full bg-white border">
-                                <thead className="bg-gray-100">
-                                <tr>
-                                    <th className="py-2 px-4 border-b text-left">Name</th>
-                                    <th className="py-2 px-4 border-b text-left">Available</th>
-                                    <th className="py-2 px-4 border-b text-left">Action</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {filteredItems.map((item) => (
-                                    <tr
-                                        key={item.id}
-                                        className={`hover:bg-gray-50 cursor-pointer ${selectedItem?.id === item.id ? 'bg-blue-50' : ''}`}
-                                        onClick={() => handleSelectItem(item)}
-                                    >
-                                        <td className="py-2 px-4 border-b">{item.name}</td>
-                                        <td className="py-2 px-4 border-b">{item.quantity}</td>
-                                        <td className="py-2 px-4 border-b">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleSelectItem(item);
-                                                }}
-                                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm"
-                                            >
-                                                Select
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <p className="text-gray-500">No items available for sale.</p>
-                    )}
-                </div>
-
-                {/* Sell Panel */}
-                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8">
-                    <h2 className="text-xl font-semibold mb-4">Sell Item</h2>
-
-                    {selectedItem ? (
-                        <div>
-                            <div className="mb-4 p-4 bg-gray-50 rounded">
-                                <h3 className="font-bold text-lg mb-2">{selectedItem.name}</h3>
-                                <p className="text-gray-700 mb-2">{selectedItem.description}</p>
-                                {loadingLastPrice ? (
-                                    <p className="text-gray-600">Loading price...</p>
-                                ) : lastSoldPrice !== null ? (
-                                    <p className="text-green-600 font-semibold text-lg">Last Sold: ${lastSoldPrice.toFixed(2)}</p>
-                                ) : (
-                                    <p className="text-orange-600 font-semibold">No previous sales - set custom price</p>
-                                )}
-                                <p className="text-gray-600 mt-2">Available: {selectedItem.quantity}</p>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">
-                                    Sell Mode
-                                </label>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setSellMode('quick')}
-                                        disabled={lastSoldPrice === null}
-                                        className={`flex-1 py-2 px-4 rounded ${
-                                            sellMode === 'quick'
-                                                ? 'bg-blue-500 text-white'
-                                                : lastSoldPrice === null
-                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                        }`}
-                                    >
-                                        Quick Sell
-                                    </button>
-                                    <button
-                                        onClick={() => setSellMode('custom')}
-                                        className={`flex-1 py-2 px-4 rounded ${
-                                            sellMode === 'custom'
-                                                ? 'bg-blue-500 text-white'
-                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                        }`}
-                                    >
-                                        Custom Price
-                                    </button>
-                                </div>
-                                {lastSoldPrice === null && (
-                                    <p className="text-sm text-orange-600 mt-2">
-                                        Quick Sell disabled - no previous sales found. Use Custom Price.
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">
-                                    Quantity
-                                </label>
-                                <input
-                                    type="number"
-                                    value={sellQuantity}
-                                    onChange={(e) => setSellQuantity(Number(e.target.value))}
-                                    min="1"
-                                    max={selectedItem.quantity}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                />
-                            </div>
-
-                            {sellMode === 'custom' && (
-                                <div className="mb-4">
-                                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                                        Custom Price (per item)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={sellPrice}
-                                        onChange={(e) => setSellPrice(Number(e.target.value))}
-                                        step="0.01"
-                                        min="0"
-                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                    />
-                                </div>
-                            )}
-
-                            {sellMode === 'quick' && lastSoldPrice !== null && (
-                                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                                    <p className="text-sm text-gray-700">
-                                        Quick Sell Price: <span className="font-bold text-blue-600">${sellPrice.toFixed(2)}</span> per item
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">Using last sold price</p>
-                                </div>
-                            )}
-
-                            <div className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">
-                                    Payment Method
-                                </label>
-                                <div className="flex gap-4">
-                                    <label className="flex items-center">
-                                        <input
-                                            type="radio"
-                                            checked={payedCash}
-                                            onChange={() => setPayedCash(true)}
-                                            className="mr-2"
-                                        />
-                                        Cash
-                                    </label>
-                                    <label className="flex items-center">
-                                        <input
-                                            type="radio"
-                                            checked={!payedCash}
-                                            onChange={() => setPayedCash(false)}
-                                            className="mr-2"
-                                        />
-                                        Card/Other
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="mb-4 p-4 bg-blue-50 rounded">
-                                <p className="text-xl font-bold">
-                                    Total: ${(sellPrice * sellQuantity).toFixed(2)}
-                                </p>
-                            </div>
-
-                            <div className="flex gap-2">
-                                {sellMode === 'quick' ? (
-                                    <button
-                                        onClick={handleQuickSell}
-                                        disabled={selling || lastSoldPrice === null}
-                                        className="flex-1 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400"
-                                    >
-                                        {selling ? 'Processing...' : 'Complete Sale'}
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={handleCustomSell}
-                                        disabled={selling}
-                                        className="flex-1 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400"
-                                    >
-                                        {selling ? 'Processing...' : 'Complete Sale'}
-                                    </button>
-                                )}
-                                <button
-                                    onClick={handleAddToCart}
-                                    disabled={selling}
-                                    className="flex-1 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400"
-                                >
-                                    Add to Cart
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setSelectedItem(null);
-                                        setLastSoldPrice(null);
-                                    }}
-                                    className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <p className="text-gray-500">Select an item from the list to sell.</p>
-                    )}
-                </div>
-
-                {/* Shopping Cart */}
-                <div className="bg-white shadow-md rounded px-8 pt-6 pb-8">
-                    <h2 className="text-xl font-semibold mb-4">Shopping Cart ({cart.length})</h2>
-
-                    {cart.length > 0 ? (
-                        <div>
-                            <div className="max-h-96 overflow-y-auto mb-4">
-                                {cart.map((cartItem) => (
-                                    <div key={cartItem.item.id} className="border-b border-gray-200 py-3 last:border-b-0">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="flex-1">
-                                                <h3 className="font-semibold text-gray-800">{cartItem.item.name}</h3>
-                                                <p className="text-sm text-gray-600">
-                                                    {cartItem.quantity}x @ ${cartItem.price.toFixed(2)}
-                                                </p>
+                            {availableItems.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {availableItems.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            onClick={() => handleSelectItem(item)}
+                                            className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer group"
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">
+                                                    {item.name}
+                                                </h3>
+                                                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                          Stock: {item.quantity}
+                        </span>
                                             </div>
+                                            <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                                            <div className="text-lg font-bold text-green-600">${item.price.toFixed(2)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 text-gray-500">
+                                    <p>No items available for sale</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Sell Form / Cart */}
+                        <div>
+                            {selectedItem ? (
+                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                                    <h2 className="text-xl font-bold text-gray-900 mb-4">Selling: {selectedItem.name}</h2>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Quantity
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={selectedItem.quantity}
+                                                value={sellQuantity}
+                                                onChange={(e) => setSellQuantity(parseInt(e.target.value) || 1)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Price
+                                            </label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={sellPrice}
+                                                    onChange={(e) => setSellPrice(parseFloat(e.target.value) || 0)}
+                                                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Payment Method
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setPaymentMethod('cash')}
+                                                    className={`flex-1 px-4 py-2 border rounded-lg ${
+                                                        paymentMethod === 'cash'
+                                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                            : 'border-gray-300'
+                                                    }`}
+                                                >
+                                                    Cash
+                                                </button>
+                                                <button
+                                                    onClick={() => setPaymentMethod('card')}
+                                                    className={`flex-1 px-4 py-2 border rounded-lg ${
+                                                        paymentMethod === 'card'
+                                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                            : 'border-gray-300'
+                                                    }`}
+                                                >
+                                                    Card
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <div className="flex justify-between items-center text-lg font-bold">
+                                                <span>Total:</span>
+                                                <span className="text-green-600">${(sellPrice * sellQuantity).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2">
                                             <button
-                                                onClick={() => handleRemoveFromCart(cartItem.item.id)}
-                                                className="text-red-500 hover:text-red-700 ml-2"
+                                                onClick={handleAddToCart}
+                                                className="flex-1 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50"
                                             >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
+                                                Add to Cart
+                                            </button>
+                                            <button
+                                                onClick={handleSellNow}
+                                                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                            >
+                                                Sell Now
                                             </button>
                                         </div>
-                                        <p className="text-right font-bold text-gray-800">
-                                            ${(cartItem.price * cartItem.quantity).toFixed(2)}
-                                        </p>
+
+                                        <button
+                                            onClick={() => setSelectedItem(null)}
+                                            className="w-full px-4 py-2 text-gray-600 hover:text-gray-900"
+                                        >
+                                            Cancel
+                                        </button>
                                     </div>
-                                ))}
-                            </div>
-
-                            <div className="border-t-2 border-gray-300 pt-4 mb-4">
-                                <div className="flex justify-between items-center mb-4">
-                                    <span className="text-xl font-bold">Total:</span>
-                                    <span className="text-2xl font-bold text-blue-600">
-                                        ${calculateCartTotal().toFixed(2)}
-                                    </span>
                                 </div>
+                            ) : (
+                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                    <h2 className="text-xl font-bold text-gray-900 mb-4">Cart</h2>
 
-                                <button
-                                    onClick={handleCheckoutCart}
-                                    disabled={selling}
-                                    className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400"
-                                >
-                                    {selling ? 'Processing...' : 'Checkout Cart'}
-                                </button>
-                            </div>
+                                    {cart.length > 0 ? (
+                                        <>
+                                            <div className="space-y-3 mb-4">
+                                                {cart.map((cartItem) => (
+                                                    <div key={cartItem.item.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                                        <div className="flex-1">
+                                                            <h4 className="font-medium text-gray-900">{cartItem.item.name}</h4>
+                                                            <p className="text-xs text-gray-500">
+                                                                {cartItem.quantity}x @ ${cartItem.price.toFixed(2)}
+                                                            </p>
+                                                            <p className="text-sm font-semibold text-green-600 mt-1">
+                                                                ${(cartItem.price * cartItem.quantity).toFixed(2)}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => removeFromCart(cartItem.item.id)}
+                                                            className="text-red-500 hover:text-red-700"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="border-t border-gray-200 pt-4 mb-4">
+                                                <div className="flex justify-between items-center text-lg font-bold">
+                                                    <span>Total:</span>
+                                                    <span className="text-green-600">${getTotalCartValue().toFixed(2)}</span>
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                onClick={handleCheckout}
+                                                className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                                            >
+                                                Checkout ({cart.length} items)
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="text-center py-8 text-gray-500">
+                                            <p>Your cart is empty</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <div className="text-center py-8">
-                            <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                            </svg>
-                            <p className="text-gray-500">Your cart is empty</p>
-                            <p className="text-sm text-gray-400 mt-2">Add items to start selling</p>
-                        </div>
-                    )}
+                    </div>
                 </div>
+
+                {showManageUsers && inventory && (
+                    <ManageUsersModal
+                        inventoryId={inventory.id}
+                        isOwner={isOwner}
+                        onClose={() => {
+                            setShowManageUsers(false);
+                            fetchInventory();
+                        }}
+                    />
+                )}
             </div>
-        </div>
+        </>
     );
-}
+};
+
+export default SellPage;

@@ -1,94 +1,111 @@
-import inventoryDB from '../repository/inventory.db';
+import inventoryDb from '../repository/inventory.db';
 import { Inventory } from '../model/inventory';
 
-import { PrismaClient } from '@prisma/client';
+const getAllInventorys = async (): Promise<Inventory[]> => {
+    return await inventoryDb.getAllInventorys();
+};
 
-const prisma = new PrismaClient();
+const getInventoriesByUserId = async (userId: string): Promise<Inventory[]> => {
+    return await inventoryDb.getInventoriesByUserId({ userId });
+};
 
-const getAllInventories = async (): Promise<Inventory[]> => inventoryDB.getAllInventories();
-
-const getInventoryById = async ({ id }: { id: number }): Promise<Inventory> => {
-    const inventory = await inventoryDB.getInventoryById({ id });
+const getInventoryById = async (id: number): Promise<Inventory> => {
+    const inventory = await inventoryDb.getInventoryById({ id });
     if (!inventory) {
-        throw new Error(`Inventory with ID: ${id} does not exist.`);
+        throw new Error(`Inventory with id ${id} does not exist.`);
     }
     return inventory;
 };
 
-
-const getInventoryByName = async ({ name }: { name: string }): Promise<Inventory> => {
-    const inventory = await inventoryDB.getInventoryByName({ name });
-    if (!inventory) {
-        throw new Error(`Inventory with name: ${name} does not exist.`);
-    }
-    return inventory;
+const createInventory = async (inventory: Inventory, ownerId: string): Promise<Inventory> => {
+    return await inventoryDb.createInventory(inventory, ownerId);
 };
 
-const createInventory = async ({ name, description }: { name: string; description: string }): Promise<Inventory> => {
-    const existingInventory = await inventoryDB.getInventoryByName({ name });
-
-    if (existingInventory) {
-        throw new Error(`Inventory with name ${name} already exists.`);
+const deleteInventory = async (id: number, userId: string): Promise<void> => {
+    const role = await inventoryDb.checkUserAccess({ userId, inventoryId: id });
+    if (role !== 'owner') {
+        throw new Error('Only owners can delete inventories');
     }
-
-    const inventory = new Inventory({ name, description });
-
-    return await inventoryDB.createInventory(inventory);
+    await inventoryDb.deleteInventory({ id });
 };
 
-const updateInventory = async ({ id, name, description }: { id: number; name: string; description: string }): Promise<Inventory> => {
-    const inventory = await getInventoryById({ id });
-
-    if (!inventory) {
-        throw new Error(`Inventory with ID: ${id} does not exist.`);
-    }
-
-    const updatedInventory = new Inventory({ id, name, description });
-    const result = await inventoryDB.updateInventory(updatedInventory);
-
-    if (!result) {
-        throw new Error(`Failed to update inventory with ID: ${id}.`);
-    }
-
-    return result;
+const checkUserAccess = async (userId: string, inventoryId: number): Promise<string | null> => {
+    return await inventoryDb.checkUserAccess({ userId, inventoryId });
 };
 
-const deleteInventory = async ({ id }: { id: number }): Promise<void> => {
-    const inventory = await getInventoryById({ id });
-
-    if (!inventory) {
-        throw new Error(`Inventory with ID: ${id} does not exist.`);
+const addUserToInventory = async (
+    userId: string,
+    inventoryId: number,
+    role: string,
+    requestingUserId: string
+): Promise<void> => {
+    const requestingUserRole = await inventoryDb.checkUserAccess({
+        userId: requestingUserId,
+        inventoryId
+    });
+    if (requestingUserRole !== 'owner') {
+        throw new Error('Only owners can add users');
     }
-
-    await inventoryDB.deleteInventory({ id });
+    await inventoryDb.addUserToInventory({ userId, inventoryId, role });
 };
 
-const addItemToInventory = async ({ inventoryId, itemId }: { inventoryId: number; itemId: number }): Promise<void> => {
-    // Check if the inventory exists
-    const inventory = await getInventoryById({ id: inventoryId });
-    if (!inventory) {
-        throw new Error(`Inventory with ID: ${inventoryId} does not exist.`);
+const removeUserFromInventory = async (
+    userId: string,
+    inventoryId: number,
+    requestingUserId: string
+): Promise<void> => {
+    const requestingUserRole = await inventoryDb.checkUserAccess({
+        userId: requestingUserId,
+        inventoryId
+    });
+    if (requestingUserRole !== 'owner') {
+        throw new Error('Only owners can remove users');
     }
-
-    // Check if the item exists
-    const item = await prisma.item.findUnique({ where: { id: itemId } });
-    if (!item) {
-        throw new Error(`Item with ID: ${itemId} does not exist.`);
+    if (userId === requestingUserId) {
+        throw new Error('Cannot remove yourself as owner');
     }
+    await inventoryDb.removeUserFromInventory({ userId, inventoryId });
+};
 
-    // Update the item to associate it with the inventory
-    await prisma.item.update({
-        where: { id: itemId },
-        data: { inventoryId }
+const getInventoryUsers = async (inventoryId: number, requestingUserId: string) => {
+    const role = await inventoryDb.checkUserAccess({
+        userId: requestingUserId,
+        inventoryId
+    });
+    if (!role) {
+        throw new Error('Access denied');
+    }
+    return await inventoryDb.getInventoryUsers({ inventoryId });
+};
+
+const updateInventory = async (
+    id: number,
+    data: { name: string; description: string },
+    requestingUserId: string
+): Promise<Inventory> => {
+    const role = await inventoryDb.checkUserAccess({
+        userId: requestingUserId,
+        inventoryId: id
+    });
+    if (role !== 'owner' && role !== 'editor') {
+        throw new Error('Only owners and editors can update inventories');
+    }
+    return await inventoryDb.updateInventory({
+        id,
+        name: data.name,
+        description: data.description
     });
 };
 
 export default {
-    getAllInventories,
+    getAllInventorys,
+    getInventoriesByUserId,
     getInventoryById,
-    getInventoryByName,
     createInventory,
-    updateInventory,
     deleteInventory,
-    addItemToInventory,
+    checkUserAccess,
+    addUserToInventory,
+    removeUserFromInventory,
+    getInventoryUsers,
+    updateInventory,
 };

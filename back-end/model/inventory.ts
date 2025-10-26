@@ -6,13 +6,14 @@ export class Inventory {
     private name: string;
     private description: string;
     private items: Item[] = [];
-
+    private users?: any[];
 
     constructor(inventory: {
         id?: number;
         name: string;
         description: string;
         items?: Item[];
+        users?: any[];
     }) {
         this.validate(inventory);
 
@@ -21,6 +22,9 @@ export class Inventory {
         this.description = inventory.description;
         if (inventory.items) {
             this.items = inventory.items;
+        }
+        if (inventory.users) {
+            this.users = inventory.users;
         }
     }
 
@@ -47,11 +51,20 @@ export class Inventory {
         this.items = items;
     }
 
+    getUsers(): any[] {
+        return this.users || [];
+    }
+
+    setUsers(users: any[]): void {
+        this.users = users;
+    }
+
     validate(inventory: {
         id?: number;
         name: string;
         description: string;
         items?: Item[];
+        users?: any[];
     }) {
         if (!inventory.name) {
             throw new Error('Name is required');
@@ -62,17 +75,26 @@ export class Inventory {
         if (!inventory.description) {
             throw new Error('Description is required');
         }
-
     }
 
-    static from(inventoryPrisma: InventoryPrisma, items: Item[] = []): Inventory {
+    static from(inventoryPrisma: any): Inventory {
         const inventory = new Inventory({
             id: inventoryPrisma.id,
             name: inventoryPrisma.name,
             description: inventoryPrisma.description,
         });
-        inventory.setItems(items);
+
+        // Convert Prisma items to Item objects if they exist
+        if (inventoryPrisma.items && Array.isArray(inventoryPrisma.items)) {
+            const items = inventoryPrisma.items.map((itemPrisma: any) => Item.from(itemPrisma));
+            inventory.setItems(items);
+        }
+
+        // Add users if they exist
+        if (inventoryPrisma.users && Array.isArray(inventoryPrisma.users)) {
+            inventory.setUsers(inventoryPrisma.users);
+        }
+
         return inventory;
     }
-
 }

@@ -1,86 +1,88 @@
 /**
  * @swagger
- *   components:
- *    securitySchemes:
- *     bearerAuth:
- *      type: http
- *      scheme: bearer
- *      bearerFormat: JWT
- *    schemas:
- *      AuthenticationResponse:
- *          type: object
- *          properties:
- *            message:
- *              type: string
- *              description: Authentication response.
- *            token:
- *              type: string
- *              description: JWT access token.
- *            username:
- *              type: string
- *              description: User name.
- *            fullname:
- *             type: string
- *             description: Full name.
- *      AuthenticationRequest:
- *          type: object
- *          properties:
- *            username:
- *              type: string
- *              description: User name.
- *            password:
- *              type: string
- *              description: User password.
- *      User:
- *          type: object
- *          properties:
- *            id:
- *              type: number
- *              format: int64
- *            username:
- *              type: string
- *              description: User name.
- *            password:
- *              type: string
- *              description: User password.
- *            firstName:
- *              type: string
- *              description: First name.
- *            lastName:
- *              type: string
- *              description: Last name.
- *            email:
- *              type: string
- *              description: E-mail.
- *            role:
- *               $ref: '#/components/schemas/Role'
- *      UserInput:
- *          type: object
- *          properties:
- *            username:
- *              type: string
- *              description: User name.
- *            password:
- *              type: string
- *              description: User password.
- *            firstName:
- *              type: string
- *              description: First name.
- *            lastName:
- *              type: string
- *              description: Last name.
- *            email:
- *              type: string
- *              description: E-mail.
- *            role:
- *               $ref: '#/components/schemas/Role'
- *      Role:
- *          type: string
- *          enum: [student, lecturer, admin, guest]
+ * tags:
+ *   - name: Users
+ *     description: User management endpoints (Authentication handled by Better Auth at /api/auth/*)
+ *
+ * components:
+ *   securitySchemes:
+ *     betterAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: Session Token
+ *       description: Better Auth session token (user ID)
+ *
+ *   schemas:
+ *     User:
+ *       type: object
+ *       required:
+ *         - id
+ *         - email
+ *         - name
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: cuid
+ *           description: Unique user identifier (CUID format)
+ *           example: "ckl1234567890abcdef"
+ *         email:
+ *           type: string
+ *           format: email
+ *           description: User's email address (unique)
+ *           example: "user@example.com"
+ *         emailVerified:
+ *           type: boolean
+ *           description: Whether the email has been verified
+ *           default: false
+ *           example: false
+ *         name:
+ *           type: string
+ *           description: User's display name
+ *           example: "John Doe"
+ *         role:
+ *           type: string
+ *           enum: [admin, user, guest]
+ *           default: user
+ *           description: User's role in the system
+ *           example: "user"
+ *         age:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *           description: User's age
+ *           example: 25
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           description: Account creation timestamp
+ *           example: "2024-01-15T10:30:00Z"
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *           description: Last update timestamp
+ *           example: "2024-01-15T10:30:00Z"
+ *
+ *     ErrorResponse:
+ *       type: object
+ *       properties:
+ *         error:
+ *           type: string
+ *           description: Error message
+ *           example: "Invalid credentials"
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *           description: Error timestamp
+ *           example: "2024-01-15T10:30:00Z"
+ *
+ *     Role:
+ *       type: string
+ *       enum: [admin, user, guest]
+ *       description: User role in the system
  */
 import express, { NextFunction, Request, Response } from 'express';
 import userService from '../service/user.service';
-import { UserInput } from '../types/index';
+import {optionalAuth} from "../middleware/auth.middleware";
 
 const userRouter = express.Router();
 
@@ -88,104 +90,82 @@ const userRouter = express.Router();
  * @swagger
  * /users:
  *   get:
- *     security:
- *       - bearerAuth: []
- *     summary: Get a list of all users
+ *     summary: Get all users or search by email
+ *     description: |
+ *       Retrieve a list of all users in the system, or search for a specific user by email address.
+ *       Returns an empty array if no users are found or if an error occurs.
+ *
+ *       **Note**: For authentication (login/signup), use Better Auth endpoints at `/api/auth/*`
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         required: false
+ *         schema:
+ *           type: string
+ *           format: email
+ *         description: Email address to search for a specific user
+ *         example: "user@example.com"
  *     responses:
  *       200:
- *         description: A list of users.
+ *         description: List of users (or single user if email query provided)
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                  $ref: '#/components/schemas/User'
+ *                 $ref: '#/components/schemas/User'
+ *             examples:
+ *               allUsers:
+ *                 summary: All users
+ *                 value:
+ *                   - id: "ckl1234567890abcdef"
+ *                     email: "john@example.com"
+ *                     name: "John Doe"
+ *                     role: "user"
+ *                     age: 25
+ *                     emailVerified: false
+ *                     createdAt: "2024-01-15T10:30:00Z"
+ *                     updatedAt: "2024-01-15T10:30:00Z"
+ *                   - id: "ckl0987654321fedcba"
+ *                     email: "jane@example.com"
+ *                     name: "Jane Smith"
+ *                     role: "admin"
+ *                     age: 30
+ *                     emailVerified: true
+ *                     createdAt: "2024-01-10T08:00:00Z"
+ *                     updatedAt: "2024-01-10T08:00:00Z"
+ *               singleUser:
+ *                 summary: User found by email
+ *                 value:
+ *                   - id: "ckl1234567890abcdef"
+ *                     email: "john@example.com"
+ *                     name: "John Doe"
+ *                     role: "user"
+ *                     age: 25
+ *                     emailVerified: false
+ *                     createdAt: "2024-01-15T10:30:00Z"
+ *                     updatedAt: "2024-01-15T10:30:00Z"
+ *               notFound:
+ *                 summary: No users found
+ *                 value: []
  */
 userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const users = await userService.getAllUsers();
-        res.status(200).json(users);
-    } catch (error) {
-        next(error);
-    }
-});
+        const { email } = req.query;
 
-/**
- * @swagger
- * /users/login:
- *   post:
- *      summary: Login using email/password. Returns an object with JWT token and user name when succesful.
- *      requestBody:
- *        required: true
- *        content:
- *          application/json:
- *            schema:
- *              $ref: '#/components/schemas/AuthenticationRequest'
- *      responses:
- *         200:
- *            description: The created user object
- *            content:
- *              application/json:
- *                schema:
- *                  $ref: '#/components/schemas/AuthenticationResponse'
- */
-userRouter.post('/login', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const userInput = <UserInput>req.body;
-        const response = await userService.authenticate(userInput);
-        res.status(200).json({ message: 'Authentication successful', ...response });
+        if (email) {
+            const user = await userService.getUserByEmail({ email: String(email) });
+            res.status(200).json(user ? [user] : []);
+        } else {
+            const users = await userService.getAllUsers();
+            res.status(200).json(users || []);
+        }
     } catch (error) {
-        next(error);
-    }
-});
-/**
- * @swagger
- * /users/signup:
- *   post:
- *     summary: Create a user
- *     tags:
- *       - Users
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UserInput'
- *     responses:
- *       200:
- *         description: The created user object
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
- *       400:
- *         description: Bad request
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Invalid input"
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Internal server error"
- */
-userRouter.post('/signup', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const userInput = <UserInput>req.body;
-        const user = await userService.createUser(userInput);
-        res.status(200).json(user);
-    } catch (error) {
-        next(error);
+        console.error('Error fetching users:', error);
+        // Return empty array instead of throwing error
+        res.status(200).json([]);
     }
 });
 

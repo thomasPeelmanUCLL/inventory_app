@@ -1,64 +1,86 @@
 /**
  * @swagger
- *   components:
- *    schemas:
- *      Inventory:
- *          type: object
- *          properties:
- *            id:
- *              type: number
- *              format: int64
- *              description: The inventory ID.
- *            name:
- *              type: string
- *              description: The name of the inventory.
- *            description:
- *              type: string
- *              description: The description of the inventory.
- *            items:
- *              type: array
- *              items:
- *                $ref: '#/components/schemas/Item'
- *              description: The items in this inventory.
- *      InventoryInput:
- *          type: object
- *          required:
- *            - name
- *            - description
- *          properties:
- *            name:
- *              type: string
- *              description: The name of the inventory.
- *            description:
- *              type: string
- *              description: The description of the inventory.
+ * tags:
+ *   - name: Inventories
+ *     description: Inventory management endpoints
+ *
+ * components:
+ *   schemas:
+ *     Inventory:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: The inventory ID
+ *         name:
+ *           type: string
+ *           description: The inventory name
+ *         description:
+ *           type: string
+ *           description: The inventory description
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     InventoryInput:
+ *       type: object
+ *       required:
+ *         - name
+ *         - description
+ *       properties:
+ *         name:
+ *           type: string
+ *           minLength: 3
+ *           description: The inventory name (min 3 characters)
+ *         description:
+ *           type: string
+ *           description: The inventory description
+ *
+ *     InventoryUserRole:
+ *       type: string
+ *       enum: [owner, editor, viewer]
+ *       description: User role in inventory
  */
+
 import express, { NextFunction, Request, Response } from 'express';
 import inventoryService from '../service/inventory.service';
-
+import { Inventory } from '../model/inventory';
+import { requireAuth } from '../middleware/auth.middleware';
 
 const inventoryRouter = express.Router();
 
+// Apply auth middleware to all inventory routes
+inventoryRouter.use(requireAuth);
+
 /**
  * @swagger
- * /inventory:
+ * /inventorys/my:
  *   get:
- *     summary: Get a list of all inventories
+ *     summary: Get all inventories for the authenticated user
+ *     description: Returns all inventories where the user has any access level (owner, editor, or viewer)
  *     tags:
  *       - Inventories
+ *     security:
+ *       - betterAuth: []
  *     responses:
  *       200:
- *         description: A list of inventories.
+ *         description: List of user's inventories
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
- *                  $ref: '#/components/schemas/Inventory'
+ *                 $ref: '#/components/schemas/Inventory'
+ *       401:
+ *         description: User not authenticated
  */
-inventoryRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
+inventoryRouter.get('/my', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const inventories = await inventoryService.getAllInventories();
+        const userId = req.headers['x-user-id'] as string;
+        const inventories = await inventoryService.getInventoriesByUserId(userId);
         res.status(200).json(inventories);
     } catch (error) {
         next(error);
@@ -67,39 +89,47 @@ inventoryRouter.get('/', async (req: Request, res: Response, next: NextFunction)
 
 /**
  * @swagger
- * /inventory/name/{name}:
+ * /inventorys/{id}:
  *   get:
- *     summary: Get an inventory by name
+ *     summary: Get inventory by ID
+ *     description: Returns a specific inventory if the user has access to it
  *     tags:
  *       - Inventories
+ *     security:
+ *       - betterAuth: []
  *     parameters:
  *       - in: path
- *         name: name
+ *         name: id
  *         required: true
  *         schema:
- *           type: string
- *         description: The inventory name
+ *           type: integer
+ *         description: The inventory ID
  *     responses:
  *       200:
- *         description: The inventory details
+ *         description: Inventory details
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Inventory'
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Inventory not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Inventory with name: Test does not exist."
  */
-inventoryRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunction) => {
+inventoryRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const inventory = await inventoryService.getInventoryByName({ name: req.params.name });
+        const userId = req.headers['x-user-id'] as string;
+        const inventoryId = parseInt(req.params.id);
+
+        // Check if user has access
+        const role = await inventoryService.checkUserAccess(userId, inventoryId);
+        if (!role) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        const inventory = await inventoryService.getInventoryById(inventoryId);
         res.status(200).json(inventory);
     } catch (error) {
         next(error);
@@ -108,11 +138,14 @@ inventoryRouter.get('/name/:name', async (req: Request, res: Response, next: Nex
 
 /**
  * @swagger
- * /inventory:
+ * /inventorys:
  *   post:
  *     summary: Create a new inventory
+ *     description: Creates a new inventory with the authenticated user as owner
  *     tags:
  *       - Inventories
+ *     security:
+ *       - betterAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -121,27 +154,25 @@ inventoryRouter.get('/name/:name', async (req: Request, res: Response, next: Nex
  *             $ref: '#/components/schemas/InventoryInput'
  *     responses:
  *       201:
- *         description: The created inventory
+ *         description: Inventory created successfully
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Inventory'
  *       400:
  *         description: Bad request
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Name is required"
+ *       401:
+ *         description: User not authenticated
  */
 inventoryRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, description } = req.body;
-        const inventory = await inventoryService.createInventory({ name, description });
-        res.status(201).json(inventory);
+        const userId = req.headers['x-user-id'] as string;
+        const inventory = new Inventory({
+            name: req.body.name,
+            description: req.body.description,
+        });
+        const result = await inventoryService.createInventory(inventory, userId);
+        res.status(201).json(result);
     } catch (error) {
         next(error);
     }
@@ -149,69 +180,14 @@ inventoryRouter.post('/', async (req: Request, res: Response, next: NextFunction
 
 /**
  * @swagger
- * /inventory/{id}:
- *   put:
- *     summary: Update an inventory
- *     tags:
- *       - Inventories
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: The inventory ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/InventoryInput'
- *     responses:
- *       200:
- *         description: The updated inventory
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Inventory'
- *       400:
- *         description: Bad request
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Name is required"
- *       404:
- *         description: Inventory not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Inventory with ID: 1 does not exist."
- */
-inventoryRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { name, description } = req.body;
-        const inventory = await inventoryService.updateInventory({ id: Number(req.params.id), name, description });
-        res.status(200).json(inventory);
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * @swagger
- * /inventory/{id}:
+ * /inventorys/{id}:
  *   delete:
  *     summary: Delete an inventory
+ *     description: Delete an inventory (owner only)
  *     tags:
  *       - Inventories
+ *     security:
+ *       - betterAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -222,20 +198,18 @@ inventoryRouter.put('/:id', async (req: Request, res: Response, next: NextFuncti
  *     responses:
  *       204:
  *         description: Inventory deleted successfully
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Only owners can delete inventories
  *       404:
  *         description: Inventory not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Inventory with ID: 1 does not exist."
  */
 inventoryRouter.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        await inventoryService.deleteInventory({ id: Number(req.params.id) });
+        const userId = req.headers['x-user-id'] as string;
+        const inventoryId = parseInt(req.params.id);
+        await inventoryService.deleteInventory(inventoryId, userId);
         res.status(204).send();
     } catch (error) {
         next(error);
@@ -244,57 +218,14 @@ inventoryRouter.delete('/:id', async (req: Request, res: Response, next: NextFun
 
 /**
  * @swagger
- * /inventory/{id}/items/{itemId}:
- *   post:
- *     summary: Add an item to an inventory
- *     tags:
- *       - Inventories
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: The inventory ID
- *       - in: path
- *         name: itemId
- *         required: true
- *         schema:
- *           type: integer
- *         description: The item ID
- *     responses:
- *       204:
- *         description: Item added to inventory successfully
- *       404:
- *         description: Inventory or item not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Inventory with ID: 1 does not exist."
- */
-inventoryRouter.post('/:id/items/:itemId', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        await inventoryService.addItemToInventory({ 
-            inventoryId: Number(req.params.id), 
-            itemId: Number(req.params.itemId) 
-        });
-        res.status(204).send();
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * @swagger
- * /inventory/{id}:
+ * /inventorys/{id}/users:
  *   get:
- *     summary: Get an inventory by ID
+ *     summary: Get all users with access to inventory
+ *     description: Returns all users who have access to this inventory and their roles
  *     tags:
  *       - Inventories
+ *     security:
+ *       - betterAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -304,13 +235,78 @@ inventoryRouter.post('/:id/items/:itemId', async (req: Request, res: Response, n
  *         description: The inventory ID
  *     responses:
  *       200:
- *         description: The inventory details
+ *         description: List of users with access
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Inventory'
- *       404:
- *         description: Inventory not found
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   userId:
+ *                     type: string
+ *                   role:
+ *                     $ref: '#/components/schemas/InventoryUserRole'
+ *                   user:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Access denied
+ */
+inventoryRouter.get('/:id/users', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.headers['x-user-id'] as string;
+        const inventoryId = parseInt(req.params.id);
+        const users = await inventoryService.getInventoryUsers(inventoryId, userId);
+        res.status(200).json(users);
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * @swagger
+ * /inventorys/{id}/users:
+ *   post:
+ *     summary: Add user to inventory
+ *     description: Grant a user access to an inventory with a specific role. Only owners can add users.
+ *     tags:
+ *       - Inventories
+ *     security:
+ *       - betterAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The inventory ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - role
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 description: The user ID to add
+ *               role:
+ *                 $ref: '#/components/schemas/InventoryUserRole'
+ *     responses:
+ *       201:
+ *         description: User added successfully
  *         content:
  *           application/json:
  *             schema:
@@ -318,15 +314,116 @@ inventoryRouter.post('/:id/items/:itemId', async (req: Request, res: Response, n
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Inventory with ID: 1 does not exist."
+ *                   example: "User added successfully"
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Only owners can add users
  */
-inventoryRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+inventoryRouter.post('/:id/users', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const inventory = await inventoryService.getInventoryById({ id: Number(req.params.id) });
-        res.status(200).json(inventory);
+        const requestingUserId = req.headers['x-user-id'] as string;
+        const inventoryId = parseInt(req.params.id);
+        const { userId, role } = req.body;
+
+        await inventoryService.addUserToInventory(
+            userId,
+            inventoryId,
+            role,
+            requestingUserId
+        );
+        res.status(201).json({ message: 'User added successfully' });
     } catch (error) {
         next(error);
     }
 });
 
-export {inventoryRouter};
+/**
+ * @swagger
+ * /inventorys/{id}/users/{userId}:
+ *   delete:
+ *     summary: Remove user from inventory
+ *     description: Remove a user's access to an inventory. Only owners can remove users. Owner cannot remove themselves.
+ *     tags:
+ *       - Inventories
+ *     security:
+ *       - betterAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The inventory ID
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The user ID to remove
+ *     responses:
+ *       204:
+ *         description: User removed successfully
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Only owners can remove users, or cannot remove yourself as owner
+ */
+inventoryRouter.delete('/:id/users/:userId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const requestingUserId = req.headers['x-user-id'] as string;
+        const inventoryId = parseInt(req.params.id);
+        const userIdToRemove = req.params.userId;
+
+        await inventoryService.removeUserFromInventory(
+            userIdToRemove,
+            inventoryId,
+            requestingUserId
+        );
+        res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * @swagger
+ * /inventorys/{id}:
+ *   put:
+ *     summary: Update an inventory
+ *     description: Update inventory properties (owner or editor only)
+ *     tags:
+ *       - Inventories
+ *     security:
+ *       - betterAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/InventoryInput'
+ *     responses:
+ *       200:
+ *         description: Inventory updated successfully
+ *       403:
+ *         description: Access denied
+ */
+inventoryRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.headers['x-user-id'] as string;
+        const inventoryId = parseInt(req.params.id);
+        const updated = await inventoryService.updateInventory(inventoryId, req.body, userId);
+        res.status(200).json(updated);
+    } catch (error) {
+        next(error);
+    }
+});
+
+
+export { inventoryRouter };

@@ -39,6 +39,23 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         });
     }
 
+    // NEW METHOD - Add this
+    async getSoldItemsByInventoryId({ inventoryId }: { inventoryId: number }): Promise<SoldItem[]> {
+        return this.findMany({
+            where: {
+                item: {
+                    inventoryId: inventoryId
+                }
+            },
+            include: {
+                item: true,
+            },
+            orderBy: {
+                soldAt: 'desc'
+            }
+        });
+    }
+
     async createSoldItem(soldItem: SoldItem): Promise<SoldItem> {
         const data = {
             itemId: soldItem.getItemId(),
@@ -46,7 +63,6 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             payedCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
-            // createdAt will be set automatically by Prisma
         };
         return this.create(data, {
             include: {
@@ -61,7 +77,6 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             payedCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
-            // createdAt should not be updated
         };
         return this.update(soldItem, data, {
             include: {
@@ -81,6 +96,7 @@ export default {
     getAllSoldItems: soldItemRepository.getAllSoldItems.bind(soldItemRepository),
     getSoldItemById: soldItemRepository.getSoldItemById.bind(soldItemRepository),
     getSoldItemsByItemId: soldItemRepository.getSoldItemsByItemId.bind(soldItemRepository),
+    getSoldItemsByInventoryId: soldItemRepository.getSoldItemsByInventoryId.bind(soldItemRepository), // NEW
     createSoldItem: soldItemRepository.createSoldItem.bind(soldItemRepository),
     updateSoldItem: soldItemRepository.updateSoldItem.bind(soldItemRepository),
     deleteSoldItem: soldItemRepository.deleteSoldItem.bind(soldItemRepository),

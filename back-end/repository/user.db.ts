@@ -29,23 +29,9 @@ const getUserByEmail = async ({ email }: { email: string }): Promise<User | null
     return userPrisma ? User.from(userPrisma) : null;
 };
 
-const createUser = async (user: User): Promise<User> => {
-    const userPrisma = await prisma.user.create({
-        data: {
-            name: user.getName(),
-            // REMOVED password - it's stored in Account table by Better Auth
-            email: user.getEmail(),
-            age: user.getAge() || 0,
-            role: user.getRole() || 'user',
-        },
-    });
-    return User.from(userPrisma);
-};
-
 export default {
     getAllUsers,
     getUserById,
     getUserByName,
     getUserByEmail,
-    createUser,
 };

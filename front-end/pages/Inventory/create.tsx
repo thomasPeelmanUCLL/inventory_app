@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
-import InventoryService from '../../services/InventoryService';
+
 import Link from 'next/link';
+import {createInventory} from "../../lib/api";
 
 export default function CreateInventory() {
   const [name, setName] = useState('');
@@ -28,7 +29,7 @@ export default function CreateInventory() {
       setLoading(true);
       setError(null);
 
-      await InventoryService.createInventory({
+      await createInventory({
         name,
         description
       });

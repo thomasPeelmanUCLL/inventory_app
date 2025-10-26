@@ -8,17 +8,17 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  id            String          @id @default(cuid())
+  email         String          @unique
+  emailVerified Boolean         @default(false)
   name          String
-  // REMOVED password field - Better Auth stores it in Account table
-  role          String    @default("user")
-  age           Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role          String          @default("user")
+  age           Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   sessions      Session[]
   accounts      Account[]
+  inventories   InventoryUser[] // Many-to-many relation
 
   @@map("users")
 }
@@ -46,7 +46,7 @@ model Account {
   refreshToken String?
   idToken      String?
   expiresAt    DateTime?
-  password     String? // Password IS stored here!
+  password     String?
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -67,12 +67,29 @@ model Verification {
 }
 
 model Inventory {
-  id          Int    @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   name        String
   description String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   items       Item[]
+  users       InventoryUser[] // Many-to-many relation
 
   @@map("inventorys")
+}
+
+// Junction table for many-to-many relationship
+model InventoryUser {
+  id          Int       @id @default(autoincrement())
+  userId      String
+  inventoryId Int
+  role        String    @default("viewer") // "owner", "editor", "viewer"
+  addedAt     DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, inventoryId])
+  @@map("inventory_users")
 }
 
 model Item {

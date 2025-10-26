@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
-import UserService from "@services/UserService";
+import { signIn } from "../lib/auth-client";
 
 interface LoginFormProps {
   className?: string;
@@ -52,7 +52,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ className }) => {
 
   const handleGuestLogin = async () => {
     clearErrors();
-    const guestEmail = "guestuser@example.com";
+    const guestEmail = "guest@example.com";
     const guestPassword = "guest123";
 
     await loginUser(guestEmail, guestPassword);
@@ -60,36 +60,32 @@ const LoginForm: React.FC<LoginFormProps> = ({ className }) => {
 
   const loginUser = async (loginEmail: string, loginPassword: string) => {
     try {
-      console.log("Logging in with:", loginEmail, loginPassword);
-      const data = await UserService.loginUser(loginEmail, loginPassword);
+      console.log("Logging in with Better Auth:", loginEmail);
 
-      if (data.token && data.email) {
+      // Use Better Auth for authentication
+      const result = await signIn.email({
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      if (result.error) {
         setStatusMessage({
-          message: "Login successful! Redirecting...",
-          type: "success",
-        });
-
-        sessionStorage.setItem(
-          "user",
-          JSON.stringify({
-            email: data.email,
-            role: data.role,
-            token: data.token,
-            username: data.username,
-          })
-        );
-        sessionStorage.setItem("token", data.token);
-
-        setTimeout(() => {
-          router.push("/");
-        }, 1500);
-      } else {
-        setStatusMessage({
-          message: "Login failed. Missing expected response fields.",
+          message: result.error.message || "Login failed. Please check your credentials.",
           type: "error",
         });
+        return;
       }
+
+      setStatusMessage({
+        message: "Login successful! Redirecting...",
+        type: "success",
+      });
+
+      setTimeout(() => {
+        router.push("/");
+      }, 1500);
     } catch (error: any) {
+      console.error("Login error:", error);
       setStatusMessage({
         message: error.message || "An error occurred during login.",
         type: "error",

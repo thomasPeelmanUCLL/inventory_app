@@ -1,357 +1,283 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import InventoryService from '../../../services/InventoryService';
-import ItemService from '../../../services/ItemService';
 import Link from 'next/link';
-import {Inventory, Item} from "@types";
+import Header from '../../../components/header';
+import InventoryHeader from '../../../components/InventoryHeader';
+import ManageUsersModal from '../../../components/ManageUsersModal';
+import { getInventoryById, updateItem, deleteItem } from '../../../lib/api';
+import { useSession } from '../../../lib/auth-client';
 
+type Item = {
+    id: number;
+    name: string;
+    description: string;
+    price: number;
+    quantity: number;
+    createdAt: string;
+};
 
+type Inventory = {
+    id: number;
+    name: string;
+    description: string;
+    items: Item[];
+    users?: Array<{
+        role: string;
+        user: {
+            id: string;
+            name: string;
+            email: string;
+        };
+    }>;
+};
 
-export default function ManageItems() {
-    const [inventory, setInventory] = useState<Inventory | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
-    const [editingItem, setEditingItem] = useState<Item | null>(null);
-    const [editForm, setEditForm] = useState<Item>({
-        id: 0,
-        name: '',
-        description: '',
-        price: 0,
-        quantity: 0
-    });
-
+const ManageItemsPage = () => {
     const router = useRouter();
     const { id } = router.query;
+    const { data: session } = useSession();
+
+    const [inventory, setInventory] = useState<Inventory | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [showManageUsers, setShowManageUsers] = useState(false);
+    const [editingItem, setEditingItem] = useState<Item | null>(null);
 
     useEffect(() => {
         if (id) {
-            fetchInventory(Number(id));
+            fetchInventory();
         }
     }, [id]);
 
-    const fetchInventory = async (inventoryId: number) => {
+    const fetchInventory = async () => {
         try {
             setLoading(true);
-            const data = await InventoryService.getInventoryById(inventoryId);
+            const data = await getInventoryById(Number(id));
             setInventory(data);
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(`Failed to load inventory: ${err.message}`);
-            } else {
-                setError('Failed to load inventory');
-            }
-            console.error(err);
+        } catch (error) {
+            console.error('Error fetching inventory:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleEdit = (item: Item) => {
-        setEditingItem(item);
-        setEditForm(item);
-        setError(null);
-        setSuccess(null);
+    const getUserRole = () => {
+        if (!inventory || !session?.user) return 'viewer';
+        return inventory.users?.find(u => u.user.id === session.user.id)?.role || 'viewer';
     };
 
-    const handleCancelEdit = () => {
-        setEditingItem(null);
-        setEditForm({
-            id: 0,
-            name: '',
-            description: '',
-            price: 0,
-            quantity: 0
-        });
-    };
-
-    const handleSaveEdit = async () => {
-        if (!editingItem || !id) return;
-
+    const handleSave = async (item: Item) => {
         try {
-            if (!editForm.name.trim()) {
-                setError('Name is required');
-                return;
-            }
-
-            if (!editForm.description.trim()) {
-                setError('Description is required');
-                return;
-            }
-
-            if (editForm.price <= 0) {
-                setError('Price must be greater than 0');
-                return;
-            }
-
-            if (editForm.quantity < 0) {
-                setError('Quantity cannot be negative');
-                return;
-            }
-
-            await ItemService.updateItem(editingItem.id, editForm);
-            await fetchInventory(Number(id));
+            await updateItem(item.id, {
+                name: item.name,
+                description: item.description,
+                price: item.price,
+                quantity: item.quantity
+            });
             setEditingItem(null);
-            setSuccess('Item updated successfully!');
-            setTimeout(() => setSuccess(null), 3000);
-        } catch (err) {
-            if (err instanceof Error) {
-                setError(`Failed to update item: ${err.message}`);
-            } else {
-                setError('Failed to update item');
-            }
-            console.error(err);
+            fetchInventory();
+            alert('Item updated successfully!');
+        } catch (error) {
+            console.error('Error updating item:', error);
+            alert('Failed to update item');
         }
     };
 
-    const handleDelete = async (itemId: number, itemName: string) => {
-        if (!id) return;
 
-        if (window.confirm(`Are you sure you want to delete "${itemName}"?`)) {
+    const handleDelete = async (itemId: number) => {
+        if (confirm('Are you sure you want to delete this item?')) {
             try {
-                await ItemService.deleteItem(itemId);
-                await fetchInventory(Number(id));
-                setSuccess('Item deleted successfully!');
-                setTimeout(() => setSuccess(null), 3000);
-            } catch (err) {
-                if (err instanceof Error) {
-                    setError(`Failed to delete item: ${err.message}`);
-                } else {
-                    setError('Failed to delete item');
-                }
-                console.error(err);
+                await deleteItem(itemId);
+                fetchInventory();
+                alert('Item deleted successfully!');
+            } catch (error) {
+                console.error('Error deleting item:', error);
+                alert('Failed to delete item');
             }
         }
-    };
-
-    const handleEditFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setEditForm(prev => ({
-            ...prev,
-            [name]: name === 'price' || name === 'quantity' ? Number(value) : value
-        }));
     };
 
     if (loading) {
-        return <div className="container mx-auto p-4">Loading...</div>;
+        return (
+            <>
+                <Header />
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-xl">Loading...</div>
+                </div>
+            </>
+        );
     }
 
     if (!inventory) {
         return (
-            <div className="container mx-auto p-4">
-                <p>Inventory not found</p>
-                <Link href="/Inventory" className="text-blue-500 hover:underline">
-                    Back to Inventory List
-                </Link>
-            </div>
+            <>
+                <Header />
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-xl">Inventory not found</div>
+                </div>
+            </>
         );
     }
 
-    // Helper function to check if tab is active
-    const isActive = (path: string) => {
-        return router.pathname === path;
-    };
+    const role = getUserRole();
+    const canEdit = role === 'owner' || role === 'editor';
+    const isOwner = role === 'owner';
 
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-3xl font-bold mb-4">Manage Items in {inventory.name}</h1>
-
-            {/* Navigation */}
-            <div className="mb-6">
-                <Link
-                    href={`/Inventory/${id}`}
-                    className="text-blue-500 hover:underline mr-4"
-                >
-                    ← Back to Inventory
-                </Link>
-            </div>
-
-            {/* Navigation Tabs */}
-            <div className="mb-6 border-b border-gray-200">
-                <nav className="flex gap-4">
-                    <Link
-                        href={`/Inventory/${id}`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Overview
+        <>
+            <Header />
+            <div className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <Link href="/Inventory" className="text-blue-600 hover:text-blue-800 text-sm mb-4 inline-block">
+                        ← Back to Inventories
                     </Link>
 
-                    <Link
-                        href={`/Inventory/${id}/add`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/add')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Add Items
-                    </Link>
+                    <InventoryHeader
+                        inventory={inventory}
+                        role={role}
+                        canEdit={canEdit}
+                        isOwner={isOwner}
+                        activeTab="manage"
+                        onManageUsers={() => setShowManageUsers(true)}
+                    />
 
-                    <Link
-                        href={`/Inventory/${id}/manage`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/manage')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Manage Items
-                    </Link>
-
-                    <Link
-                        href={`/Inventory/${id}/sell`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/sell')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Sell Items
-                    </Link>
-
-                    <Link
-                        href={`/Inventory/${id}/history`}
-                        className={`py-2 px-4 border-b-2 font-medium ${
-                            isActive('/Inventory/[id]/history')
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        }`}
-                    >
-                        Sales History
-                    </Link>
-                </nav>
-            </div>
-
-            {success && (
-                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                    {success}
-                </div>
-            )}
-
-            {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                    {error}
-                </div>
-            )}
-
-            <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-                <h2 className="text-xl font-semibold mb-4">Items ({inventory.items.length})</h2>
-                {inventory.items.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full bg-white border">
-                            <thead className="bg-gray-100">
-                            <tr>
-                                <th className="py-2 px-4 border-b text-left">Name</th>
-                                <th className="py-2 px-4 border-b text-left">Description</th>
-                                <th className="py-2 px-4 border-b text-left">Price</th>
-                                <th className="py-2 px-4 border-b text-left">Quantity</th>
-                                <th className="py-2 px-4 border-b text-left">Actions</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {inventory.items.map((item) => (
-                                <tr key={item.id} className="hover:bg-gray-50">
-                                    <td className="py-2 px-4 border-b">
-                                        {editingItem?.id === item.id ? (
-                                            <input
-                                                type="text"
-                                                name="name"
-                                                value={editForm.name}
-                                                onChange={handleEditFormChange}
-                                                className="border rounded px-2 py-1 w-full"
-                                            />
-                                        ) : (
-                                            item.name
-                                        )}
-                                    </td>
-                                    <td className="py-2 px-4 border-b">
-                                        {editingItem?.id === item.id ? (
-                                            <input
-                                                type="text"
-                                                name="description"
-                                                value={editForm.description}
-                                                onChange={handleEditFormChange}
-                                                className="border rounded px-2 py-1 w-full"
-                                            />
-                                        ) : (
-                                            item.description
-                                        )}
-                                    </td>
-                                    <td className="py-2 px-4 border-b">
-                                        {editingItem?.id === item.id ? (
-                                            <input
-                                                type="number"
-                                                name="price"
-                                                value={editForm.price}
-                                                onChange={handleEditFormChange}
-                                                step="0.01"
-                                                min="0"
-                                                className="border rounded px-2 py-1 w-full"
-                                            />
-                                        ) : (
-                                            `$${item.price.toFixed(2)}`
-                                        )}
-                                    </td>
-                                    <td className="py-2 px-4 border-b">
-                                        {editingItem?.id === item.id ? (
-                                            <input
-                                                type="number"
-                                                name="quantity"
-                                                value={editForm.quantity}
-                                                onChange={handleEditFormChange}
-                                                min="0"
-                                                className="border rounded px-2 py-1 w-full"
-                                            />
-                                        ) : (
-                                            item.quantity
-                                        )}
-                                    </td>
-                                    <td className="py-2 px-4 border-b">
-                                        {editingItem?.id === item.id ? (
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={handleSaveEdit}
-                                                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-3 rounded text-sm"
-                                                >
-                                                    Save
-                                                </button>
-                                                <button
-                                                    onClick={handleCancelEdit}
-                                                    className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-3 rounded text-sm"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => handleEdit(item)}
-                                                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm"
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(item.id, item.name)}
-                                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        {inventory.items && inventory.items.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Name
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Description
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Price
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Quantity
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    {inventory.items.map((item) => (
+                                        <tr key={item.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {editingItem?.id === item.id ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editingItem.name}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded"
+                                                    />
+                                                ) : (
+                                                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {editingItem?.id === item.id ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editingItem.description}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
+                                                        className="w-full px-2 py-1 border border-gray-300 rounded"
+                                                    />
+                                                ) : (
+                                                    <div className="text-sm text-gray-500">{item.description}</div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {editingItem?.id === item.id ? (
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={editingItem.price}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, price: Number(e.target.value) })}
+                                                        className="w-24 px-2 py-1 border border-gray-300 rounded"
+                                                    />
+                                                ) : (
+                                                    <div className="text-sm text-gray-900">${item.price.toFixed(2)}</div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {editingItem?.id === item.id ? (
+                                                    <input
+                                                        type="number"
+                                                        value={editingItem.quantity}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, quantity: Number(e.target.value) })}
+                                                        className="w-20 px-2 py-1 border border-gray-300 rounded"
+                                                    />
+                                                ) : (
+                                                    <div className="text-sm text-gray-900">{item.quantity}</div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                {editingItem?.id === item.id ? (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleSave(editingItem)}
+                                                            className="text-green-600 hover:text-green-900"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setEditingItem(null)}
+                                                            className="text-gray-600 hover:text-gray-900"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => setEditingItem(item)}
+                                                            className="text-blue-600 hover:text-blue-900"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(item.id)}
+                                                            className="text-red-600 hover:text-red-900"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="text-center py-12">
+                                <p className="text-gray-500 mb-4">No items in this inventory.</p>
+                                <Link href={`/Inventory/${id}/add`}>
+                                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                        Add items to get started
+                                    </button>
+                                </Link>
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <p className="text-gray-500">No items in this inventory.</p>
+                </div>
+
+                {showManageUsers && inventory && (
+                    <ManageUsersModal
+                        inventoryId={inventory.id}
+                        isOwner={isOwner}
+                        onClose={() => {
+                            setShowManageUsers(false);
+                            fetchInventory();
+                        }}
+                    />
                 )}
             </div>
-        </div>
+        </>
     );
-}
+};
+
+export default ManageItemsPage;

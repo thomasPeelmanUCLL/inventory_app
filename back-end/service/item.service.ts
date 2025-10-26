@@ -1,9 +1,6 @@
 import itemDB from '../repository/item.db';
 import { Item } from '../model/item';
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 const getAllItems = async (): Promise<Item[]> => itemDB.getAllItems();
 
@@ -45,6 +42,7 @@ const deleteItem = async ({ id }: { id: number }): Promise<void> => {
         throw new Error(`Item with ID: ${id} does not exist.`);
     }
 
+    await itemDB.deleteItem({ id });
 };
 
 export default {
