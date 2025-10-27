@@ -157,16 +157,29 @@ userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
         if (email) {
             const user = await userService.getUserByEmail({ email: String(email) });
-            res.status(200).json(user ? [user] : []);
+            res.status(200).json([user]);
         } else {
             const users = await userService.getAllUsers();
             res.status(200).json(users || []);
         }
     } catch (error) {
         console.error('Error fetching users:', error);
-        // Return empty array instead of throwing error
-        res.status(200).json([]);
+
+        // Check if it's a "does not exist" error
+        if (error instanceof Error && error.message.includes('does not exist')) {
+            res.status(404).json({
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            // For other errors, return 500
+            res.status(500).json({
+                error: 'Internal server error',
+                timestamp: new Date().toISOString()
+            });
+        }
     }
 });
+
 
 export { userRouter };

@@ -11,9 +11,16 @@ const getUserByName = async ({ name }: { name: string }): Promise<User> => {
     return user;
 };
 
-const getUserByEmail = async ({ email }: { email: string }): Promise<User | null> => {
-    return await userDB.getUserByEmail({ email });
+const getUserByEmail = async ({ email }: { email: string }): Promise<User> => {
+    const user = await userDB.getUserByEmail({ email });
+
+    if (!user) {
+        throw new Error(`User with email: ${email} does not exist.`);
+    }
+
+    return user;
 };
+
 
 export default {
     getUserByName,
