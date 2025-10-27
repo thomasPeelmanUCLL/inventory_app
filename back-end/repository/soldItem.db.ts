@@ -35,11 +35,13 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             where: { itemId },
             include: {
                 item: true
+            },
+            orderBy: {
+                soldAt: 'desc'
             }
         });
     }
 
-    // NEW METHOD - Add this
     async getSoldItemsByInventoryId({ inventoryId }: { inventoryId: number }): Promise<SoldItem[]> {
         return this.findMany({
             where: {
@@ -59,7 +61,9 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
     async createSoldItem(soldItem: SoldItem): Promise<SoldItem> {
         const data = {
             itemId: soldItem.getItemId(),
-            sellingPrice: soldItem.getSellingPrice(),
+            finalSellPrice: soldItem.getFinalSellPrice(), // Changed from sellingPrice
+            priceVariableName: soldItem.getPriceVariableName(), // Added
+            isCustomPrice: soldItem.getIsCustomPrice(), // Added
             payedCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
@@ -71,9 +75,11 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         });
     }
 
-    async updateSoldItem(soldItem: SoldItem): Promise<SoldItem | null> {
+    async updateSoldItem(soldItem: SoldItem): Promise<SoldItem | null> {  // Add | null here
         const data = {
-            sellingPrice: soldItem.getSellingPrice(),
+            finalSellPrice: soldItem.getFinalSellPrice(),
+            priceVariableName: soldItem.getPriceVariableName(),
+            isCustomPrice: soldItem.getIsCustomPrice(),
             payedCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
@@ -85,18 +91,18 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         });
     }
 
+
     async deleteSoldItem({ id }: { id: number }): Promise<void> {
         return this.delete(id);
     }
 }
 
 const soldItemRepository = new SoldItemRepository();
-
 export default {
     getAllSoldItems: soldItemRepository.getAllSoldItems.bind(soldItemRepository),
     getSoldItemById: soldItemRepository.getSoldItemById.bind(soldItemRepository),
     getSoldItemsByItemId: soldItemRepository.getSoldItemsByItemId.bind(soldItemRepository),
-    getSoldItemsByInventoryId: soldItemRepository.getSoldItemsByInventoryId.bind(soldItemRepository), // NEW
+    getSoldItemsByInventoryId: soldItemRepository.getSoldItemsByInventoryId.bind(soldItemRepository),
     createSoldItem: soldItemRepository.createSoldItem.bind(soldItemRepository),
     updateSoldItem: soldItemRepository.updateSoldItem.bind(soldItemRepository),
     deleteSoldItem: soldItemRepository.deleteSoldItem.bind(soldItemRepository),

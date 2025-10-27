@@ -8,6 +8,7 @@ import { itemRouter } from './controller/item.routes';
 import { soldItemRouter } from './controller/soldItem.routes';
 import { auth } from './lib/auth';
 import { toNodeHandler } from 'better-auth/node';
+import {priceVariableRouter} from "./controller/priceVariable.routes";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -89,6 +90,8 @@ app.use('/users', userRouter);
 app.use('/inventorys', inventoryRouter);
 app.use('/items', itemRouter);
 app.use('/soldItems', soldItemRouter);
+app.use('/priceVariables', priceVariableRouter);
+
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {

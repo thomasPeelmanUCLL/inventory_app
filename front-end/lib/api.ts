@@ -1,41 +1,34 @@
-import { authClient } from './auth-client';
-import {Item, SoldItem} from "@types";
+import {PriceVariable} from "@types";
 
-export async function fetchWithAuth(url: string, options: RequestInit = {}) {
-    const sessionData = await authClient.getSession();
+const API_BASE_URL = 'http://localhost:3000';
 
-    if (!sessionData?.data?.user) {
-        throw new Error('Not authenticated');
-    }
-
-    // Don't send Authorization header - cookies handle auth automatically
-    const headers = {
-        ...options.headers,
-        'Content-Type': 'application/json',
-    };
-
-    return fetch(url, {
+async function fetchWithAuth(url: string, options: RequestInit = {}) {
+    const response = await fetch(url, {
         ...options,
-        headers,
-        credentials: 'include', // This sends the session cookie
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+        },
     });
+    return response;
 }
 
-// Inventory endpoints - FIXED TO PLURAL
-export async function getMyInventories() {
-    const response = await fetchWithAuth('http://localhost:3000/inventorys/my');
+// Inventory APIs
+export async function getInventories() {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys`);
     if (!response.ok) throw new Error('Failed to fetch inventories');
     return response.json();
 }
 
 export async function getInventoryById(id: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/inventorys/${id}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${id}`);
     if (!response.ok) throw new Error('Failed to fetch inventory');
     return response.json();
 }
 
 export async function createInventory(data: { name: string; description: string }) {
-    const response = await fetchWithAuth('http://localhost:3000/inventorys', {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -44,7 +37,7 @@ export async function createInventory(data: { name: string; description: string 
 }
 
 export async function updateInventory(id: number, data: { name: string; description: string }) {
-    const response = await fetchWithAuth(`http://localhost:3000/inventorys/${id}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
@@ -53,65 +46,28 @@ export async function updateInventory(id: number, data: { name: string; descript
 }
 
 export async function deleteInventory(id: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/inventorys/${id}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${id}`, {
         method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete inventory');
 }
 
-// User management
-export async function getInventoryUsers(inventoryId: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/inventorys/${inventoryId}/users`);
-    if (!response.ok) throw new Error('Failed to fetch users');
-    return response.json();
-}
-
-export async function addUserToInventory(inventoryId: number, userId: string, role: string) {
-    const response = await fetchWithAuth(`http://localhost:3000/inventorys/${inventoryId}/users`, {
+// Item APIs
+export async function createItem(inventoryId: number, data: any) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/items`, {
         method: 'POST',
-        body: JSON.stringify({ userId, role }),
-    });
-    if (!response.ok) throw new Error('Failed to add user');
-    return response.json();
-}
-
-export async function removeUserFromInventory(inventoryId: number, userId: string) {
-    const response = await fetchWithAuth(`http://localhost:3000/inventorys/${inventoryId}/users/${userId}`, {
-        method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to remove user');
-}
-
-export async function getAllUsers() {
-    const response = await fetchWithAuth('http://localhost:3000/users');
-    if (!response.ok) throw new Error('Failed to fetch users');
-    return response.json();
-}
-
-// Item endpoints - FIXED TO PLURAL
-export async function getAllItems() {
-    const response = await fetchWithAuth('http://localhost:3000/items');
-    if (!response.ok) throw new Error('Failed to fetch items');
-    return response.json();
-}
-
-export async function getItemById(id: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/items/${id}`);
-    if (!response.ok) throw new Error('Failed to fetch item');
-    return response.json();
-}
-
-export async function createItem(data: Item) {
-    const response = await fetchWithAuth('http://localhost:3000/items', {
-        method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+            ...data,
+            inventoryId: inventoryId
+        }),
     });
     if (!response.ok) throw new Error('Failed to create item');
     return response.json();
 }
 
-export async function updateItem(id: number, data: Item) {
-    const response = await fetchWithAuth(`http://localhost:3000/items/${id}`, {
+
+export async function updateItem(itemId: number, data: any) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/items/${itemId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
@@ -119,60 +75,112 @@ export async function updateItem(id: number, data: Item) {
     return response.json();
 }
 
-export async function deleteItem(id: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/items/${id}`, {
+export async function deleteItem(itemId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/items/${itemId}`, {
         method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete item');
 }
 
-// Sold Item endpoints - FIXED TO PLURAL
-export async function getAllSoldItems() {
-    const response = await fetchWithAuth('http://localhost:3000/soldItems');
-    if (!response.ok) throw new Error('Failed to fetch sold items');
+// User Management APIs
+export async function addUserToInventory(inventoryId: number, data: { email: string; role: string }) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to add user');
+    return response.json();
+}
+
+export async function removeUserFromInventory(inventoryId: number, userId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users/${userId}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to remove user');
+}
+
+export async function updateUserRole(inventoryId: number, userId: number, role: string) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ role }),
+    });
+    if (!response.ok) throw new Error('Failed to update user role');
+    return response.json();
+}
+
+// Sold Items APIs
+export async function sellItems(inventoryId: number, data: any) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/soldItems`, {
+        method: 'POST',
+        body: JSON.stringify({
+            ...data,
+            inventoryId: inventoryId
+        }),
+    });
+    if (!response.ok) throw new Error('Failed to sell items');
     return response.json();
 }
 
 export async function getSoldItemsByInventoryId(inventoryId: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/soldItems/inventory/${inventoryId}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/soldItems/inventory/${inventoryId}`);
     if (!response.ok) throw new Error('Failed to fetch sold items');
     return response.json();
 }
 
-export async function getSoldItemsByItemId(itemId: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/soldItems/item/${itemId}`);
-    if (!response.ok) throw new Error('Failed to fetch sold items');
+// Price Variables APIs
+export async function getPriceVariablesByInventoryId(inventoryId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/inventory/${inventoryId}`);
+    if (!response.ok) throw new Error('Failed to fetch price variables');
     return response.json();
 }
 
-export async function getLastSoldPrice(itemId: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/soldItems/item/${itemId}/last-price`);
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.lastPrice;
-}
-
-export async function createSoldItem(data: SoldItem) {
-    const response = await fetchWithAuth('http://localhost:3000/soldItems', {
+export const createPriceVariable = async (
+    inventoryId: number,
+    data: {
+        name: string;
+        value: number;
+        type: string;
+        isDefault: boolean;
+        inventoryId: number;
+    }
+): Promise<PriceVariable> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables`, {  // ← USE fetchWithAuth
         method: 'POST',
         body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to create sold item');
+
+    if (!response.ok) throw new Error('Failed to create price variable');
+    return response.json();
+};
+
+export async function getMyInventories() {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/my`);
+    if (!response.ok) throw new Error('Failed to fetch my inventories');
     return response.json();
 }
 
-export async function updateSoldItem(id: number, data: SoldItem) {
-    const response = await fetchWithAuth(`http://localhost:3000/soldItems/${id}`, {
+
+
+
+export async function updatePriceVariable(variableId: number, data: { name: string; formula: string }) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to update sold item');
+    if (!response.ok) throw new Error('Failed to update price variable');
     return response.json();
 }
 
-export async function deleteSoldItem(id: number) {
-    const response = await fetchWithAuth(`http://localhost:3000/soldItems/${id}`, {
+export async function deletePriceVariable(variableId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, {
         method: 'DELETE',
     });
-    if (!response.ok) throw new Error('Failed to delete sold item');
+    if (!response.ok) throw new Error('Failed to delete price variable');
+}
+
+// User Search API
+export async function searchUsers(query: string) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/users/search?query=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Failed to search users');
+    return response.json();
 }

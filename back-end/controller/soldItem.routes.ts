@@ -11,9 +11,18 @@
  *         itemId:
  *           type: number
  *           format: int64
- *         sellingPrice:
+ *         finalSellPrice:
  *           type: number
- *           format: float
+ *           format: decimal
+ *           description: Final price after applying price variable or custom price
+ *         priceVariableName:
+ *           type: string
+ *           nullable: true
+ *           description: Name of price variable used (e.g., "Member", "Custom")
+ *         isCustomPrice:
+ *           type: boolean
+ *           default: false
+ *           description: True if manually entered custom price
  *         quantity:
  *           type: number
  *           format: int32
@@ -22,23 +31,25 @@
  *         soldAt:
  *           type: string
  *           format: date-time
- *           nullable: true
- *         createdAt:
- *           type: string
- *           format: date-time
  *     SoldItemInput:
  *       type: object
  *       required:
  *         - itemId
- *         - sellingPrice
+ *         - finalSellPrice
  *         - quantity
  *       properties:
  *         itemId:
  *           type: number
  *           format: int64
- *         sellingPrice:
+ *         finalSellPrice:
  *           type: number
- *           format: float
+ *           format: decimal
+ *         priceVariableName:
+ *           type: string
+ *           nullable: true
+ *         isCustomPrice:
+ *           type: boolean
+ *           default: false
  *         quantity:
  *           type: number
  *           format: int32
@@ -164,6 +175,40 @@ soldItemRouter.get('/item/:itemId', async (req: Request, res: Response, next: Ne
 
 /**
  * @swagger
+ * /soldItems/inventory/{inventoryId}:
+ *   get:
+ *     summary: Get sold items by inventory ID
+ *     tags:
+ *       - Sold Items
+ *     security:
+ *       - betterAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: inventoryId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: A list of sold items for the specified inventory
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/SoldItem'
+ */
+soldItemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const soldItems = await soldItemService.getSoldItemsByInventoryId({ inventoryId: Number(req.params.inventoryId) });
+        res.status(200).json(soldItems);
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * @swagger
  * /soldItems:
  *   post:
  *     summary: Create a new sold item
@@ -193,21 +238,31 @@ soldItemRouter.get('/item/:itemId', async (req: Request, res: Response, next: Ne
  */
 soldItemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { itemId, sellingPrice, payedCash, quantity, soldAt } = req.body;
-        const soldAtDate = soldAt ? new Date(soldAt) : undefined;
+        const { items, inventoryId } = req.body;
 
-        const soldItem = await soldItemService.createSoldItem({
-            itemId: Number(itemId),
-            sellingPrice: Number(sellingPrice),
-            payedCash: Boolean(payedCash),
-            quantity: Number(quantity),
-            soldAt: soldAtDate
-        });
-        res.status(201).json(soldItem);
+        // Loop through items array
+        const soldItems = await Promise.all(
+            items.map(async (item: any) => {
+                const { itemId, finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity } = item;
+
+                return await soldItemService.createSoldItem({
+                    itemId,
+                    finalSellPrice: Number(finalSellPrice),
+                    priceVariableName,
+                    isCustomPrice,
+                    payedCash,
+                    quantity,
+                    soldAt: new Date()
+                });
+            })
+        );
+
+        res.status(201).json(soldItems);
     } catch (error) {
         next(error);
     }
 });
+
 
 /**
  * @swagger
@@ -231,9 +286,14 @@ soldItemRouter.post('/', async (req: Request, res: Response, next: NextFunction)
  *           schema:
  *             type: object
  *             properties:
- *               sellingPrice:
+ *               finalSellPrice:
  *                 type: number
- *                 format: float
+ *                 format: decimal
+ *               priceVariableName:
+ *                 type: string
+ *                 nullable: true
+ *               isCustomPrice:
+ *                 type: boolean
  *               quantity:
  *                 type: number
  *                 format: int32
@@ -259,16 +319,19 @@ soldItemRouter.post('/', async (req: Request, res: Response, next: NextFunction)
  */
 soldItemRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { sellingPrice, payedCash, quantity, soldAt } = req.body;
+        const { finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity, soldAt } = req.body;
         const soldAtDate = soldAt ? new Date(soldAt) : undefined;
 
         const soldItem = await soldItemService.updateSoldItem({
             id: Number(req.params.id),
-            sellingPrice: sellingPrice !== undefined ? Number(sellingPrice) : undefined,
+            finalSellPrice: finalSellPrice !== undefined ? Number(finalSellPrice) : undefined,  // Changed
+            priceVariableName,  // Added
+            isCustomPrice: isCustomPrice !== undefined ? Boolean(isCustomPrice) : undefined,  // Added
             payedCash: payedCash !== undefined ? Boolean(payedCash) : undefined,
             quantity: quantity !== undefined ? Number(quantity) : undefined,
             soldAt: soldAtDate
         });
+
         res.status(200).json(soldItem);
     } catch (error) {
         next(error);
@@ -306,40 +369,5 @@ soldItemRouter.delete('/:id', async (req: Request, res: Response, next: NextFunc
         next(error);
     }
 });
-
-/**
- * @swagger
- * /soldItems/inventory/{inventoryId}:
- *   get:
- *     summary: Get sold items by inventory ID
- *     tags:
- *       - Sold Items
- *     security:
- *       - betterAuth: []
- *     parameters:
- *       - in: path
- *         name: inventoryId
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: A list of sold items for the specified inventory
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/SoldItem'
- */
-soldItemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const soldItems = await soldItemService.getSoldItemsByInventoryId({ inventoryId: Number(req.params.inventoryId) });
-        res.status(200).json(soldItems);
-    } catch (error) {
-        next(error);
-    }
-});
-
 
 export { soldItemRouter };

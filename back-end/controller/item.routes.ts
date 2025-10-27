@@ -15,10 +15,10 @@
  *         description:
  *           type: string
  *           description: The description of the item.
- *         price:
+ *         buyPrice:
  *           type: number
- *           format: float
- *           description: The price of the item.
+ *           format: decimal
+ *           description: The price the item was bought at.
  *         quantity:
  *           type: number
  *           format: int32
@@ -28,6 +28,11 @@
  *           format: date-time
  *           nullable: true
  *           description: The date when the item was purchased.
+ *         priceVariableId:
+ *           type: number
+ *           format: int64
+ *           nullable: true
+ *           description: The ID of the default price variable for this item.
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -42,7 +47,7 @@
  *       required:
  *         - name
  *         - description
- *         - price
+ *         - buyPrice
  *         - quantity
  *       properties:
  *         name:
@@ -51,10 +56,10 @@
  *         description:
  *           type: string
  *           description: The description of the item.
- *         price:
+ *         buyPrice:
  *           type: number
- *           format: float
- *           description: The price of the item.
+ *           format: decimal
+ *           description: The price the item was bought at.
  *         quantity:
  *           type: number
  *           format: int32
@@ -64,6 +69,11 @@
  *           format: date-time
  *           nullable: true
  *           description: The date when the item was purchased.
+ *         priceVariableId:
+ *           type: number
+ *           format: int64
+ *           nullable: true
+ *           description: The ID of the default price variable for this item.
  *         inventoryId:
  *           type: number
  *           format: int64
@@ -176,17 +186,19 @@ itemRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) =
  */
 itemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, description, price, quantity, buyedAt, inventoryId } = req.body;
+        const { name, description, buyPrice, quantity, buyedAt, inventoryId, priceVariableId } = req.body;
         const buyedAtDate = buyedAt ? new Date(buyedAt) : undefined;
 
         const item = await itemService.createItem({
             name,
             description,
-            price,
+            buyPrice: Number(buyPrice),  // Changed from price
             quantity,
             buyedAt: buyedAtDate,
-            inventoryId: inventoryId ? Number(inventoryId) : undefined
+            inventoryId: inventoryId ? Number(inventoryId) : undefined,
+            priceVariableId: priceVariableId ? Number(priceVariableId) : undefined  // Added
         });
+
         res.status(201).json(item);
     } catch (error) {
         next(error);
@@ -231,18 +243,20 @@ itemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => 
  */
 itemRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, description, price, quantity, buyedAt, inventoryId } = req.body;
+        const { name, description, buyPrice, quantity, buyedAt, inventoryId, priceVariableId } = req.body;
         const buyedAtDate = buyedAt ? new Date(buyedAt) : undefined;
 
         const item = await itemService.updateItem({
             id: Number(req.params.id),
             name,
             description,
-            price,
+            buyPrice: Number(buyPrice),  // Changed from price
             quantity,
             buyedAt: buyedAtDate,
-            inventoryId: inventoryId ? Number(inventoryId) : undefined
+            inventoryId: inventoryId ? Number(inventoryId) : undefined,
+            priceVariableId: priceVariableId ? Number(priceVariableId) : undefined  // Added
         });
+
         res.status(200).json(item);
     } catch (error) {
         next(error);

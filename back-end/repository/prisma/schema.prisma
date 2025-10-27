@@ -18,7 +18,7 @@ model User {
   updatedAt     DateTime        @updatedAt
   sessions      Session[]
   accounts      Account[]
-  inventories   InventoryUser[] // Many-to-many relation
+  inventories   InventoryUser[]
 
   @@map("users")
 }
@@ -73,17 +73,16 @@ model Inventory {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   items       Item[]
-  users       InventoryUser[] // Many-to-many relation
+  users       InventoryUser[]
 
   @@map("inventorys")
 }
 
-// Junction table for many-to-many relationship
 model InventoryUser {
   id          Int       @id @default(autoincrement())
   userId      String
   inventoryId Int
-  role        String    @default("viewer") // "owner", "editor", "viewer"
+  role        String    @default("viewer")
   addedAt     DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
@@ -92,30 +91,47 @@ model InventoryUser {
   @@map("inventory_users")
 }
 
-model Item {
-  id          Int        @id @default(autoincrement())
+model PriceVariable {
+  id          Int     @id @default(autoincrement())
   name        String
-  description String
-  price       Float
-  quantity    Int
-  buyedAt     DateTime?
-  createdAt   DateTime   @default(now())
-  soldItems   SoldItem[]
-  inventory   Inventory? @relation(fields: [inventoryId], references: [id])
-  inventoryId Int?
+  value       Float
+  type        String
+  isDefault   Boolean @default(false)
+  inventoryId Int
+  items       Item[]
+
+  @@unique([name, inventoryId])
+  @@map("price_variables")
+}
+
+model Item {
+  id              Int            @id @default(autoincrement())
+  name            String
+  description     String
+  buyPrice        Decimal        @db.Decimal(10, 2)
+  quantity        Int
+  buyedAt         DateTime?
+  priceVariableId Int?
+  priceVariable   PriceVariable? @relation(fields: [priceVariableId], references: [id], onDelete: SetNull)
+  inventoryId     Int?
+  inventory       Inventory?     @relation(fields: [inventoryId], references: [id])
+  soldItems       SoldItem[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@map("items")
 }
 
 model SoldItem {
-  id           Int       @id @default(autoincrement())
-  item         Item      @relation(fields: [itemId], references: [id])
-  itemId       Int
-  sellingPrice Float
-  quantity     Int
-  payedCash    Boolean   @default(false)
-  soldAt       DateTime?
-  createdAt    DateTime  @default(now())
+  id                Int      @id @default(autoincrement())
+  itemId            Int
+  item              Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  finalSellPrice    Decimal  @db.Decimal(10, 2)
+  quantity          Int
+  priceVariableName String?
+  isCustomPrice     Boolean  @default(false)
+  payedCash         Boolean  @default(false)
+  soldAt            DateTime @default(now())
 
   @@map("sold_items")
 }

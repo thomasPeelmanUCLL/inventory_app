@@ -3,6 +3,7 @@ import { Item } from '../model/item';
 import itemService from './item.service';
 import soldItemDB from '../repository/soldItem.db';
 import itemDB from '../repository/item.db';
+import { Prisma } from '@prisma/client';
 
 const getAllSoldItems = async (): Promise<SoldItem[]> => {
     return await soldItemDB.getAllSoldItems();
@@ -20,33 +21,46 @@ const getSoldItemsByItemId = async ({ itemId }: { itemId: number }): Promise<Sol
     return await soldItemDB.getSoldItemsByItemId({ itemId });
 };
 
-// NEW METHOD - Add this
 const getSoldItemsByInventoryId = async ({ inventoryId }: { inventoryId: number }): Promise<SoldItem[]> => {
     return await soldItemDB.getSoldItemsByInventoryId({ inventoryId });
 };
 
 const createSoldItem = async ({
                                   itemId,
-                                  sellingPrice,
+                                  finalSellPrice,
+                                  priceVariableName,
+                                  isCustomPrice,
                                   payedCash = false,
                                   quantity,
                                   soldAt
                               }: {
     itemId: number;
-    sellingPrice: number;
+    finalSellPrice: number | Prisma.Decimal;
+    priceVariableName?: string;
+    isCustomPrice?: boolean;
     payedCash?: boolean;
     quantity: number;
-    soldAt?: Date
+    soldAt?: Date;
 }): Promise<SoldItem> => {
-    const item = await itemService.getItemById({ id: itemId });
+    console.log('🔍 Backend received finalSellPrice:', finalSellPrice);
+    console.log('🔍 Type:', typeof finalSellPrice);
+    console.log('🔍 Value:', JSON.stringify(finalSellPrice));
+    // Validate price
+    const priceNum = typeof finalSellPrice === 'number' ? finalSellPrice : Number(finalSellPrice);
+    if (!priceNum || isNaN(priceNum) || priceNum <= 0) {
+        throw new Error('Invalid finalSellPrice: must be a positive number');
+    }
 
+    const item = await itemService.getItemById({ id: itemId });
     if (item.getQuantity() < quantity) {
         throw new Error(`Not enough quantity available for item with ID: ${itemId}`);
     }
 
     const soldItem = new SoldItem({
         itemId,
-        sellingPrice,
+        finalSellPrice,
+        priceVariableName,
+        isCustomPrice,
         payedCash,
         quantity,
         soldAt
@@ -54,15 +68,17 @@ const createSoldItem = async ({
 
     const createdSoldItem = await soldItemDB.createSoldItem(soldItem);
 
+    // Update item quantity
     const updatedItem = await itemDB.getItemById({ id: itemId });
     if (updatedItem) {
         const newItem = new Item({
             id: updatedItem.getId(),
             name: updatedItem.getName(),
             description: updatedItem.getDescription(),
-            price: updatedItem.getPrice(),
+            buyPrice: updatedItem.getBuyPrice(),
             quantity: updatedItem.getQuantity() - quantity,
             inventoryId: updatedItem.getInventoryId(),
+            priceVariableId: updatedItem.getPriceVariableId(),
             buyedAt: updatedItem.getBuyedAt(),
             createdAt: updatedItem.getCreatedAt()
         });
@@ -74,16 +90,20 @@ const createSoldItem = async ({
 
 const updateSoldItem = async ({
                                   id,
-                                  sellingPrice,
+                                  finalSellPrice,
+                                  priceVariableName,
+                                  isCustomPrice,
                                   payedCash,
                                   quantity,
                                   soldAt
                               }: {
     id: number;
-    sellingPrice?: number;
+    finalSellPrice?: number | Prisma.Decimal;
+    priceVariableName?: string;
+    isCustomPrice?: boolean;
     payedCash?: boolean;
     quantity?: number;
-    soldAt?: Date
+    soldAt?: Date;
 }): Promise<SoldItem> => {
     const existingSoldItem = await getSoldItemById({ id });
     const item = await itemDB.getItemById({ id: existingSoldItem.getItemId() });
@@ -103,7 +123,9 @@ const updateSoldItem = async ({
     const updatedSoldItem = new SoldItem({
         id: existingSoldItem.getId(),
         itemId: existingSoldItem.getItemId(),
-        sellingPrice: sellingPrice !== undefined ? sellingPrice : existingSoldItem.getSellingPrice(),
+        finalSellPrice: finalSellPrice !== undefined ? finalSellPrice : existingSoldItem.getFinalSellPrice(),
+        priceVariableName: priceVariableName !== undefined ? priceVariableName : existingSoldItem.getPriceVariableName(),
+        isCustomPrice: isCustomPrice !== undefined ? isCustomPrice : existingSoldItem.getIsCustomPrice(),
         payedCash: payedCash !== undefined ? payedCash : existingSoldItem.isPayedCash(),
         quantity: quantity !== undefined ? quantity : existingSoldItem.getQuantity(),
         soldAt: soldAt !== undefined ? soldAt : existingSoldItem.getSoldAt(),
@@ -115,14 +137,16 @@ const updateSoldItem = async ({
         throw new Error(`Failed to update SoldItem with ID: ${id}`);
     }
 
+    // Adjust item quantity if changed
     if (quantityDifference !== 0) {
         const newItem = new Item({
             id: item.getId(),
             name: item.getName(),
             description: item.getDescription(),
-            price: item.getPrice(),
+            buyPrice: item.getBuyPrice(),
             quantity: item.getQuantity() + quantityDifference,
             inventoryId: item.getInventoryId(),
+            priceVariableId: item.getPriceVariableId(),
             buyedAt: item.getBuyedAt(),
             createdAt: item.getCreatedAt()
         });
@@ -142,13 +166,15 @@ const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
 
     await soldItemDB.deleteSoldItem({ id });
 
+    // Restore item quantity
     const newItem = new Item({
         id: item.getId(),
         name: item.getName(),
         description: item.getDescription(),
-        price: item.getPrice(),
+        buyPrice: item.getBuyPrice(),
         quantity: item.getQuantity() + soldItem.getQuantity(),
         inventoryId: item.getInventoryId(),
+        priceVariableId: item.getPriceVariableId(),
         buyedAt: item.getBuyedAt(),
         createdAt: item.getCreatedAt()
     });
@@ -159,7 +185,7 @@ export default {
     getAllSoldItems,
     getSoldItemById,
     getSoldItemsByItemId,
-    getSoldItemsByInventoryId, // NEW EXPORT
+    getSoldItemsByInventoryId,
     createSoldItem,
     updateSoldItem,
     deleteSoldItem

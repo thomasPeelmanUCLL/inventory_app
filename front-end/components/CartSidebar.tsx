@@ -1,89 +1,122 @@
-type Item = {
-    id: number;
-    name: string;
-    description: string;
-    price: number;
-    quantity: number;
-    buyedAt?: string;
-    createdAt: string;
-};
-
-type CartItem = {
-    item: Item;
-    quantityToSell: number;
-    sellingPrice: number;
-};
+import { Item, CartItem } from '@types';
 
 type Props = {
     cart: CartItem[];
     onClose: () => void;
     onRemoveItem: (itemId: number) => void;
-    onClearCart: () => void;
+    onUpdateQuantity: (itemId: number, quantity: number) => void;
     onCheckout: () => void;
 };
 
-const CartSidebar = ({ cart, onClose, onRemoveItem, onClearCart, onCheckout }: Props) => {
+const CartSidebar = ({ cart, onClose, onRemoveItem, onUpdateQuantity, onCheckout }: Props) => {
     const getTotalCartValue = () => {
-        return cart.reduce((total, cartItem) => total + (cartItem.sellingPrice * cartItem.quantityToSell), 0);
+        return cart.reduce((total, cartItem) =>
+            total + (cartItem.finalSellPrice * cartItem.quantityToSell), 0
+        );
+    };
+
+    const getTotalItems = () => {
+        return cart.reduce((total, cartItem) => total + cartItem.quantityToSell, 0);
     };
 
     return (
-        <div className="w-80 bg-white rounded-lg border border-gray-200 p-6 h-fit sticky top-4 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Cart</h3>
-                <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-end z-50">
+            <div className="bg-white w-full md:w-96 h-full md:h-auto md:max-h-[90vh] md:rounded-l-lg shadow-xl flex flex-col">
+                {/* Header */}
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                    <h2 className="text-2xl font-bold">Shopping Cart</h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-500 hover:text-gray-700 text-2xl"
+                    >
+                        ×
+                    </button>
+                </div>
 
-            <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
-                {cart.map((cartItem) => (
-                    <div key={cartItem.item.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-gray-900 text-sm truncate">{cartItem.item.name}</h4>
-                            <p className="text-xs text-gray-500">{cartItem.quantityToSell}x @ ${cartItem.sellingPrice.toFixed(2)}</p>
-                            <p className="text-sm font-semibold text-green-600 mt-1">
-                                ${(cartItem.sellingPrice * cartItem.quantityToSell).toFixed(2)}
-                            </p>
+                {/* Cart Items */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    {cart.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                            <p>Your cart is empty</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {cart.map((cartItem) => (
+                                <div
+                                    key={cartItem.item.id}
+                                    className="border border-gray-200 rounded-lg p-4"
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="font-semibold">{cartItem.item.name}</h3>
+                                        <button
+                                            onClick={() => onRemoveItem(cartItem.item.id)}
+                                            className="text-red-500 hover:text-red-700 text-sm"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+
+                                    <p className="text-sm text-gray-600 mb-3">
+                                        {cartItem.quantityToSell}x @ ${cartItem.finalSellPrice.toFixed(2)}
+                                        {cartItem.isCustomPrice && (
+                                            <span className="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">
+                                                Custom
+                                            </span>
+                                        )}
+                                        {cartItem.priceVariableName && !cartItem.isCustomPrice && (
+                                            <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                                                {cartItem.priceVariableName}
+                                            </span>
+                                        )}
+                                    </p>
+
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => onUpdateQuantity(cartItem.item.id, Math.max(1, cartItem.quantityToSell - 1))}
+                                                className="w-8 h-8 rounded border border-gray-300 hover:bg-gray-100"
+                                            >
+                                                -
+                                            </button>
+                                            <span className="w-12 text-center">{cartItem.quantityToSell}</span>
+                                            <button
+                                                onClick={() => onUpdateQuantity(cartItem.item.id, Math.min(cartItem.item.quantity, cartItem.quantityToSell + 1))}
+                                                className="w-8 h-8 rounded border border-gray-300 hover:bg-gray-100"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                        <span className="font-bold text-green-600">
+                                            ${(cartItem.finalSellPrice * cartItem.quantityToSell).toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                {cart.length > 0 && (
+                    <div className="p-6 border-t border-gray-200 space-y-4">
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm text-gray-600">
+                                <span>Total Items:</span>
+                                <span>{getTotalItems()}</span>
+                            </div>
+                            <div className="flex justify-between text-lg font-bold">
+                                <span>Total:</span>
+                                <span className="text-green-600">${getTotalCartValue().toFixed(2)}</span>
+                            </div>
                         </div>
                         <button
-                            onClick={() => onRemoveItem(cartItem.item.id)}
-                            className="text-red-500 hover:text-red-700 flex-shrink-0"
+                            onClick={onCheckout}
+                            className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors font-semibold"
                         >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            Checkout
                         </button>
                     </div>
-                ))}
-            </div>
-
-            <div className="border-t border-gray-200 pt-4 mb-4">
-                <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-gray-600">Subtotal</span>
-                    <span className="text-sm font-medium">${getTotalCartValue().toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-gray-900">Total</span>
-                    <span className="text-lg font-bold text-green-600">${getTotalCartValue().toFixed(2)}</span>
-                </div>
-            </div>
-
-            <div className="space-y-2">
-                <button
-                    onClick={onCheckout}
-                    className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium shadow-sm"
-                >
-                    Checkout ({cart.length} items)
-                </button>
-                <button
-                    onClick={onClearCart}
-                    className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                    Clear Cart
-                </button>
+                )}
             </div>
         </div>
     );
