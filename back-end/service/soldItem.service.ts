@@ -178,6 +178,73 @@ const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
     await itemDB.updateItem(newItem);
 };
 
+const getAnalyticsByInventoryId = async ({
+                                             inventoryId,
+                                             startDate,
+                                             endDate
+                                         }: {
+    inventoryId: number;
+    startDate?: Date;
+    endDate?: Date;
+}): Promise<{
+    summary: {
+        totalBuyPrice: number;
+        totalSellPrice: number;
+        totalProfit: number;
+        totalQuantitySold: number;
+        totalTransactions: number;
+        cashTransactions: number;
+        nonCashTransactions: number;
+    };
+    topSellingItems: Array<{
+        itemId: number;
+        itemName: string;
+        totalQuantity: number;
+        totalBuyPrice: number;
+        totalSellPrice: number;
+        totalProfit: number;
+        priceBreakdown: Array<{
+            sellPrice: number;
+            priceVariableName: string | null;
+            quantity: number;
+            totalBuy: number;
+            totalSell: number;
+            profit: number;
+        }>;
+    }>;
+
+    salesByDay: Array<{
+        date: string;
+        totalBuyPrice: number;
+        totalSellPrice: number;
+        totalProfit: number;
+        totalQuantity: number;
+        transactionCount: number;
+    }>;
+    paymentMethodBreakdown: {
+        cash: {
+            buyPrice: number;
+            sellPrice: number;
+            profit: number;
+        };
+        nonCash: {
+            buyPrice: number;
+            sellPrice: number;
+            profit: number;
+        };
+    };
+    priceVariableBreakdown: Array<{
+        priceVariableName: string;
+        count: number;
+        totalBuyPrice: number;
+        totalSellPrice: number;
+        totalProfit: number;
+    }>;
+}> => {
+    return await soldItemDB.getAnalyticsByInventoryId({ inventoryId, startDate, endDate });
+};
+
+
 export default {
     getAllSoldItems,
     getSoldItemById,
@@ -185,5 +252,6 @@ export default {
     getSoldItemsByInventoryId,
     createSoldItem,
     updateSoldItem,
-    deleteSoldItem
+    deleteSoldItem,
+    getAnalyticsByInventoryId
 };

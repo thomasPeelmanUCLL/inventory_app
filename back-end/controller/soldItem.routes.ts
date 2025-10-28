@@ -364,4 +364,50 @@ soldItemRouter.delete('/:id', async (req: Request, res: Response, next: NextFunc
     }
 });
 
+/**
+ * @swagger
+ * /soldItems/inventory/{inventoryId}/analytics:
+ *   get:
+ *     summary: Get analytics for an inventory
+ *     tags:
+ *       - Sold Items
+ *     security:
+ *       - betterAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: inventoryId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Analytics data for the inventory
+ */
+soldItemRouter.get('/inventory/:inventoryId/analytics', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        const analytics = await soldItemService.getAnalyticsByInventoryId({
+            inventoryId: Number(req.params.inventoryId),
+            startDate: startDate ? new Date(startDate as string) : undefined,
+            endDate: endDate ? new Date(endDate as string) : undefined,
+        });
+
+        res.status(200).json(analytics);
+    } catch (error) {
+        next(error);
+    }
+});
+
+
 export { soldItemRouter };

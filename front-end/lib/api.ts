@@ -292,6 +292,26 @@ export async function deleteSoldItem(soldItemId: number) {
     if (!response.ok) throw new Error('Failed to delete sold item');
 }
 
+// ========================================
+// SOLD ITEM ANALYTICS API
+// ========================================
+export async function getInventoryAnalytics(
+    inventoryId: number,
+    startDate?: Date,
+    endDate?: Date
+) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString());
+    if (endDate) params.append('endDate', endDate.toISOString());
+
+    const queryString = params.toString();
+    const url = `${API_BASE_URL}/soldItems/inventory/${inventoryId}/analytics${queryString ? `?${queryString}` : ''}`;
+
+    const response = await fetchWithAuth(url);
+    if (!response.ok) throw new Error('Failed to fetch analytics');
+    return response.json();
+}
+
 
 // ========================================
 // USER APIs

@@ -20,7 +20,7 @@ type Props = {
     role: string;
     canEdit: boolean;
     isOwner: boolean;
-    activeTab: 'overview' | 'add' | 'manage' | 'sell' | 'history';
+    activeTab: 'overview' | 'add' | 'manage' | 'sell' | 'history' | 'analytics';
     onManageUsers: () => void;
 };
 
@@ -123,6 +123,17 @@ const InventoryHeader = ({ inventory, role, canEdit, isOwner, activeTab, onManag
                             }`}
                         >
                             Sales History
+                        </button>
+                    </Link>
+                    <Link href={`/Inventory/${inventory.id}/analytics`}>
+                        <button
+                            className={`border-b-2 pb-3 px-1 font-medium text-sm transition-colors ${
+                                activeTab === 'analytics'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            Analytics
                         </button>
                     </Link>
                 </nav>

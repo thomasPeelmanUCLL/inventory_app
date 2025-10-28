@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 
 type Props = {
     inventoryId: number;
-    currentTab: 'overview' | 'add' | 'manage' | 'sell' | 'history';
+    currentTab: 'overview' | 'add' | 'manage' | 'sell' | 'history' | 'analytics';
 };
 
 export default function InventoryTabs({ inventoryId, currentTab }: Props) {
@@ -32,6 +32,12 @@ export default function InventoryTabs({ inventoryId, currentTab }: Props) {
                 className={`px-4 py-2 ${currentTab === 'history' ? 'border-b-2 border-blue-600 font-semibold' : ''}`}
             >
                 Sales History
+            </Link>
+            <Link
+                href={`/inventory/${inventoryId}/analytics`}
+                className={`px-4 py-2 ${currentTab === 'analytics' ? 'border-b-2 border-blue-600 font-semibold' : ''}`}
+            >
+                Analytics
             </Link>
         </div>
     );
