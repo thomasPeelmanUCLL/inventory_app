@@ -181,5 +181,94 @@ userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 });
 
+/**
+ * @swagger
+ * /users/{id}:
+ *   get:
+ *     summary: Get user by ID
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID (CUID)
+ *     responses:
+ *       200:
+ *         description: User details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ */
+userRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = await userService.getUserById({ id: req.params.id });
+        res.status(200).json(user);
+    } catch (error) {
+        console.error('Error fetching user by ID:', error);
+        if (error instanceof Error && error.message.includes('does not exist')) {
+            res.status(404).json({
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({
+                error: 'Internal server error',
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+});
+
+/**
+ * @swagger
+ * /users/name/{name}:
+ *   get:
+ *     summary: Get user by username
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: name
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Username
+ *     responses:
+ *       200:
+ *         description: User details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ */
+userRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = await userService.getUserByName({ name: req.params.name });
+        res.status(200).json(user);
+    } catch (error) {
+        console.error('Error fetching user by name:', error);
+        if (error instanceof Error && error.message.includes('does not exist')) {
+            res.status(404).json({
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({
+                error: 'Internal server error',
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+});
+
+
 
 export { userRouter };

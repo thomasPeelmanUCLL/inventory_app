@@ -238,30 +238,24 @@ soldItemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response
  */
 soldItemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { items, inventoryId } = req.body;
+        const { itemId, finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity, soldAt } = req.body;
 
-        // Loop through items array
-        const soldItems = await Promise.all(
-            items.map(async (item: any) => {
-                const { itemId, finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity } = item;
+        const soldItem = await soldItemService.createSoldItem({
+            itemId: Number(itemId),
+            finalSellPrice: Number(finalSellPrice),
+            priceVariableName,
+            isCustomPrice: Boolean(isCustomPrice),
+            payedCash: Boolean(payedCash),
+            quantity: Number(quantity),
+            soldAt: soldAt ? new Date(soldAt) : undefined
+        });
 
-                return await soldItemService.createSoldItem({
-                    itemId,
-                    finalSellPrice: Number(finalSellPrice),
-                    priceVariableName,
-                    isCustomPrice,
-                    payedCash,
-                    quantity,
-                    soldAt: new Date()
-                });
-            })
-        );
-
-        res.status(201).json(soldItems);
+        res.status(201).json(soldItem);
     } catch (error) {
         next(error);
     }
 });
+
 
 
 /**

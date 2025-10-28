@@ -15,25 +15,25 @@ const getPriceVariableById = async ({ id }: { id: number }): Promise<PriceVariab
     return priceVariablePrisma ? PriceVariable.from(priceVariablePrisma) : null;
 };
 
-const getPriceVariablesByInventoryId = async ({ inventoryId }: { inventoryId: number }): Promise<PriceVariable[]> => {
+const getPriceVariablesByItemId = async ({ itemId }: { itemId: number }): Promise<PriceVariable[]> => {
     const priceVariables = await prisma.priceVariable.findMany({
-        where: { inventoryId },
+        where: { itemId },
     });
     return priceVariables.map((pv) => PriceVariable.from(pv));
 };
 
 const getPriceVariableByName = async ({
                                           name,
-                                          inventoryId
+                                          itemId
                                       }: {
     name: string;
-    inventoryId: number
+    itemId: number
 }): Promise<PriceVariable | null> => {
     const priceVariablePrisma = await prisma.priceVariable.findUnique({
         where: {
-            name_inventoryId: {
+            name_itemId: {
                 name,
-                inventoryId
+                itemId
             }
         },
     });
@@ -47,7 +47,7 @@ const createPriceVariable = async (priceVariable: PriceVariable): Promise<PriceV
             value: priceVariable.getValue(),           // ← ADD THIS
             type: priceVariable.getType(),             // ← ADD THIS
             isDefault: priceVariable.getIsDefault(),   // ← ADD THIS
-            inventoryId: priceVariable.getInventoryId(),
+            itemId: priceVariable.getItemId(),
         },
     });
     return PriceVariable.from(priceVariablePrisma);
@@ -88,7 +88,7 @@ const deletePriceVariable = async ({ id }: { id: number }): Promise<void> => {
 export default {
     getAllPriceVariables,
     getPriceVariableById,
-    getPriceVariablesByInventoryId,
+    getPriceVariablesByItemId,
     getPriceVariableByName,
     createPriceVariable,
     updatePriceVariable,

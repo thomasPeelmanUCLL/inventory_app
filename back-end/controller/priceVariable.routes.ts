@@ -11,18 +11,43 @@
  *         name:
  *           type: string
  *           description: Name of the price variable (e.g., "Member", "Non-Member", "Student")
- *         inventoryId:
+ *         value:
+ *           type: number
+ *           format: float
+ *           description: The value (percentage or fixed amount)
+ *         type:
+ *           type: string
+ *           enum: [PERCENTAGE, FIXED]
+ *           description: Type of price adjustment
+ *         isDefault:
+ *           type: boolean
+ *           default: false
+ *           description: Whether this is the default price variable
+ *         itemId:
  *           type: number
  *           format: int64
+ *           description: The item this price variable belongs to
  *     PriceVariableInput:
  *       type: object
  *       required:
  *         - name
- *         - inventoryId
+ *         - value
+ *         - type
+ *         - itemId
  *       properties:
  *         name:
  *           type: string
- *         inventoryId:
+ *           minLength: 1
+ *         value:
+ *           type: number
+ *           format: float
+ *         type:
+ *           type: string
+ *           enum: [PERCENTAGE, FIXED]
+ *         isDefault:
+ *           type: boolean
+ *           default: false
+ *         itemId:
  *           type: number
  *           format: int64
  */
@@ -54,6 +79,8 @@ priceVariableRouter.use(requireAuth);
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/PriceVariable'
+ *       401:
+ *         description: User not authenticated
  */
 priceVariableRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -82,6 +109,12 @@ priceVariableRouter.get('/', async (req: Request, res: Response, next: NextFunct
  *     responses:
  *       200:
  *         description: The price variable details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PriceVariable'
+ *       401:
+ *         description: User not authenticated
  *       404:
  *         description: Price variable not found
  */
@@ -96,33 +129,36 @@ priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFu
 
 /**
  * @swagger
- * /priceVariables/inventory/{inventoryId}:
+ * /priceVariables/item/{itemId}:
  *   get:
- *     summary: Get all price variables for an inventory
+ *     summary: Get price variables by item ID
  *     tags:
  *       - Price Variables
  *     security:
  *       - betterAuth: []
  *     parameters:
  *       - in: path
- *         name: inventoryId
+ *         name: itemId
  *         required: true
  *         schema:
  *           type: integer
+ *         description: The item ID
  *     responses:
  *       200:
- *         description: A list of price variables for the inventory
+ *         description: List of price variables for the item
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/PriceVariable'
+ *       401:
+ *         description: User not authenticated
  */
-priceVariableRouter.get('/inventory/:inventoryId', async (req: Request, res: Response, next: NextFunction) => {
+priceVariableRouter.get('/item/:itemId', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const priceVariables = await priceVariableService.getPriceVariablesByInventoryId({
-            inventoryId: Number(req.params.inventoryId)
+        const priceVariables = await priceVariableService.getPriceVariablesByItemId({
+            itemId: Number(req.params.itemId)
         });
         res.status(200).json(priceVariables);
     } catch (error) {
@@ -148,25 +184,32 @@ priceVariableRouter.get('/inventory/:inventoryId', async (req: Request, res: Res
  *     responses:
  *       201:
  *         description: The created price variable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PriceVariable'
  *       400:
  *         description: Bad request
+ *       401:
+ *         description: User not authenticated
  */
 priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, inventoryId, value, type, isDefault } = req.body; // ← ADD value, type, isDefault
+        const { name, itemId, value, type, isDefault } = req.body;
+
         const priceVariable = await priceVariableService.createPriceVariable({
             name,
-            value: Number(value),           // ← ADD THIS
-            type,                            // ← ADD THIS
-            isDefault: Boolean(isDefault),   // ← ADD THIS
-            inventoryId: Number(inventoryId)
+            value: Number(value),
+            type,
+            isDefault: Boolean(isDefault),
+            itemId: Number(itemId)
         });
+
         res.status(201).json(priceVariable);
     } catch (error) {
         next(error);
     }
 });
-
 
 /**
  * @swagger
@@ -192,28 +235,45 @@ priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunc
  *             properties:
  *               name:
  *                 type: string
+ *               value:
+ *                 type: number
+ *                 format: float
+ *               type:
+ *                 type: string
+ *                 enum: [PERCENTAGE, FIXED]
+ *               isDefault:
+ *                 type: boolean
  *     responses:
  *       200:
  *         description: The updated price variable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PriceVariable'
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: User not authenticated
  *       404:
  *         description: Price variable not found
  */
 priceVariableRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, value, type, isDefault } = req.body; // ← ADD value, type, isDefault
+        const { name, value, type, isDefault } = req.body;
+
         const priceVariable = await priceVariableService.updatePriceVariable({
             id: Number(req.params.id),
             name,
-            value: value !== undefined ? Number(value) : undefined,        // ← ADD THIS
-            type,                                                          // ← ADD THIS
-            isDefault: isDefault !== undefined ? Boolean(isDefault) : undefined // ← ADD THIS
+            value: value !== undefined ? Number(value) : undefined,
+            type,
+            isDefault: isDefault !== undefined ? Boolean(isDefault) : undefined
         });
+
         res.status(200).json(priceVariable);
     } catch (error) {
         next(error);
     }
 });
-
 
 /**
  * @swagger
@@ -233,6 +293,8 @@ priceVariableRouter.put('/:id', async (req: Request, res: Response, next: NextFu
  *     responses:
  *       204:
  *         description: Price variable deleted successfully
+ *       401:
+ *         description: User not authenticated
  *       404:
  *         description: Price variable not found
  */

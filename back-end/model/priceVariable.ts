@@ -6,7 +6,7 @@ export class PriceVariable {
     private value: number;         // ← ADD THIS
     private type: string;           // ← ADD THIS
     private isDefault: boolean;     // ← ADD THIS
-    private inventoryId: number;
+    private itemId: number;
 
     constructor(priceVariable: {
         id?: number;
@@ -14,7 +14,7 @@ export class PriceVariable {
         value: number;              // ← ADD THIS
         type: string;               // ← ADD THIS
         isDefault: boolean;         // ← ADD THIS
-        inventoryId: number;
+        itemId: number;
     }) {
         this.validate(priceVariable);
         this.id = priceVariable.id;
@@ -22,7 +22,7 @@ export class PriceVariable {
         this.value = priceVariable.value;        // ← ADD THIS
         this.type = priceVariable.type;          // ← ADD THIS
         this.isDefault = priceVariable.isDefault; // ← ADD THIS
-        this.inventoryId = priceVariable.inventoryId;
+        this.itemId = priceVariable.itemId;
     }
 
     getId(): number {
@@ -48,15 +48,15 @@ export class PriceVariable {
         return this.isDefault;
     }
 
-    getInventoryId(): number {
-        return this.inventoryId;
+    getItemId(): number {
+        return this.itemId;
     }
 
     validate(priceVariable: {
         name: string;
         value: number;              // ← ADD THIS
         type: string;               // ← ADD THIS
-        inventoryId: number;
+        itemId: number;
     }) {
         if (!priceVariable.name?.trim()) {
             throw new Error('Price variable name is required');
@@ -64,21 +64,21 @@ export class PriceVariable {
         if (priceVariable.name.length < 2) {
             throw new Error('Price variable name must be at least 2 characters long');
         }
-        if (!priceVariable.inventoryId) {
-            throw new Error('Inventory ID is required');
-        }
         if (priceVariable.value === undefined || priceVariable.value === null) {  // ← ADD THIS
             throw new Error('Value is required');
         }
         if (!['PERCENTAGE', 'FIXED'].includes(priceVariable.type)) {  // ← ADD THIS
             throw new Error('Type must be either PERCENTAGE or FIXED');
         }
+        if (!priceVariable.itemId) {
+            throw new Error('Item ID is required'); // Changed from 'Inventory ID is required'
+        }
     }
 
     equals(priceVariable: PriceVariable): boolean {
         return (
             this.name === priceVariable.getName() &&
-            this.inventoryId === priceVariable.getInventoryId()
+            this.itemId === priceVariable.getItemId()
         );
     }
 
@@ -89,7 +89,7 @@ export class PriceVariable {
             value: priceVariablePrisma.value,         // ← ADD THIS
             type: priceVariablePrisma.type,           // ← ADD THIS
             isDefault: priceVariablePrisma.isDefault, // ← ADD THIS
-            inventoryId: priceVariablePrisma.inventoryId,
+            itemId: priceVariablePrisma.itemId,
         });
     }
 }

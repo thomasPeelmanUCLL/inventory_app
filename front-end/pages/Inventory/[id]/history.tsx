@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Header from '../../../components/header';
-import InventoryHeader from '../../../components/InventoryHeader';
-import ManageUsersModal from '../../../components/ManageUsersModal';
+import Header from '@components/layout/header';
+import InventoryHeader from '@components/inventory/InventoryHeader';
+import ManageUsersModal from '@components/inventory/ManageUsersModal';
 import { getInventoryById, getSoldItemsByInventoryId } from '../../../lib/api';
 import { useSession } from '../../../lib/auth-client';
 import { Inventory, SoldItem } from '@types';

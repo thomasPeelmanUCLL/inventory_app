@@ -8,40 +8,39 @@
  *         id:
  *           type: number
  *           format: int64
- *           description: The item ID.
  *         name:
  *           type: string
- *           description: The name of the item.
+ *           description: Item name
  *         description:
  *           type: string
- *           description: The description of the item.
+ *           description: Item description
  *         buyPrice:
  *           type: number
  *           format: decimal
- *           description: The price the item was bought at.
+ *           description: Purchase price
  *         quantity:
- *           type: number
- *           format: int32
- *           description: The quantity of the item.
+ *           type: integer
+ *           description: Current quantity in stock
  *         buyedAt:
  *           type: string
  *           format: date-time
  *           nullable: true
- *           description: The date when the item was purchased.
- *         priceVariableId:
- *           type: number
- *           format: int64
- *           nullable: true
- *           description: The ID of the default price variable for this item.
- *         createdAt:
- *           type: string
- *           format: date-time
- *           description: The date when the item was created.
+ *           description: Date item was purchased
  *         inventoryId:
  *           type: number
  *           format: int64
  *           nullable: true
- *           description: The ID of the inventory this item belongs to.
+ *           description: Associated inventory ID
+ *         priceVariables:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/PriceVariable'
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
  *     ItemInput:
  *       type: object
  *       required:
@@ -52,33 +51,24 @@
  *       properties:
  *         name:
  *           type: string
- *           description: The name of the item.
+ *           minLength: 1
  *         description:
  *           type: string
- *           description: The description of the item.
  *         buyPrice:
  *           type: number
  *           format: decimal
- *           description: The price the item was bought at.
+ *           minimum: 0
  *         quantity:
- *           type: number
- *           format: int32
- *           description: The quantity of the item.
+ *           type: integer
+ *           minimum: 0
  *         buyedAt:
  *           type: string
  *           format: date-time
  *           nullable: true
- *           description: The date when the item was purchased.
- *         priceVariableId:
- *           type: number
- *           format: int64
- *           nullable: true
- *           description: The ID of the default price variable for this item.
  *         inventoryId:
  *           type: number
  *           format: int64
  *           nullable: true
- *           description: The ID of the inventory this item belongs to.
  */
 
 import express, { NextFunction, Request, Response } from 'express';
@@ -94,14 +84,14 @@ itemRouter.use(requireAuth);
  * @swagger
  * /items:
  *   get:
- *     summary: Get a list of all items
+ *     summary: Get all items
  *     tags:
  *       - Items
  *     security:
  *       - betterAuth: []
  *     responses:
  *       200:
- *         description: A list of items.
+ *         description: A list of all items
  *         content:
  *           application/json:
  *             schema:
@@ -124,7 +114,7 @@ itemRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
  * @swagger
  * /items/{id}:
  *   get:
- *     summary: Get an item by ID
+ *     summary: Get item by ID
  *     tags:
  *       - Items
  *     security:
@@ -138,7 +128,7 @@ itemRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
  *         description: The item ID
  *     responses:
  *       200:
- *         description: The item details
+ *         description: Item details
  *         content:
  *           application/json:
  *             schema:
@@ -152,6 +142,45 @@ itemRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) =
     try {
         const item = await itemService.getItemById({ id: Number(req.params.id) });
         res.status(200).json(item);
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * @swagger
+ * /items/inventory/{inventoryId}:
+ *   get:
+ *     summary: Get items by inventory ID
+ *     tags:
+ *       - Items
+ *     security:
+ *       - betterAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: inventoryId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The inventory ID
+ *     responses:
+ *       200:
+ *         description: List of items in the inventory
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Item'
+ *       401:
+ *         description: User not authenticated
+ */
+itemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const items = await itemService.getItemsByInventoryId({
+            inventoryId: Number(req.params.inventoryId)
+        });
+        res.status(200).json(items);
     } catch (error) {
         next(error);
     }
@@ -174,7 +203,7 @@ itemRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) =
  *             $ref: '#/components/schemas/ItemInput'
  *     responses:
  *       201:
- *         description: The created item
+ *         description: Item created successfully
  *         content:
  *           application/json:
  *             schema:
@@ -186,17 +215,16 @@ itemRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) =
  */
 itemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, description, buyPrice, quantity, buyedAt, inventoryId, priceVariableId } = req.body;
+        const { name, description, buyPrice, quantity, buyedAt, inventoryId } = req.body;
         const buyedAtDate = buyedAt ? new Date(buyedAt) : undefined;
 
         const item = await itemService.createItem({
             name,
             description,
-            buyPrice: Number(buyPrice),  // Changed from price
-            quantity,
+            buyPrice: Number(buyPrice),
+            quantity: Number(quantity),
             buyedAt: buyedAtDate,
-            inventoryId: inventoryId ? Number(inventoryId) : undefined,
-            priceVariableId: priceVariableId ? Number(priceVariableId) : undefined  // Added
+            inventoryId: inventoryId ? Number(inventoryId) : undefined
         });
 
         res.status(201).json(item);
@@ -229,7 +257,7 @@ itemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => 
  *             $ref: '#/components/schemas/ItemInput'
  *     responses:
  *       200:
- *         description: The updated item
+ *         description: Item updated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -243,18 +271,17 @@ itemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => 
  */
 itemRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { name, description, buyPrice, quantity, buyedAt, inventoryId, priceVariableId } = req.body;
+        const { name, description, buyPrice, quantity, buyedAt, inventoryId } = req.body;
         const buyedAtDate = buyedAt ? new Date(buyedAt) : undefined;
 
         const item = await itemService.updateItem({
             id: Number(req.params.id),
             name,
             description,
-            buyPrice: Number(buyPrice),  // Changed from price
-            quantity,
+            buyPrice: Number(buyPrice),
+            quantity: Number(quantity),
             buyedAt: buyedAtDate,
-            inventoryId: inventoryId ? Number(inventoryId) : undefined,
-            priceVariableId: priceVariableId ? Number(priceVariableId) : undefined  // Added
+            inventoryId: inventoryId ? Number(inventoryId) : undefined
         });
 
         res.status(200).json(item);

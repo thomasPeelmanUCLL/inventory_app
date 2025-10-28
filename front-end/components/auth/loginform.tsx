@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
-import { signIn } from "../lib/auth-client";
+import { signIn } from "../../lib/auth-client";
 
 interface LoginFormProps {
   className?: string;

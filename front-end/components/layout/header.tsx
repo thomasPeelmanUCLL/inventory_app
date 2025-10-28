@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useSession, signOut } from "../lib/auth-client";
+import { useSession, signOut } from "../../lib/auth-client";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
@@ -20,7 +20,7 @@ const Header: React.FC = () => {
           <div className="flex items-center justify-between h-16">
             {/* Logo/Brand */}
             <Link
-                href="/"
+                href="/front-end/public"
                 className="text-2xl font-bold text-white hover:text-blue-100 transition-colors flex items-center gap-2"
             >
               <svg
@@ -42,7 +42,7 @@ const Header: React.FC = () => {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-8">
               <Link
-                  href="/"
+                  href="/front-end/public"
                   className={`text-white hover:text-blue-100 transition-colors font-medium ${
                       router.pathname === "/" ? "border-b-2 border-white pb-1" : ""
                   }`}
@@ -153,7 +153,7 @@ const Header: React.FC = () => {
               <div className="md:hidden py-4 border-t border-white/20">
                 <nav className="flex flex-col gap-2 mb-4">
                   <Link
-                      href="/"
+                      href="/front-end/public"
                       className="px-4 py-2 text-white hover:bg-white/10 rounded-lg transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                   >

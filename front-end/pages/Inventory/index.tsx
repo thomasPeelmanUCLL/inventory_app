@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Header from '../../components/header';
+import Header from '@components/layout/header';
 import { getMyInventories, createInventory, deleteInventory } from '../../lib/api';
 import { useSession } from '../../lib/auth-client';
 

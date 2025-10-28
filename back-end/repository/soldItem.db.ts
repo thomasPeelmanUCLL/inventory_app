@@ -75,7 +75,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         });
     }
 
-    async updateSoldItem(soldItem: SoldItem): Promise<SoldItem | null> {  // Add | null here
+    async updateSoldItem(soldItem: SoldItem): Promise<SoldItem> {
         const data = {
             finalSellPrice: soldItem.getFinalSellPrice(),
             priceVariableName: soldItem.getPriceVariableName(),
@@ -84,12 +84,20 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
         };
-        return this.update(soldItem, data, {
+
+        const result = await this.update(soldItem, data, {
             include: {
                 item: true
             }
         });
+
+        if (!result) {
+            throw new Error(`Failed to update sold item with ID: ${soldItem.getId()}`);
+        }
+
+        return result;
     }
+
 
 
     async deleteSoldItem({ id }: { id: number }): Promise<void> {

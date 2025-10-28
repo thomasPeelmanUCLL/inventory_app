@@ -1,7 +1,7 @@
 // components/RegisterForm.tsx
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import { signUp } from '../lib/auth-client';
+import { signUp } from '../../lib/auth-client';
 
 interface RegisterFormProps {
   onRegisterSuccess?: () => void;

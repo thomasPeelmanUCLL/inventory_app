@@ -1,11 +1,15 @@
 import { Item } from '../model/item';
-import { Item as ItemPrisma } from '@prisma/client';
+import { Item as ItemPrisma, PriceVariable as PriceVariablePrisma } from '@prisma/client';
 import { BaseRepository } from './base.repository';
+
+type ItemWithPriceVariables = ItemPrisma & {
+    priceVariables?: PriceVariablePrisma[];
+};
 
 class ItemRepository extends BaseRepository<Item, ItemPrisma> {
     protected entityName = 'item';
 
-    protected fromPrisma(prismaEntity: ItemPrisma): Item {
+    protected fromPrisma(prismaEntity: ItemWithPriceVariables): Item {
         return Item.from(prismaEntity);
     }
 
@@ -16,7 +20,7 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
     async getAllItems(): Promise<Item[]> {
         return this.findMany({
             include: {
-                priceVariable: true
+                priceVariables: true
             }
         });
     }
@@ -25,7 +29,7 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
         return this.findUnique({
             where: { id },
             include: {
-                priceVariable: true
+                priceVariables: true
             }
         });
     }
@@ -34,7 +38,7 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
         return this.findMany({
             where: { inventoryId },
             include: {
-                priceVariable: true
+                priceVariables: true
             }
         });
     }
@@ -43,21 +47,20 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
         const data = {
             name: item.getName(),
             description: item.getDescription(),
-            buyPrice: item.getBuyPrice(), // Changed from price to buyPrice
+            buyPrice: item.getBuyPrice(),
             quantity: item.getQuantity(),
             buyedAt: item.getBuyedAt(),
             inventoryId: item.getInventoryId(),
-            priceVariableId: item.getPriceVariableId(), // Added
-            // createdAt will be set automatically by Prisma
         };
+
         return this.create(data, {
             include: {
-                priceVariable: true
+                priceVariables: true
             }
         });
     }
 
-    async updateItem(item: Item): Promise<Item | null> {  // Add | null here
+    async updateItem(item: Item): Promise<Item> {
         const data = {
             name: item.getName(),
             description: item.getDescription(),
@@ -65,15 +68,20 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
             quantity: item.getQuantity(),
             buyedAt: item.getBuyedAt(),
             inventoryId: item.getInventoryId(),
-            priceVariableId: item.getPriceVariableId(),
         };
-        return this.update(item, data, {
+
+        const result = await this.update(item, data, {
             include: {
-                priceVariable: true
+                priceVariables: true
             }
         });
-    }
 
+        if (!result) {
+            throw new Error(`Failed to update item with ID: ${item.getId()}`);
+        }
+
+        return result;
+    }
 
     async deleteItem({ id }: { id: number }): Promise<void> {
         return this.delete(id);
@@ -81,6 +89,7 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
 }
 
 const itemRepository = new ItemRepository();
+
 export default {
     getAllItems: itemRepository.getAllItems.bind(itemRepository),
     getItemById: itemRepository.getItemById.bind(itemRepository),

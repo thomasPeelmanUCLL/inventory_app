@@ -114,17 +114,6 @@ const InventoryHeader = ({ inventory, role, canEdit, isOwner, activeTab, onManag
                             </button>
                         </Link>
                     )}
-                    <Link href={`/Inventory/${inventory.id}/sell`}>
-                        <button
-                            className={`border-b-2 pb-3 px-1 font-medium text-sm transition-colors ${
-                                activeTab === 'sell'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            Sell Items
-                        </button>
-                    </Link>
                     <Link href={`/Inventory/${inventory.id}/history`}>
                         <button
                             className={`border-b-2 pb-3 px-1 font-medium text-sm transition-colors ${

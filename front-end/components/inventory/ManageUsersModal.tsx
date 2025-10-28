@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getInventoryUsers, addUserToInventory, removeUserFromInventory, getAllUsers } from '../lib/api';
-import { useSession } from '../lib/auth-client';
+import { getInventoryUsers, addUserToInventory, removeUserFromInventory, searchUsersByEmail, getAllUsers } from '../../lib/api';
+import { useSession } from '../../lib/auth-client';
 
 type InventoryUser = {
     id: number;
@@ -30,9 +30,10 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
     const [inventoryUsers, setInventoryUsers] = useState<InventoryUser[]>([]);
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [showAddUser, setShowAddUser] = useState(false);
-    const [selectedUserId, setSelectedUserId] = useState('');
+    const [selectedUserEmail, setSelectedUserEmail] = useState(''); // ✅ FIXED: Changed from userId to email
     const [selectedRole, setSelectedRole] = useState('viewer');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     useEffect(() => {
         fetchData();
@@ -42,28 +43,42 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
         try {
             const [users, allUsersData] = await Promise.all([
                 getInventoryUsers(inventoryId),
-                getAllUsers(),
+                getAllUsers(), // ✅ This now exists in api.ts
             ]);
             setInventoryUsers(users);
             setAllUsers(allUsersData);
+            setError('');
         } catch (error) {
             console.error('Error fetching data:', error);
+            setError('Failed to load users');
         } finally {
             setLoading(false);
         }
     };
 
+    // ✅ FIXED: Changed to use email instead of userId
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!selectedUserEmail) {
+            setError('Please select a user');
+            return;
+        }
+
         try {
-            await addUserToInventory(inventoryId, selectedUserId, selectedRole);
+            // API expects: { email: string, role: string }
+            await addUserToInventory(inventoryId, {
+                email: selectedUserEmail,
+                role: selectedRole
+            });
+
             setShowAddUser(false);
-            setSelectedUserId('');
+            setSelectedUserEmail('');
             setSelectedRole('viewer');
-            fetchData();
-        } catch (error) {
+            setError('');
+            await fetchData();
+        } catch (error: any) {
             console.error('Error adding user:', error);
-            alert('Failed to add user');
+            setError(error.message || 'Failed to add user');
         }
     };
 
@@ -72,10 +87,11 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
 
         try {
             await removeUserFromInventory(inventoryId, userId);
-            fetchData();
-        } catch (error) {
+            setError('');
+            await fetchData();
+        } catch (error: any) {
             console.error('Error removing user:', error);
-            alert('Failed to remove user');
+            setError(error.message || 'Failed to remove user');
         }
     };
 
@@ -93,40 +109,48 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-                <div className="p-6 border-b">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-2xl font-bold">Manage Access</h2>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-500 hover:text-gray-700 text-2xl"
-                        >
-                            ×
-                        </button>
-                    </div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+                    <h2 className="text-2xl font-bold text-gray-900">Manage Access</h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600 text-2xl"
+                    >
+                        ×
+                    </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="p-6 space-y-6">
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                            {error}
+                        </div>
+                    )}
+
                     {loading ? (
-                        <div className="text-center py-8">Loading...</div>
+                        <div className="text-center py-8">
+                            <div className="text-gray-500">Loading...</div>
+                        </div>
                     ) : (
                         <>
                             {/* Current Users */}
-                            <div className="mb-6">
-                                <h3 className="text-lg font-semibold mb-4">Current Users</h3>
-                                <div className="space-y-2">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Users</h3>
+                                <div className="space-y-3">
                                     {inventoryUsers.map((iu) => (
                                         <div
                                             key={iu.id}
-                                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
                                         >
                                             <div className="flex-1">
-                                                <div className="font-medium">{iu.user.name}</div>
+                                                <div className="font-medium text-gray-900">{iu.user.name}</div>
                                                 <div className="text-sm text-gray-500">{iu.user.email}</div>
                                             </div>
                                             <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${getRoleBadge(iu.role)}`}>
+                        <span
+                            className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleBadge(iu.role)}`}
+                        >
                           {iu.role}
                         </span>
                                                 {isOwner && iu.userId !== session?.user.id && iu.role !== 'owner' && (
@@ -146,7 +170,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
                             {/* Add User */}
                             {isOwner && (
                                 <div>
-                                    <h3 className="text-lg font-semibold mb-4">Add User</h3>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Add User</h3>
                                     {!showAddUser ? (
                                         <button
                                             onClick={() => setShowAddUser(true)}
@@ -161,14 +185,14 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
                                                     Select User
                                                 </label>
                                                 <select
-                                                    value={selectedUserId}
-                                                    onChange={(e) => setSelectedUserId(e.target.value)}
+                                                    value={selectedUserEmail}
+                                                    onChange={(e) => setSelectedUserEmail(e.target.value)}
                                                     required
                                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                 >
                                                     <option value="">Choose a user...</option>
                                                     {availableUsers.map((user) => (
-                                                        <option key={user.id} value={user.id}>
+                                                        <option key={user.id} value={user.email}>
                                                             {user.name} ({user.email})
                                                         </option>
                                                     ))}
@@ -195,8 +219,9 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
                                                     type="button"
                                                     onClick={() => {
                                                         setShowAddUser(false);
-                                                        setSelectedUserId('');
+                                                        setSelectedUserEmail('');
                                                         setSelectedRole('viewer');
+                                                        setError('');
                                                     }}
                                                     className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                                                 >
@@ -204,8 +229,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
                                                 </button>
                                                 <button
                                                     type="submit"
-                                                    disabled={!selectedUserId}
-                                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                                                 >
                                                     Add User
                                                 </button>

@@ -42,9 +42,6 @@ const createSoldItem = async ({
     quantity: number;
     soldAt?: Date;
 }): Promise<SoldItem> => {
-    console.log('🔍 Backend received finalSellPrice:', finalSellPrice);
-    console.log('🔍 Type:', typeof finalSellPrice);
-    console.log('🔍 Value:', JSON.stringify(finalSellPrice));
     // Validate price
     const priceNum = typeof finalSellPrice === 'number' ? finalSellPrice : Number(finalSellPrice);
     if (!priceNum || isNaN(priceNum) || priceNum <= 0) {
@@ -78,9 +75,9 @@ const createSoldItem = async ({
             buyPrice: updatedItem.getBuyPrice(),
             quantity: updatedItem.getQuantity() - quantity,
             inventoryId: updatedItem.getInventoryId(),
-            priceVariableId: updatedItem.getPriceVariableId(),
             buyedAt: updatedItem.getBuyedAt(),
             createdAt: updatedItem.getCreatedAt()
+            // REMOVED: priceVariableId - doesn't exist!
         });
         await itemDB.updateItem(newItem);
     }
@@ -146,9 +143,9 @@ const updateSoldItem = async ({
             buyPrice: item.getBuyPrice(),
             quantity: item.getQuantity() + quantityDifference,
             inventoryId: item.getInventoryId(),
-            priceVariableId: item.getPriceVariableId(),
             buyedAt: item.getBuyedAt(),
             createdAt: item.getCreatedAt()
+            // REMOVED: priceVariableId - doesn't exist!
         });
         await itemDB.updateItem(newItem);
     }
@@ -174,9 +171,9 @@ const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
         buyPrice: item.getBuyPrice(),
         quantity: item.getQuantity() + soldItem.getQuantity(),
         inventoryId: item.getInventoryId(),
-        priceVariableId: item.getPriceVariableId(),
         buyedAt: item.getBuyedAt(),
         createdAt: item.getCreatedAt()
+        // REMOVED: priceVariableId - doesn't exist!
     });
     await itemDB.updateItem(newItem);
 };

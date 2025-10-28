@@ -19,6 +19,7 @@ export interface User {
   updatedAt: Date;
 }
 
+// ✅ FIXED: Removed priceVariableId, added priceVariables array
 export interface Item {
   id?: number;
   name: string;
@@ -26,13 +27,13 @@ export interface Item {
   buyPrice: number;
   quantity: number;
   buyedAt?: Date;
-  priceVariableId?: number;
   inventoryId?: number;
+  priceVariables?: PriceVariable[]; // ✅ ADDED - Backend returns this
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-export type CreateItemInput = Omit<Item, 'id' | 'createdAt' | 'updatedAt'>;
+export type CreateItemInput = Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'priceVariables'>;
 
 export interface SoldItem {
   id?: number;
@@ -46,20 +47,19 @@ export interface SoldItem {
   item?: Item;
 }
 
-export type CreateSoldItemInput = Omit<SoldItem, 'id' | 'item'>;
+export type CreateSoldItemInput = Omit<SoldItem, 'id' | 'soldAt' | 'item'>;
 
+// ✅ FIXED: Changed inventoryId to itemId
 export type PriceVariable = {
   id: number;
   name: string;
-  value: number;           // ← ADD THIS
-  type: 'PERCENTAGE' | 'FIXED';  // ← ADD THIS
-  isDefault: boolean;      // ← ADD THIS
-  inventoryId: number;
+  value: number;
+  type: 'PERCENTAGE' | 'FIXED';
+  isDefault: boolean;
+  itemId: number; // ✅ FIXED: was inventoryId
   createdAt?: string;
   updatedAt?: string;
 };
-
-
 
 export type Inventory = {
   id: number;
@@ -86,13 +86,13 @@ export interface InventoryUser {
   addedAt?: Date;
 }
 
+// ✅ FIXED: Removed priceVariableId
 export interface NewItemForm {
   name: string;
   description: string;
   buyPrice: number;
   quantity: number;
   buyedAt?: Date;
-  priceVariableId?: number;
 }
 
 export type CartItem = {

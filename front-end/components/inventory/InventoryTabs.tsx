@@ -28,12 +28,6 @@ export default function InventoryTabs({ inventoryId, currentTab }: Props) {
                 Manage Items
             </Link>
             <Link
-                href={`/Inventory/${inventoryId}/sell`}
-                className={`px-4 py-2 ${currentTab === 'sell' ? 'border-b-2 border-blue-600 font-semibold' : ''}`}
-            >
-                Sell Items
-            </Link>
-            <Link
                 href={`/Inventory/${inventoryId}/history`}
                 className={`px-4 py-2 ${currentTab === 'history' ? 'border-b-2 border-blue-600 font-semibold' : ''}`}
             >

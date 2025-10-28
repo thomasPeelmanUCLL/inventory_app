@@ -13,55 +13,53 @@ const getPriceVariableById = async ({ id }: { id: number }): Promise<PriceVariab
     return priceVariable;
 };
 
-const getPriceVariablesByInventoryId = async ({ inventoryId }: { inventoryId: number }): Promise<PriceVariable[]> => {
-    return await priceVariableDB.getPriceVariablesByInventoryId({ inventoryId });
+const getPriceVariablesByItemId = async ({ itemId }: { itemId: number }): Promise<PriceVariable[]> => {
+    return await priceVariableDB.getPriceVariablesByItemId({ itemId });
 };
 
 const createPriceVariable = async ({
                                        name,
-                                       value,       // ← ADD THIS
-                                       type,        // ← ADD THIS
-                                       isDefault,   // ← ADD THIS
-                                       inventoryId
+                                       value,
+                                       type,
+                                       isDefault,
+                                       itemId
                                    }: {
     name: string;
-    value: number;        // ← ADD THIS
-    type: string;         // ← ADD THIS
-    isDefault: boolean;   // ← ADD THIS
-    inventoryId: number;
+    value: number;
+    type: string;
+    isDefault: boolean;
+    itemId: number;
 }): Promise<PriceVariable> => {
-    const existing = await priceVariableDB.getPriceVariableByName({ name, inventoryId });
+    const existing = await priceVariableDB.getPriceVariableByName({ name, itemId });
     if (existing) {
-        throw new Error(`Price variable with name "${name}" already exists for this inventory.`);
+        throw new Error(`Price variable with name "${name}" already exists for this item.`);
     }
 
-    const priceVariable = new PriceVariable({ name, value, type, isDefault, inventoryId }); // ← UPDATE
+    const priceVariable = new PriceVariable({ name, value, type, isDefault, itemId });
     return await priceVariableDB.createPriceVariable(priceVariable);
 };
-
 
 const updatePriceVariable = async ({
                                        id,
                                        name,
-                                       value,       // ← ADD THIS
-                                       type,        // ← ADD THIS
-                                       isDefault    // ← ADD THIS
+                                       value,
+                                       type,
+                                       isDefault
                                    }: {
     id: number;
-    name?: string;            // ← Make optional with ?
-    value?: number;           // ← ADD THIS
-    type?: string;            // ← ADD THIS
-    isDefault?: boolean;      // ← ADD THIS
+    name?: string;
+    value?: number;
+    type?: string;
+    isDefault?: boolean;
 }): Promise<PriceVariable> => {
     const existingPriceVariable = await getPriceVariableById({ id });
     if (!existingPriceVariable) {
         throw new Error(`PriceVariable with ID: ${id} does not exist.`);
     }
 
-    const result = await priceVariableDB.updatePriceVariable({ id, name, value, type, isDefault }); // ← UPDATE
+    const result = await priceVariableDB.updatePriceVariable({ id, name, value, type, isDefault });
     return result;
 };
-
 
 const deletePriceVariable = async ({ id }: { id: number }): Promise<void> => {
     const priceVariable = await getPriceVariableById({ id });
@@ -74,7 +72,7 @@ const deletePriceVariable = async ({ id }: { id: number }): Promise<void> => {
 export default {
     getAllPriceVariables,
     getPriceVariableById,
-    getPriceVariablesByInventoryId,
+    getPriceVariablesByItemId,
     createPriceVariable,
     updatePriceVariable,
     deletePriceVariable,

@@ -22,8 +22,7 @@ const createItem = async ({
                               buyPrice,
                               quantity,
                               buyedAt,
-                              inventoryId,
-                              priceVariableId
+                              inventoryId
                           }: {
     name: string;
     description: string;
@@ -31,16 +30,14 @@ const createItem = async ({
     quantity: number;
     buyedAt?: Date;
     inventoryId?: number;
-    priceVariableId?: number;
 }): Promise<Item> => {
     const item = new Item({
         name,
         description,
-        buyPrice,  // Changed from price
+        buyPrice,
         quantity,
         buyedAt,
-        inventoryId,
-        priceVariableId  // Added
+        inventoryId
     });
     return await itemDB.createItem(item);
 };
@@ -52,8 +49,7 @@ const updateItem = async ({
                               buyPrice,
                               quantity,
                               buyedAt,
-                              inventoryId,
-                              priceVariableId
+                              inventoryId
                           }: {
     id: number;
     name: string;
@@ -62,7 +58,6 @@ const updateItem = async ({
     quantity: number;
     buyedAt?: Date;
     inventoryId?: number;
-    priceVariableId?: number;
 }): Promise<Item> => {
     const existingItem = await getItemById({ id });
     if (!existingItem) {
@@ -73,11 +68,10 @@ const updateItem = async ({
         id,
         name,
         description,
-        buyPrice,  // Changed from price
+        buyPrice,
         quantity,
         buyedAt,
-        inventoryId,
-        priceVariableId  // Added
+        inventoryId
     });
 
     const result = await itemDB.updateItem(updatedItem);
@@ -98,7 +92,7 @@ const deleteItem = async ({ id }: { id: number }): Promise<void> => {
 export default {
     getAllItems,
     getItemById,
-    getItemsByInventoryId,  // Added
+    getItemsByInventoryId,
     createItem,
     updateItem,
     deleteItem,

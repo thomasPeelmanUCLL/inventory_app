@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Head from 'next/head';
-import Header from '@components/header';
-import HomePageInformation from '@components/HomePageInformation';
+import Header from '@components/layout/header';
+import HomePageInformation from '@components/inventory/HomePageInformation';
 
 const HomePage: React.FC = () => {
   const [language, setLanguage] = useState<'en' | 'es'>('en');

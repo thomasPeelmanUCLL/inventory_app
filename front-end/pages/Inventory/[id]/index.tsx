@@ -1,32 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Header from '../../../components/header';
-import InventoryHeader from '../../../components/InventoryHeader';
-import ItemsGrid from '../../../components/ItemsGrid';
-import SellModal from '../../../components/SellModal';
-import CartSidebar from '../../../components/CartSidebar';
-import ManageUsersModal from '../../../components/ManageUsersModal';
-import { getInventoryById, createSoldItem, getPriceVariablesByInventoryId } from '../../../lib/api';
+import Header from '../../../components/layout/header';
+import InventoryHeader from '../../../components/inventory/InventoryHeader';
+import ItemsGrid from '../../../components/inventory/ItemsGrid';
+import SellModal from '../../../components/inventory/SellModal';
+import CartSidebar from '../../../components/inventory/CartSidebar';
+import ManageUsersModal from '../../../components/inventory/ManageUsersModal';
+import { getInventoryById, createSoldItem, getPriceVariablesByItemId } from '../../../lib/api';
 import { useSession } from '../../../lib/auth-client';
 import { Item, Inventory, CartItem, SellModalData, PriceVariable } from '@types';
 
-const InventoryDetailPage = () => {
+const InventoryOverviewPage = () => {
   const router = useRouter();
   const { id } = router.query;
   const { data: session } = useSession();
+
   const [inventory, setInventory] = useState<Inventory | null>(null);
   const [priceVariables, setPriceVariables] = useState<PriceVariable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showManageUsers, setShowManageUsers] = useState(false);
   const [sellModal, setSellModal] = useState<SellModalData | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [showCart, setShowCart] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
-      fetchInventory();
-      fetchPriceVariables();
+      void fetchInventory();
     }
   }, [id]);
 
@@ -35,6 +35,8 @@ const InventoryDetailPage = () => {
       setLoading(true);
       const data = await getInventoryById(Number(id));
       setInventory(data);
+
+      await fetchAllPriceVariables(data.items);
     } catch (error) {
       console.error('Error fetching inventory:', error);
     } finally {
@@ -42,12 +44,26 @@ const InventoryDetailPage = () => {
     }
   };
 
-  const fetchPriceVariables = async () => {
+  const fetchAllPriceVariables = async (items: Item[]) => {
+    if (!items || items.length === 0) {
+      setPriceVariables([]);
+      return;
+    }
+
     try {
-      const data = await getPriceVariablesByInventoryId(Number(id));
-      setPriceVariables(data);
+      const allVariables: PriceVariable[] = [];
+
+      for (const item of items) {
+        if (item.id) {
+          const variables = await getPriceVariablesByItemId(item.id);
+          allVariables.push(...variables);
+        }
+      }
+
+      setPriceVariables(allVariables);
     } catch (error) {
       console.error('Error fetching price variables:', error);
+      setPriceVariables([]);
     }
   };
 
@@ -60,33 +76,44 @@ const InventoryDetailPage = () => {
     setSellModal({
       item,
       quantity: 1,
-      finalSellPrice: item.buyPrice,
-      priceVariableName: undefined,
-      isCustomPrice: false,
-      paymentMethod: 'cash'
+      finalSellPrice: item.buyPrice || 0,
+      paymentMethod: 'cash',
     });
   };
 
   const handleAddToCart = () => {
     if (!sellModal) return;
 
-    const existingItemIndex = cart.findIndex(cartItem => cartItem.item.id === sellModal.item.id);
-    if (existingItemIndex >= 0) {
-      const updatedCart = [...cart];
-      updatedCart[existingItemIndex].quantityToSell += sellModal.quantity;
-      setCart(updatedCart);
+    // Check both item.id AND priceVariableName to distinguish separate entries
+    const existingCartItem = cart.find(
+        ci =>
+            ci.item.id === sellModal.item.id &&
+            ci.priceVariableName === sellModal.priceVariableName &&
+            ci.isCustomPrice === sellModal.isCustomPrice
+    );
+
+    if (existingCartItem) {
+      // Same item with same price variable -> add to quantity
+      setCart(cart.map(ci =>
+          ci.item.id === sellModal.item.id &&
+          ci.priceVariableName === sellModal.priceVariableName &&
+          ci.isCustomPrice === sellModal.isCustomPrice
+              ? { ...ci, quantityToSell: ci.quantityToSell + sellModal.quantity }
+              : ci
+      ));
     } else {
+      // Different price variable or new item -> add as separate entry
       setCart([...cart, {
         item: sellModal.item,
         quantityToSell: sellModal.quantity,
         finalSellPrice: sellModal.finalSellPrice,
         priceVariableName: sellModal.priceVariableName,
-        isCustomPrice: sellModal.isCustomPrice
+        isCustomPrice: sellModal.isCustomPrice,
       }]);
     }
 
-    setShowCart(true);
     setSellModal(null);
+    setIsCartOpen(true);
   };
 
   const handleBuyNow = async () => {
@@ -96,14 +123,13 @@ const InventoryDetailPage = () => {
       await createSoldItem({
         itemId: sellModal.item.id,
         finalSellPrice: sellModal.finalSellPrice,
-        priceVariableName: sellModal.priceVariableName,
-        isCustomPrice: sellModal.isCustomPrice,
         quantity: sellModal.quantity,
+        priceVariableName: sellModal.priceVariableName,
+        isCustomPrice: sellModal.isCustomPrice || false,
         payedCash: sellModal.paymentMethod === 'cash',
-        soldAt: new Date()
       });
 
-      fetchInventory();
+      await fetchInventory();
       setSellModal(null);
       alert('Item sold successfully!');
     } catch (error) {
@@ -112,9 +138,17 @@ const InventoryDetailPage = () => {
     }
   };
 
-  const handleCheckout = async () => {
-    if (cart.length === 0) return;
+  const handleRemoveFromCart = (itemId: number) => {
+    setCart(cart.filter(ci => ci.item.id !== itemId));
+  };
 
+  const handleUpdateCartQuantity = (itemId: number, quantity: number) => {
+    setCart(cart.map(ci =>
+        ci.item.id === itemId ? { ...ci, quantityToSell: quantity } : ci
+    ));
+  };
+
+  const handleCheckout = async () => {
     try {
       for (const cartItem of cart) {
         if (!cartItem.item.id) continue;
@@ -122,39 +156,30 @@ const InventoryDetailPage = () => {
         await createSoldItem({
           itemId: cartItem.item.id,
           finalSellPrice: cartItem.finalSellPrice,
-          priceVariableName: cartItem.priceVariableName,
-          isCustomPrice: cartItem.isCustomPrice,
           quantity: cartItem.quantityToSell,
-          payedCash: true,
-          soldAt: new Date()
+          priceVariableName: cartItem.priceVariableName,
+          isCustomPrice: cartItem.isCustomPrice || false,
+          payedCash: false,
         });
       }
 
       setCart([]);
-      setShowCart(false);
-      fetchInventory();
-      alert('All items sold successfully!');
+      setIsCartOpen(false);
+      await fetchInventory();
+      alert('Checkout successful!');
     } catch (error) {
-      console.error('Error checking out:', error);
-      alert('Failed to checkout');
+      console.error('Error during checkout:', error);
+      alert('Checkout failed');
     }
-  };
-
-  const handleRemoveFromCart = (itemId: number) => {
-    setCart(cart.filter(c => c.item.id !== itemId));
-  };
-
-  const handleUpdateCartQuantity = (itemId: number, quantity: number) => {
-    setCart(cart.map(c =>
-        c.item.id === itemId ? { ...c, quantityToSell: quantity } : c
-    ));
   };
 
   if (loading) {
     return (
         <>
           <Header />
-          <div className="container mx-auto px-4 py-8">Loading...</div>
+          <div className="container mx-auto px-4 py-8">
+            <div className="text-center">Loading...</div>
+          </div>
         </>
     );
   }
@@ -163,7 +188,9 @@ const InventoryDetailPage = () => {
     return (
         <>
           <Header />
-          <div className="container mx-auto px-4 py-8">Inventory not found</div>
+          <div className="container mx-auto px-4 py-8">
+            <div className="text-center text-red-600">Inventory not found</div>
+          </div>
         </>
     );
   }
@@ -172,11 +199,18 @@ const InventoryDetailPage = () => {
   const canEdit = role === 'owner' || role === 'editor';
   const isOwner = role === 'owner';
 
+  const itemPriceVariables = sellModal?.item.id
+      ? priceVariables.filter(pv => pv.itemId === sellModal.item.id)
+      : [];
+
   return (
       <>
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <Link href="/inventory" className="text-blue-500 hover:text-blue-700 mb-4 inline-block">
+          <Link
+              href="/inventory"
+              className="text-blue-600 hover:text-blue-800 mb-4 inline-block"
+          >
             ← Back to Inventories
           </Link>
 
@@ -189,73 +223,51 @@ const InventoryDetailPage = () => {
               onManageUsers={() => setShowManageUsers(true)}
           />
 
-          <div className="mt-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Available Items</h2>
-              <button
-                  onClick={() => setShowCart(true)}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors relative"
-              >
-                Cart ({cart.length})
-                {cart.length > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                                    {cart.reduce((sum, item) => sum + item.quantityToSell, 0)}
-                                </span>
-                )}
-              </button>
-            </div>
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Items ({inventory.items?.length || 0})
+            </h2>
 
-            {inventory.items && inventory.items.length > 0 ? (
-                <ItemsGrid items={inventory.items} onItemClick={handleItemClick} />
-            ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <p>No items in this inventory yet.</p>
-                  {canEdit && (
-                      <Link
-                          href={`/inventory/${id}/add`}
-                          className="inline-block mt-4 bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600"
-                      >
-                        Add Your First Item
-                      </Link>
-                  )}
-                </div>
-            )}
+            <ItemsGrid
+                items={inventory.items || []}
+                onItemClick={handleItemClick}
+            />
           </div>
+
+          {sellModal && (
+              <SellModal
+                  sellModal={sellModal}
+                  priceVariables={itemPriceVariables}
+                  onClose={() => setSellModal(null)}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                  onChange={setSellModal}
+              />
+          )}
+
+          {isCartOpen && (
+              <CartSidebar
+                  cart={cart}
+                  onClose={() => setIsCartOpen(false)}
+                  onRemoveItem={handleRemoveFromCart}
+                  onUpdateQuantity={handleUpdateCartQuantity}
+                  onCheckout={handleCheckout}
+              />
+          )}
+
+          {showManageUsers && (
+              <ManageUsersModal
+                  inventoryId={Number(id)}
+                  isOwner={isOwner}
+                  onClose={() => {
+                    setShowManageUsers(false);
+                    void fetchInventory();
+                  }}
+              />
+          )}
         </div>
-
-        {sellModal && (
-            <SellModal
-                sellModal={sellModal}
-                priceVariables={priceVariables}
-                onClose={() => setSellModal(null)}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                onChange={setSellModal}
-            />
-        )}
-
-        {showCart && (
-            <CartSidebar
-                cart={cart}
-                onClose={() => setShowCart(false)}
-                onCheckout={handleCheckout}
-                onRemoveItem={handleRemoveFromCart}
-                onUpdateQuantity={handleUpdateCartQuantity}
-            />
-        )}
-
-        {showManageUsers && (
-            <ManageUsersModal
-                inventoryId={inventory.id}
-                isOwner={isOwner}
-                onClose={() => {
-                  setShowManageUsers(false);
-                  fetchInventory();
-                }}
-            />
-        )}
       </>
   );
 };
 
-export default InventoryDetailPage;
+export default InventoryOverviewPage;

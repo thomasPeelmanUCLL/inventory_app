@@ -1,5 +1,6 @@
-import { Item as ItemPrisma, Prisma } from '@prisma/client';
+import { Item as ItemPrisma, Prisma, PriceVariable as PriceVariablePrisma } from '@prisma/client';
 import { BaseModel } from './base.model';
+import { PriceVariable } from './priceVariable';
 
 export class Item extends BaseModel {
     private name: string;
@@ -7,7 +8,7 @@ export class Item extends BaseModel {
     private buyPrice: Prisma.Decimal;
     private buyedAt?: Date;
     private inventoryId?: number;
-    private priceVariableId?: number;
+    private priceVariables?: PriceVariable[]; // ADD THIS
 
     constructor(item: {
         id?: number;
@@ -18,7 +19,7 @@ export class Item extends BaseModel {
         buyedAt?: Date;
         createdAt?: Date;
         inventoryId?: number;
-        priceVariableId?: number;
+        priceVariables?: PriceVariable[]; // ADD THIS
     }) {
         super({
             id: item.id,
@@ -33,7 +34,7 @@ export class Item extends BaseModel {
             : item.buyPrice;
         this.buyedAt = item.buyedAt;
         this.inventoryId = item.inventoryId;
-        this.priceVariableId = item.priceVariableId;
+        this.priceVariables = item.priceVariables; // ADD THIS
     }
 
     getName(): string {
@@ -60,8 +61,9 @@ export class Item extends BaseModel {
         return this.inventoryId;
     }
 
-    getPriceVariableId(): number | undefined {
-        return this.priceVariableId;
+    // ADD THIS
+    getPriceVariables(): PriceVariable[] | undefined {
+        return this.priceVariables;
     }
 
     validate(item: {
@@ -93,7 +95,9 @@ export class Item extends BaseModel {
         }
     }
 
-    static from(itemPrisma: ItemPrisma): Item {
+    static from(
+        itemPrisma: ItemPrisma & { priceVariables?: PriceVariablePrisma[] }
+    ): Item {
         return new Item({
             id: itemPrisma.id,
             name: itemPrisma.name,
@@ -103,7 +107,7 @@ export class Item extends BaseModel {
             buyedAt: itemPrisma.buyedAt || undefined,
             createdAt: itemPrisma.createdAt,
             inventoryId: itemPrisma.inventoryId || undefined,
-            priceVariableId: itemPrisma.priceVariableId || undefined,
+            priceVariables: itemPrisma.priceVariables?.map(pv => PriceVariable.from(pv)),
         });
     }
 }

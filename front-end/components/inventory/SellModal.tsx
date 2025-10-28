@@ -53,7 +53,7 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                     console.log(`🔍 Percentage ${priceVar.value}%: ${newPrice}`);
                 } else if (priceVar.type === 'FIXED') {
                     // Apply fixed amount: price + fixed value
-                    newPrice = sellModal.item.buyPrice + priceVar.value;
+                    newPrice =  priceVar.value;
                     console.log(`🔍 Fixed +${priceVar.value}: ${newPrice}`);
                 }
             }
