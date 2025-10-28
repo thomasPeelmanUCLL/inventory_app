@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Header from '../../../components/layout/header';
 import { getInventoryAnalytics } from '../../../lib/api';
 import React from 'react';
+import * as XLSX from 'xlsx';
 
 interface AnalyticsData {
     summary: {
@@ -99,6 +100,118 @@ export default function AnalyticsPage() {
         }
     };
 
+    const exportToExcel = () => {
+        if (!analytics) return;
+
+        // Create workbook
+        const wb = XLSX.utils.book_new();
+
+        // ✅ Summary Sheet
+        const summaryData = [
+            ['Sales Summary', ''],
+            ['Period', `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}`],
+            ['', ''],
+            ['Total Profit', `€${analytics.summary.totalProfit.toFixed(2)}`],
+            ['Total Revenue', `€${analytics.summary.totalSellPrice.toFixed(2)}`],
+            ['Total Cost', `€${analytics.summary.totalBuyPrice.toFixed(2)}`],
+            ['Items Sold', analytics.summary.totalQuantitySold.toString()],
+            ['Transactions', analytics.summary.totalTransactions.toString()],
+            ['Cash Payments', analytics.summary.cashTransactions.toString()],
+            ['Card Payments', analytics.summary.nonCashTransactions.toString()],
+        ];
+        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+        // ✅ Top Selling Items Sheet
+        const itemsData = [
+            ['Item Name', 'Quantity Sold', 'Buy Price', 'Sell Price', 'Profit'],
+            ...analytics.topSellingItems.map(item => [
+                item.itemName,
+                item.totalQuantity.toString(),
+                item.totalBuyPrice.toFixed(2),
+                item.totalSellPrice.toFixed(2),
+                item.totalProfit.toFixed(2)
+            ])
+        ];
+        const wsItems = XLSX.utils.aoa_to_sheet(itemsData);
+        XLSX.utils.book_append_sheet(wb, wsItems, 'Top Selling Items');
+
+        // ✅ Sales by Day Sheet
+        const dailyData = [
+            ['Date', 'Transactions', 'Items Sold', 'Buy Price', 'Sell Price', 'Profit'],
+            ...analytics.salesByDay.map(day => [
+                new Date(day.date).toLocaleDateString(),
+                day.transactionCount.toString(),
+                day.totalQuantity.toString(),
+                day.totalBuyPrice.toFixed(2),
+                day.totalSellPrice.toFixed(2),
+                day.totalProfit.toFixed(2)
+            ])
+        ];
+        const wsDaily = XLSX.utils.aoa_to_sheet(dailyData);
+        XLSX.utils.book_append_sheet(wb, wsDaily, 'Sales by Day');
+
+        // ✅ Detailed Sales by Day (with item breakdown)
+        const detailedDailyData: any[][] = [
+            ['Date', 'Item Name', 'Quantity', 'Buy Price', 'Sell Price', 'Profit']
+        ];
+        analytics.salesByDay.forEach(day => {
+            if (day.itemBreakdown && day.itemBreakdown.length > 0) {
+                day.itemBreakdown.forEach(item => {
+                    detailedDailyData.push([
+                        new Date(day.date).toLocaleDateString(),
+                        item.itemName,
+                        item.quantity.toString(),
+                        item.buyPrice.toFixed(2),
+                        item.sellPrice.toFixed(2),
+                        item.profit.toFixed(2)
+                    ]);
+                });
+            }
+        });
+        const wsDetailedDaily = XLSX.utils.aoa_to_sheet(detailedDailyData);
+        XLSX.utils.book_append_sheet(wb, wsDetailedDaily, 'Detailed Daily Sales');
+
+        // ✅ Payment Methods Sheet
+        const paymentData = [
+            ['Payment Method', 'Buy Price', 'Sell Price', 'Profit'],
+            ['Cash',
+                analytics.paymentMethodBreakdown.cash.buyPrice.toFixed(2),
+                analytics.paymentMethodBreakdown.cash.sellPrice.toFixed(2),
+                analytics.paymentMethodBreakdown.cash.profit.toFixed(2)
+            ],
+            ['Card',
+                analytics.paymentMethodBreakdown.nonCash.buyPrice.toFixed(2),
+                analytics.paymentMethodBreakdown.nonCash.sellPrice.toFixed(2),
+                analytics.paymentMethodBreakdown.nonCash.profit.toFixed(2)
+            ]
+        ];
+        const wsPayment = XLSX.utils.aoa_to_sheet(paymentData);
+        XLSX.utils.book_append_sheet(wb, wsPayment, 'Payment Methods');
+
+        // ✅ Price Variables Sheet
+        if (analytics.priceVariableBreakdown.length > 0) {
+            const priceVarData = [
+                ['Price Variable', 'Count', 'Buy Price', 'Sell Price', 'Profit'],
+                ...analytics.priceVariableBreakdown.map(pv => [
+                    pv.priceVariableName,
+                    pv.count.toString(),
+                    pv.totalBuyPrice.toFixed(2),
+                    pv.totalSellPrice.toFixed(2),
+                    pv.totalProfit.toFixed(2)
+                ])
+            ];
+            const wsPriceVar = XLSX.utils.aoa_to_sheet(priceVarData);
+            XLSX.utils.book_append_sheet(wb, wsPriceVar, 'Price Variables');
+        }
+
+        // Generate filename with date range
+        const filename = `Sales_Analytics_${dateRange.start.toISOString().split('T')[0]}_to_${dateRange.end.toISOString().split('T')[0]}.xlsx`;
+
+        // Save file
+        XLSX.writeFile(wb, filename);
+    };
+
     const toggleItemExpansion = (itemId: number) => {
         setExpandedItems(prev => {
             const newSet = new Set(prev);
@@ -184,21 +297,31 @@ export default function AnalyticsPage() {
                 <div className="flex justify-between items-center">
                     <h1 className="text-3xl font-bold">Sales Analytics</h1>
 
-                    <div className="flex gap-2 items-center">
-                        <label className="text-sm font-medium">From:</label>
-                        <input
-                            type="date"
-                            value={dateRange.start.toISOString().split('T')[0]}
-                            onChange={(e) => setDateRange({...dateRange, start: new Date(e.target.value)})}
-                            className="border rounded px-3 py-2"
-                        />
-                        <label className="text-sm font-medium">To:</label>
-                        <input
-                            type="date"
-                            value={dateRange.end.toISOString().split('T')[0]}
-                            onChange={(e) => setDateRange({...dateRange, end: new Date(e.target.value)})}
-                            className="border rounded px-3 py-2"
-                        />
+                    <div className="flex gap-4 items-center">
+                        <div className="flex gap-2 items-center">
+                            <label className="text-sm font-medium">From:</label>
+                            <input
+                                type="date"
+                                value={dateRange.start.toISOString().split('T')[0]}
+                                onChange={(e) => setDateRange({...dateRange, start: new Date(e.target.value)})}
+                                className="border rounded px-3 py-2"
+                            />
+                            <label className="text-sm font-medium">To:</label>
+                            <input
+                                type="date"
+                                value={dateRange.end.toISOString().split('T')[0]}
+                                onChange={(e) => setDateRange({...dateRange, end: new Date(e.target.value)})}
+                                className="border rounded px-3 py-2"
+                            />
+                        </div>
+
+                        {/* ✅ Export Button */}
+                        <button
+                            onClick={exportToExcel}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                        >
+                            <span>📊</span> Export to Excel
+                        </button>
                     </div>
                 </div>
 
