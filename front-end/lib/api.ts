@@ -292,6 +292,7 @@ export async function deleteSoldItem(soldItemId: number) {
     if (!response.ok) throw new Error('Failed to delete sold item');
 }
 
+
 // ========================================
 // USER APIs
 // ========================================

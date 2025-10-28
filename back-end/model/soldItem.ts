@@ -1,5 +1,6 @@
 import { SoldItem as SoldItemPrisma, Prisma } from '@prisma/client';
 import { BaseModel } from './base.model';
+import { Item } from './item';  // ✅ Import Item model
 
 export class SoldItem extends BaseModel {
     private itemId: number;
@@ -8,6 +9,7 @@ export class SoldItem extends BaseModel {
     private isCustomPrice: boolean;
     private payedCash: boolean;
     private soldAt: Date;
+    private item?: Item;  // ✅ ADD THIS - Optional item property
 
     constructor(soldItem: {
         id?: number;
@@ -19,6 +21,7 @@ export class SoldItem extends BaseModel {
         payedCash: boolean;
         soldAt?: Date;
         createdAt?: Date;
+        item?: any;  // ✅ ADD THIS
     }) {
         super({
             id: soldItem.id,
@@ -34,10 +37,16 @@ export class SoldItem extends BaseModel {
         this.isCustomPrice = soldItem.isCustomPrice ?? false;
         this.payedCash = soldItem.payedCash;
         this.soldAt = soldItem.soldAt || new Date();
+        this.item = soldItem.item;
     }
 
     getItemId(): number {
         return this.itemId;
+    }
+
+    // ✅ ADD THIS METHOD
+    getItem(): Item | undefined {
+        return this.item;
     }
 
     getFinalSellPrice(): Prisma.Decimal {
@@ -104,7 +113,7 @@ export class SoldItem extends BaseModel {
     }
 
 
-    static from(soldItemPrisma: SoldItemPrisma): SoldItem {
+    static from(soldItemPrisma: SoldItemPrisma & { item? : any}): SoldItem {
         return new SoldItem({
             id: soldItemPrisma.id,
             itemId: soldItemPrisma.itemId,
@@ -115,6 +124,7 @@ export class SoldItem extends BaseModel {
             payedCash: soldItemPrisma.payedCash,
             soldAt: soldItemPrisma.soldAt,
             createdAt: soldItemPrisma.soldAt, // Using soldAt as createdAt for SoldItem
+            item: soldItemPrisma.item,
         });
     }
 }

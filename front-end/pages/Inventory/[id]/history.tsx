@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Header from '@components/layout/header';
-import InventoryHeader from '@components/inventory/InventoryHeader';
-import ManageUsersModal from '@components/inventory/ManageUsersModal';
-import { getInventoryById, getSoldItemsByInventoryId } from '../../../lib/api';
+import Header from '../../../components/layout/header';
+import InventoryHeader from '../../../components/inventory/InventoryHeader';
+import ManageUsersModal from '../../../components/inventory/ManageUsersModal';
+import { getInventoryById, getSoldItemsByInventoryId, deleteSoldItem } from '../../../lib/api';
 import { useSession } from '../../../lib/auth-client';
 import { Inventory, SoldItem } from '@types';
 
@@ -12,15 +12,17 @@ const HistoryPage = () => {
     const router = useRouter();
     const { id } = router.query;
     const { data: session } = useSession();
+
     const [inventory, setInventory] = useState<Inventory | null>(null);
     const [salesHistory, setSalesHistory] = useState<SoldItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [showManageUsers, setShowManageUsers] = useState(false);
+    const [revertingId, setRevertingId] = useState<number | null>(null);
 
     useEffect(() => {
         if (id) {
-            fetchInventory();
-            fetchSalesHistory();
+            void fetchInventory();
+            void fetchSalesHistory();
         }
     }, [id]);
 
@@ -45,6 +47,25 @@ const HistoryPage = () => {
         }
     };
 
+    const handleRevertSale = async (saleId: number) => {
+        if (!confirm('Are you sure you want to revert this sale? The item quantity will be restored.')) {
+            return;
+        }
+
+        try {
+            setRevertingId(saleId);
+            await deleteSoldItem(saleId);
+            await fetchSalesHistory();
+            await fetchInventory();
+            alert('Sale reverted successfully! Item quantity has been restored.');
+        } catch (error) {
+            console.error('Error reverting sale:', error);
+            alert('Failed to revert sale');
+        } finally {
+            setRevertingId(null);
+        }
+    };
+
     const getUserRole = () => {
         if (!inventory || !session?.user) return 'viewer';
         return inventory.users?.find(u => u.user.id === session.user.id)?.role || 'viewer';
@@ -58,7 +79,7 @@ const HistoryPage = () => {
         return salesHistory.reduce((total, sale) => total + sale.quantity, 0);
     };
 
-    const formatDate = (date: Date | string) => {
+    const formatDate = (date: Date): string => {
         return new Date(date).toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -94,7 +115,10 @@ const HistoryPage = () => {
         <>
             <Header />
             <div className="container mx-auto px-4 py-8">
-                <Link href="/inventory" className="text-blue-500 hover:text-blue-700 mb-4 inline-block">
+                <Link
+                    href="/inventory"
+                    className="text-blue-500 hover:text-blue-700 mb-4 inline-block"
+                >
                     ← Back to Inventories
                 </Link>
 
@@ -107,8 +131,7 @@ const HistoryPage = () => {
                     onManageUsers={() => setShowManageUsers(true)}
                 />
 
-
-
+                {/* Statistics Cards */}
                 <div className="mt-8 grid md:grid-cols-3 gap-6 mb-6">
                     <div className="bg-white rounded-lg shadow p-6">
                         <h3 className="text-gray-500 text-sm font-medium">Total Revenue</h3>
@@ -130,6 +153,7 @@ const HistoryPage = () => {
                     </div>
                 </div>
 
+                {/* Sales History Table */}
                 <div className="bg-white rounded-lg shadow overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-200">
                         <h2 className="text-xl font-bold">Sales History</h2>
@@ -159,6 +183,11 @@ const HistoryPage = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Payment
                                 </th>
+                                {canEdit && (
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Actions
+                                    </th>
+                                )}
                             </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -201,14 +230,29 @@ const HistoryPage = () => {
                                                         ? 'bg-green-100 text-green-800'
                                                         : 'bg-blue-100 text-blue-800'
                                                 }`}>
-                                                    {sale.payedCash ? '💵 Cash' : '💳 Card'}
+                                                    {sale.payedCash ? 'Cash' : 'Card'}
                                                 </span>
                                         </td>
+                                        {canEdit && (
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                <button
+                                                    onClick={() => sale.id && handleRevertSale(sale.id)}
+                                                    disabled={revertingId === sale.id}
+                                                    className={`px-3 py-1 rounded text-white font-medium ${
+                                                        revertingId === sale.id
+                                                            ? 'bg-gray-400 cursor-not-allowed'
+                                                            : 'bg-red-600 hover:bg-red-700'
+                                                    }`}
+                                                >
+                                                    {revertingId === sale.id ? 'Reverting...' : 'Revert'}
+                                                </button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={canEdit ? 8 : 7} className="px-6 py-12 text-center text-gray-500">
                                         No sales recorded yet.
                                     </td>
                                 </tr>
@@ -217,19 +261,18 @@ const HistoryPage = () => {
                         </table>
                     </div>
                 </div>
+
+                {showManageUsers && (
+                    <ManageUsersModal
+                        inventoryId={Number(id)}
+                        isOwner={isOwner}
+                        onClose={() => {
+                            setShowManageUsers(false);
+                            void fetchInventory();
+                        }}
+                    />
+                )}
             </div>
-
-            {showManageUsers && (
-                <ManageUsersModal
-                    inventoryId={inventory.id}
-                    isOwner={isOwner}
-                    onClose={() => {
-                        setShowManageUsers(false);
-                        fetchInventory();
-                    }}
-                />
-            )}
-
         </>
     );
 };

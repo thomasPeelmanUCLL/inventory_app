@@ -46,17 +46,18 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         return this.findMany({
             where: {
                 item: {
-                    inventoryId: inventoryId
-                }
+                    inventoryId: inventoryId,
+                },
             },
             include: {
                 item: true,
             },
             orderBy: {
-                soldAt: 'desc'
-            }
+                soldAt: 'desc',
+            },
         });
     }
+
 
     async createSoldItem(soldItem: SoldItem): Promise<SoldItem> {
         const data = {
