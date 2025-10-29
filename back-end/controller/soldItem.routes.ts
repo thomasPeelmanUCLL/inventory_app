@@ -63,8 +63,24 @@
  */
 
 import express, { NextFunction, Request, Response } from 'express';
-import soldItemService from '../service/soldItem.service';
+import soldItemDB from '../repository/soldItem.db';
+import inventoryDB from '../repository/inventory.db';
 import { requireAuth } from '../middleware/auth.middleware';
+import { requireInventoryAccess } from '../middleware/authorization.middleware';
+import { 
+    validateParams, 
+    validateBody,
+    validateQuery, 
+    idParam, 
+    inventoryIdParam,
+    itemIdParam,
+    soldItemInput, 
+    soldItemUpdateInput,
+    analyticsQuery,
+    asyncHandler 
+} from '../util/validators';
+import { createError } from '../middleware/error.middleware';
+import { SoldItem } from '../model/soldItem';
 
 const soldItemRouter = express.Router();
 
@@ -75,14 +91,15 @@ soldItemRouter.use(requireAuth);
  * @swagger
  * /soldItems:
  *   get:
- *     summary: Get a list of all sold items
+ *     summary: Get sold items user has access to
+ *     description: Returns sold items from all inventories the authenticated user belongs to
  *     tags:
  *       - Sold Items
  *     security:
  *       - betterAuth: []
  *     responses:
  *       200:
- *         description: A list of sold items.
+ *         description: A list of accessible sold items
  *         content:
  *           application/json:
  *             schema:
@@ -92,14 +109,18 @@ soldItemRouter.use(requireAuth);
  *       401:
  *         description: User not authenticated
  */
-soldItemRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const soldItems = await soldItemService.getAllSoldItems();
-        res.status(200).json(soldItems);
-    } catch (error) {
-        next(error);
+soldItemRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const userInventories = await inventoryDB.getInventoriesByUserId({ userId: user.id });
+    const inventoryIds = userInventories.map(inv => inv.getId());
+    if (inventoryIds.length === 0) return res.status(200).json([]);
+    const all: any[] = [];
+    for (const invId of inventoryIds) {
+        const items = await soldItemDB.getSoldItemsByInventoryId({ inventoryId: invId });
+        all.push(...items);
     }
-});
+    res.status(200).json(all);
+}));
 
 /**
  * @swagger
@@ -125,17 +146,23 @@ soldItemRouter.get('/', async (req: Request, res: Response, next: NextFunction) 
  *               $ref: '#/components/schemas/SoldItem'
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Sold item not found
  */
-soldItemRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const soldItem = await soldItemService.getSoldItemById({ id: Number(req.params.id) });
+soldItemRouter.get('/:id',
+    validateParams(idParam),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params as any;
+        const user = (req as any).user;
+        const soldItem = await soldItemDB.getSoldItemById({ id: Number(id) });
+        if (!soldItem) throw createError.notFound('Sold item not found');
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: soldItem.getItemId() });
+        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
         res.status(200).json(soldItem);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
@@ -163,15 +190,20 @@ soldItemRouter.get('/:id', async (req: Request, res: Response, next: NextFunctio
  *                 $ref: '#/components/schemas/SoldItem'
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  */
-soldItemRouter.get('/item/:itemId', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const soldItems = await soldItemService.getSoldItemsByItemId({ itemId: Number(req.params.itemId) });
+soldItemRouter.get('/item/:itemId',
+    validateParams(itemIdParam),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { itemId } = req.params as any;
+        const user = (req as any).user;
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: Number(itemId) });
+        if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
+        const soldItems = await soldItemDB.getSoldItemsByItemId({ itemId: Number(itemId) });
         res.status(200).json(soldItems);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
@@ -197,21 +229,26 @@ soldItemRouter.get('/item/:itemId', async (req: Request, res: Response, next: Ne
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/SoldItem'
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Access denied to inventory
  */
-soldItemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const soldItems = await soldItemService.getSoldItemsByInventoryId({ inventoryId: Number(req.params.inventoryId) });
+soldItemRouter.get('/inventory/:inventoryId',
+    validateParams(inventoryIdParam),
+    requireInventoryAccess('inventoryId'),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { inventoryId } = req.params as any;
+        const soldItems = await soldItemDB.getSoldItemsByInventoryId({ inventoryId: Number(inventoryId) });
         res.status(200).json(soldItems);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
  * /soldItems:
  *   post:
- *     summary: Create a new sold item
+ *     summary: Create a new sold item (with automatic stock deduction)
  *     tags:
  *       - Sold Items
  *     security:
@@ -230,39 +267,40 @@ soldItemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response
  *             schema:
  *               $ref: '#/components/schemas/SoldItem'
  *       400:
- *         description: Bad request
+ *         description: Validation failed or insufficient stock
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Item not found
  */
-soldItemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
+soldItemRouter.post('/',
+    validateBody(soldItemInput),
+    asyncHandler(async (req: Request, res: Response) => {
+        const user = (req as any).user;
         const { itemId, finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity, soldAt } = req.body;
-
-        const soldItem = await soldItemService.createSoldItem({
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: Number(itemId) });
+        if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
+        const soldItemResult = await soldItemDB.createSoldItemWithStockUpdate({
             itemId: Number(itemId),
-            finalSellPrice: Number(finalSellPrice),
+            finalSellPrice,
             priceVariableName,
-            isCustomPrice: Boolean(isCustomPrice),
-            payedCash: Boolean(payedCash),
-            quantity: Number(quantity),
-            soldAt: soldAt ? new Date(soldAt) : undefined
+            isCustomPrice,
+            payedCash,
+            quantity,
+            soldAt: soldAt ? new Date(String(soldAt)) : undefined
         });
-
+        const soldItem = SoldItem.from(soldItemResult);
         res.status(201).json(soldItem);
-    } catch (error) {
-        next(error);
-    }
-});
-
-
+    })
+);
 
 /**
  * @swagger
  * /soldItems/{id}:
  *   put:
- *     summary: Update a sold item
+ *     summary: Update a sold item (with automatic stock adjustment)
  *     tags:
  *       - Sold Items
  *     security:
@@ -305,38 +343,43 @@ soldItemRouter.post('/', async (req: Request, res: Response, next: NextFunction)
  *             schema:
  *               $ref: '#/components/schemas/SoldItem'
  *       400:
- *         description: Bad request
+ *         description: Validation failed or insufficient stock
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Sold item not found
  */
-soldItemRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
+soldItemRouter.put('/:id',
+    validateParams(idParam),
+    validateBody(soldItemUpdateInput),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params as any;
+        const user = (req as any).user;
         const { finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity, soldAt } = req.body;
-        const soldAtDate = soldAt ? new Date(soldAt) : undefined;
-
-        const soldItem = await soldItemService.updateSoldItem({
-            id: Number(req.params.id),
-            finalSellPrice: finalSellPrice !== undefined ? Number(finalSellPrice) : undefined,  // Changed
-            priceVariableName,  // Added
-            isCustomPrice: isCustomPrice !== undefined ? Boolean(isCustomPrice) : undefined,  // Added
-            payedCash: payedCash !== undefined ? Boolean(payedCash) : undefined,
-            quantity: quantity !== undefined ? Number(quantity) : undefined,
-            soldAt: soldAtDate
+        const existingSoldItem = await soldItemDB.getSoldItemById({ id: Number(id) });
+        if (!existingSoldItem) throw createError.notFound('Sold item not found');
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: existingSoldItem.getItemId() });
+        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
+        const soldItemResult = await soldItemDB.updateSoldItemWithStockAdjustment(Number(id), {
+            finalSellPrice,
+            priceVariableName,
+            isCustomPrice,
+            payedCash,
+            quantity,
+            soldAt: soldAt ? new Date(String(soldAt)) : undefined
         });
-
+        const soldItem = SoldItem.from(soldItemResult);
         res.status(200).json(soldItem);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
  * /soldItems/{id}:
  *   delete:
- *     summary: Delete a sold item
+ *     summary: Delete a sold item (with automatic stock restoration)
  *     tags:
  *       - Sold Items
  *     security:
@@ -352,17 +395,24 @@ soldItemRouter.put('/:id', async (req: Request, res: Response, next: NextFunctio
  *         description: Sold item deleted successfully
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Sold item not found
  */
-soldItemRouter.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        await soldItemService.deleteSoldItem({ id: Number(req.params.id) });
+soldItemRouter.delete('/:id',
+    validateParams(idParam),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params as any;
+        const user = (req as any).user;
+        const existingSoldItem = await soldItemDB.getSoldItemById({ id: Number(id) });
+        if (!existingSoldItem) throw createError.notFound('Sold item not found');
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: existingSoldItem.getItemId() });
+        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
+        await soldItemDB.deleteSoldItemWithStockRestore(Number(id));
         res.status(204).send();
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
@@ -392,22 +442,25 @@ soldItemRouter.delete('/:id', async (req: Request, res: Response, next: NextFunc
  *     responses:
  *       200:
  *         description: Analytics data for the inventory
+ *       401:
+ *         description: User not authenticated
+ *       403:
+ *         description: Access denied to inventory
  */
-soldItemRouter.get('/inventory/:inventoryId/analytics', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { startDate, endDate } = req.query;
-
-        const analytics = await soldItemService.getAnalyticsByInventoryId({
-            inventoryId: Number(req.params.inventoryId),
-            startDate: startDate ? new Date(startDate as string) : undefined,
-            endDate: endDate ? new Date(endDate as string) : undefined,
+soldItemRouter.get('/inventory/:inventoryId/analytics',
+    validateParams(inventoryIdParam),
+    validateQuery(analyticsQuery),
+    requireInventoryAccess('inventoryId'),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { inventoryId } = req.params as any;
+        const { startDate, endDate } = req.query as any;
+        const analytics = await soldItemDB.getAnalyticsByInventoryId({
+            inventoryId: Number(inventoryId),
+            startDate: startDate ? new Date(String(startDate)) : undefined,
+            endDate: endDate ? new Date(String(endDate)) : undefined,
         });
-
         res.status(200).json(analytics);
-    } catch (error) {
-        next(error);
-    }
-});
-
+    })
+);
 
 export { soldItemRouter };
