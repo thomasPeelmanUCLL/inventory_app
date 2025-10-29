@@ -5,115 +5,72 @@ export interface InventoryDTO {
   name: string;
   description: string;
   createdAt: string;
-  updatedAt: string;
-  userRole?: 'owner' | 'editor' | 'viewer'; // Current user's role in this inventory
-  userCount?: number; // Number of users with access
-  itemCount?: number; // Number of items in inventory
-  totalValue?: string; // Total value of items (buy price * quantity)
+  updatedAt: string | null;
+  userRole?: 'owner' | 'editor' | 'viewer';
+  userCount?: number;
+  itemCount?: number;
+  totalValue?: string;
 }
 
 export interface InventoryUserDTO {
   userId: string;
   inventoryId: number;
   role: 'owner' | 'editor' | 'viewer';
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  user?: { id: string; name: string; email: string };
   joinedAt: string;
 }
 
-/**
- * Convert Inventory model to clean DTO for API responses
- */
 export function inventoryToDTO(
-  inventory: Inventory, 
+  inventory: Inventory | any,
   userRole?: string,
-  additionalData?: {
-    userCount?: number;
-    itemCount?: number;
-    totalValue?: number;
-  }
+  additionalData?: { userCount?: number; itemCount?: number; totalValue?: number }
 ): InventoryDTO {
+  const createdAt = (inventory as any).getCreatedAt?.() ?? (inventory as any).createdAt ?? new Date();
+  const updatedAt = (inventory as any).getUpdatedAt?.() ?? (inventory as any).updatedAt ?? null;
+
   const dto: InventoryDTO = {
-    id: inventory.getId(),
-    name: inventory.getName(),
-    description: inventory.getDescription(),
-    createdAt: inventory.getCreatedAt().toISOString(),
-    updatedAt: inventory.getUpdatedAt().toISOString(),
+    id: (inventory as any).getId ? (inventory as any).getId() : (inventory as any).id,
+    name: (inventory as any).getName ? (inventory as any).getName() : (inventory as any).name,
+    description: (inventory as any).getDescription ? (inventory as any).getDescription() : (inventory as any).description,
+    createdAt: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt),
+    updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : null,
   };
 
-  if (userRole) {
-    dto.userRole = userRole as 'owner' | 'editor' | 'viewer';
-  }
-
+  if (userRole) dto.userRole = userRole as any;
   if (additionalData) {
-    if (additionalData.userCount !== undefined) {
-      dto.userCount = additionalData.userCount;
-    }
-    if (additionalData.itemCount !== undefined) {
-      dto.itemCount = additionalData.itemCount;
-    }
-    if (additionalData.totalValue !== undefined) {
-      dto.totalValue = additionalData.totalValue.toFixed(2);
-    }
+    if (additionalData.userCount !== undefined) dto.userCount = additionalData.userCount;
+    if (additionalData.itemCount !== undefined) dto.itemCount = additionalData.itemCount;
+    if (additionalData.totalValue !== undefined) dto.totalValue = additionalData.totalValue.toFixed(2);
   }
 
   return dto;
 }
 
-/**
- * Convert array of Inventories to DTOs
- */
 export function inventoriesToDTO(
-  inventories: Inventory[], 
+  inventories: Array<Inventory | any>,
   userRoles?: Record<number, string>,
   additionalData?: Record<number, { userCount?: number; itemCount?: number; totalValue?: number }>
 ): InventoryDTO[] {
-  return inventories.map(inventory => 
-    inventoryToDTO(
-      inventory,
-      userRoles?.[inventory.getId()],
-      additionalData?.[inventory.getId()]
-    )
-  );
+  return inventories.map(inv => inventoryToDTO(inv, userRoles?.[(inv as any).getId?.() ?? (inv as any).id], additionalData?.[(inv as any).getId?.() ?? (inv as any).id]));
 }
 
-/**
- * Input validation for inventory creation/updates
- */
-export function validateInventoryInput(data: any): {
-  name: string;
-  description: string;
-} {
+export function validateInventoryInput(data: any): { name: string; description: string } {
   if (!data.name || typeof data.name !== 'string' || data.name.trim().length < 3) {
     throw new Error('Inventory name is required and must be at least 3 characters');
   }
-  
   if (!data.description || typeof data.description !== 'string') {
     throw new Error('Inventory description is required');
   }
-  
-  return {
-    name: data.name.trim(),
-    description: data.description.trim(),
-  };
+  return { name: data.name.trim(), description: data.description.trim() };
 }
 
-/**
- * Convert inventory user relationship to DTO
- */
 export function inventoryUserToDTO(inventoryUser: any): InventoryUserDTO {
+  const joinedAt = inventoryUser.createdAt ?? new Date();
   return {
     userId: inventoryUser.userId,
     inventoryId: inventoryUser.inventoryId,
     role: inventoryUser.role,
-    user: inventoryUser.user ? {
-      id: inventoryUser.user.id,
-      name: inventoryUser.user.name,
-      email: inventoryUser.user.email,
-    } : undefined,
-    joinedAt: inventoryUser.createdAt?.toISOString() || new Date().toISOString(),
+    user: inventoryUser.user ? { id: inventoryUser.user.id, name: inventoryUser.user.name, email: inventoryUser.user.email } : undefined,
+    joinedAt: joinedAt instanceof Date ? joinedAt.toISOString() : new Date(joinedAt).toISOString(),
   };
 }
