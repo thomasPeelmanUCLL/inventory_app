@@ -111,23 +111,15 @@ soldItemRouter.use(requireAuth);
  */
 soldItemRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
     const user = (req as any).user;
-    
-    // Get all inventories user has access to
     const userInventories = await inventoryDB.getInventoriesByUserId({ userId: user.id });
     const inventoryIds = userInventories.map(inv => inv.getId());
-    
-    if (inventoryIds.length === 0) {
-        return res.status(200).json([]);
+    if (inventoryIds.length === 0) return res.status(200).json([]);
+    const all: any[] = [];
+    for (const invId of inventoryIds) {
+        const items = await soldItemDB.getSoldItemsByInventoryId({ inventoryId: invId });
+        all.push(...items);
     }
-    
-    // Get sold items from accessible inventories only
-    const soldItems = [];
-    for (const inventoryId of inventoryIds) {
-        const items = await soldItemDB.getSoldItemsByInventoryId({ inventoryId });
-        soldItems.push(...items);
-    }
-    
-    res.status(200).json(soldItems);
+    res.status(200).json(all);
 }));
 
 /**
@@ -162,24 +154,12 @@ soldItemRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
 soldItemRouter.get('/:id',
     validateParams(idParam),
     asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params;
+        const { id } = req.params as any;
         const user = (req as any).user;
-        
-        const soldItem = await soldItemDB.getSoldItemById({ id });
-        if (!soldItem) {
-            throw createError.notFound('Sold item not found');
-        }
-        
-        // Check access via item's inventory
-        const hasAccess = await inventoryDB.userHasAccessViaItem({
-            userId: user.id,
-            itemId: soldItem.getItemId()
-        });
-        
-        if (!hasAccess) {
-            throw createError.forbidden('Access denied to this sold item\'s inventory');
-        }
-        
+        const soldItem = await soldItemDB.getSoldItemById({ id: Number(id) });
+        if (!soldItem) throw createError.notFound('Sold item not found');
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: soldItem.getItemId() });
+        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
         res.status(200).json(soldItem);
     })
 );
@@ -216,20 +196,11 @@ soldItemRouter.get('/:id',
 soldItemRouter.get('/item/:itemId',
     validateParams(itemIdParam),
     asyncHandler(async (req: Request, res: Response) => {
-        const { itemId } = req.params;
+        const { itemId } = req.params as any;
         const user = (req as any).user;
-        
-        // Check access via item's inventory
-        const hasAccess = await inventoryDB.userHasAccessViaItem({
-            userId: user.id,
-            itemId
-        });
-        
-        if (!hasAccess) {
-            throw createError.forbidden('Access denied to this item\'s inventory');
-        }
-        
-        const soldItems = await soldItemDB.getSoldItemsByItemId({ itemId });
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: Number(itemId) });
+        if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
+        const soldItems = await soldItemDB.getSoldItemsByItemId({ itemId: Number(itemId) });
         res.status(200).json(soldItems);
     })
 );
@@ -267,8 +238,8 @@ soldItemRouter.get('/inventory/:inventoryId',
     validateParams(inventoryIdParam),
     requireInventoryAccess('inventoryId'),
     asyncHandler(async (req: Request, res: Response) => {
-        const { inventoryId } = req.params;
-        const soldItems = await soldItemDB.getSoldItemsByInventoryId({ inventoryId });
+        const { inventoryId } = req.params as any;
+        const soldItems = await soldItemDB.getSoldItemsByInventoryId({ inventoryId: Number(inventoryId) });
         res.status(200).json(soldItems);
     })
 );
@@ -309,29 +280,17 @@ soldItemRouter.post('/',
     asyncHandler(async (req: Request, res: Response) => {
         const user = (req as any).user;
         const { itemId, finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity, soldAt } = req.body;
-        
-        // Check access via item's inventory
-        const hasAccess = await inventoryDB.userHasAccessViaItem({
-            userId: user.id,
-            itemId
-        });
-        
-        if (!hasAccess) {
-            throw createError.forbidden('Access denied to this item\'s inventory');
-        }
-        
-        // Use transactional method to atomically create sold item and update stock
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: Number(itemId) });
+        if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
         const soldItemResult = await soldItemDB.createSoldItemWithStockUpdate({
-            itemId,
+            itemId: Number(itemId),
             finalSellPrice,
             priceVariableName,
             isCustomPrice,
             payedCash,
             quantity,
-            soldAt: soldAt ? new Date(soldAt) : undefined
+            soldAt: soldAt ? new Date(String(soldAt)) : undefined
         });
-        
-        // Convert Prisma result to domain model
         const soldItem = SoldItem.from(soldItemResult);
         res.status(201).json(soldItem);
     })
@@ -396,37 +355,21 @@ soldItemRouter.put('/:id',
     validateParams(idParam),
     validateBody(soldItemUpdateInput),
     asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params;
+        const { id } = req.params as any;
         const user = (req as any).user;
         const { finalSellPrice, priceVariableName, isCustomPrice, payedCash, quantity, soldAt } = req.body;
-        
-        // First check if sold item exists and user has access
-        const existingSoldItem = await soldItemDB.getSoldItemById({ id });
-        if (!existingSoldItem) {
-            throw createError.notFound('Sold item not found');
-        }
-        
-        // Check access via item's inventory
-        const hasAccess = await inventoryDB.userHasAccessViaItem({
-            userId: user.id,
-            itemId: existingSoldItem.getItemId()
-        });
-        
-        if (!hasAccess) {
-            throw createError.forbidden('Access denied to this sold item\'s inventory');
-        }
-        
-        // Use transactional method to atomically update sold item and adjust stock
-        const soldItemResult = await soldItemDB.updateSoldItemWithStockAdjustment(id, {
+        const existingSoldItem = await soldItemDB.getSoldItemById({ id: Number(id) });
+        if (!existingSoldItem) throw createError.notFound('Sold item not found');
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: existingSoldItem.getItemId() });
+        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
+        const soldItemResult = await soldItemDB.updateSoldItemWithStockAdjustment(Number(id), {
             finalSellPrice,
             priceVariableName,
             isCustomPrice,
             payedCash,
             quantity,
-            soldAt: soldAt ? new Date(soldAt) : undefined
+            soldAt: soldAt ? new Date(String(soldAt)) : undefined
         });
-        
-        // Convert Prisma result to domain model
         const soldItem = SoldItem.from(soldItemResult);
         res.status(200).json(soldItem);
     })
@@ -460,27 +403,13 @@ soldItemRouter.put('/:id',
 soldItemRouter.delete('/:id',
     validateParams(idParam),
     asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params;
+        const { id } = req.params as any;
         const user = (req as any).user;
-        
-        // First check if sold item exists and user has access
-        const existingSoldItem = await soldItemDB.getSoldItemById({ id });
-        if (!existingSoldItem) {
-            throw createError.notFound('Sold item not found');
-        }
-        
-        // Check access via item's inventory
-        const hasAccess = await inventoryDB.userHasAccessViaItem({
-            userId: user.id,
-            itemId: existingSoldItem.getItemId()
-        });
-        
-        if (!hasAccess) {
-            throw createError.forbidden('Access denied to this sold item\'s inventory');
-        }
-        
-        // Use transactional method to atomically delete sold item and restore stock
-        await soldItemDB.deleteSoldItemWithStockRestore(id);
+        const existingSoldItem = await soldItemDB.getSoldItemById({ id: Number(id) });
+        if (!existingSoldItem) throw createError.notFound('Sold item not found');
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: existingSoldItem.getItemId() });
+        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
+        await soldItemDB.deleteSoldItemWithStockRestore(Number(id));
         res.status(204).send();
     })
 );
@@ -523,15 +452,13 @@ soldItemRouter.get('/inventory/:inventoryId/analytics',
     validateQuery(analyticsQuery),
     requireInventoryAccess('inventoryId'),
     asyncHandler(async (req: Request, res: Response) => {
-        const { inventoryId } = req.params;
-        const { startDate, endDate } = req.query;
-        
+        const { inventoryId } = req.params as any;
+        const { startDate, endDate } = req.query as any;
         const analytics = await soldItemDB.getAnalyticsByInventoryId({
-            inventoryId,
-            startDate: startDate as Date,
-            endDate: endDate as Date,
+            inventoryId: Number(inventoryId),
+            startDate: startDate ? new Date(String(startDate)) : undefined,
+            endDate: endDate ? new Date(String(endDate)) : undefined,
         });
-        
         res.status(200).json(analytics);
     })
 );
