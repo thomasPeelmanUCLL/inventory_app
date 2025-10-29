@@ -73,7 +73,19 @@
 
 import express, { NextFunction, Request, Response } from 'express';
 import itemService from '../service/item.service';
+import inventoryDB from '../repository/inventory.db';
 import { requireAuth } from '../middleware/auth.middleware';
+import { requireInventoryAccess, requireInventoryAccessViaItem } from '../middleware/authorization.middleware';
+import { 
+    validateParams, 
+    validateBody, 
+    idParam, 
+    inventoryIdParam, 
+    itemInput, 
+    itemUpdateInput,
+    asyncHandler 
+} from '../util/validators';
+import { createError } from '../middleware/error.middleware';
 
 const itemRouter = express.Router();
 
@@ -84,14 +96,15 @@ itemRouter.use(requireAuth);
  * @swagger
  * /items:
  *   get:
- *     summary: Get all items
+ *     summary: Get all items user has access to
+ *     description: Returns items from all inventories the authenticated user belongs to
  *     tags:
  *       - Items
  *     security:
  *       - betterAuth: []
  *     responses:
  *       200:
- *         description: A list of all items
+ *         description: A list of accessible items
  *         content:
  *           application/json:
  *             schema:
@@ -101,14 +114,21 @@ itemRouter.use(requireAuth);
  *       401:
  *         description: User not authenticated
  */
-itemRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const items = await itemService.getAllItems();
-        res.status(200).json(items);
-    } catch (error) {
-        next(error);
+itemRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    
+    // Get all inventories user has access to
+    const userInventories = await inventoryDB.getInventoriesByUserId({ userId: user.id });
+    const inventoryIds = userInventories.map(inv => inv.getId());
+    
+    if (inventoryIds.length === 0) {
+        return res.status(200).json([]);
     }
-});
+    
+    // Get items from accessible inventories only
+    const items = await itemService.getItemsByInventoryIds({ inventoryIds });
+    res.status(200).json(items);
+}));
 
 /**
  * @swagger
@@ -135,17 +155,37 @@ itemRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
  *               $ref: '#/components/schemas/Item'
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied to this item's inventory
  *       404:
  *         description: Item not found
  */
-itemRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const item = await itemService.getItemById({ id: Number(req.params.id) });
+itemRouter.get('/:id', 
+    validateParams(idParam),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const user = (req as any).user;
+        
+        // Get item first to check its inventory
+        const item = await itemService.getItemById({ id });
+        
+        if (!item.getInventoryId()) {
+            throw createError.notFound('Item not found');
+        }
+        
+        // Check if user has access to this item's inventory
+        const hasAccess = await inventoryDB.userHasAccess({
+            userId: user.id,
+            inventoryId: item.getInventoryId()!
+        });
+        
+        if (!hasAccess) {
+            throw createError.forbidden('Access denied to this item\'s inventory');
+        }
+        
         res.status(200).json(item);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
@@ -174,17 +214,18 @@ itemRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) =
  *                 $ref: '#/components/schemas/Item'
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied to this inventory
  */
-itemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const items = await itemService.getItemsByInventoryId({
-            inventoryId: Number(req.params.inventoryId)
-        });
+itemRouter.get('/inventory/:inventoryId',
+    validateParams(inventoryIdParam),
+    requireInventoryAccess('inventoryId'),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { inventoryId } = req.params;
+        const items = await itemService.getItemsByInventoryId({ inventoryId });
         res.status(200).json(items);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
@@ -209,29 +250,38 @@ itemRouter.get('/inventory/:inventoryId', async (req: Request, res: Response, ne
  *             schema:
  *               $ref: '#/components/schemas/Item'
  *       400:
- *         description: Bad request
+ *         description: Validation failed
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied to inventory
  */
-itemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { name, description, buyPrice, quantity, buyedAt, inventoryId } = req.body;
-        const buyedAtDate = buyedAt ? new Date(buyedAt) : undefined;
-
+itemRouter.post('/',
+    validateBody(itemInput),
+    asyncHandler(async (req: Request, res: Response) => {
+        const user = (req as any).user;
+        const { inventoryId, ...itemData } = req.body;
+        
+        // If inventoryId provided, check access
+        if (inventoryId) {
+            const hasAccess = await inventoryDB.userHasAccess({
+                userId: user.id,
+                inventoryId
+            });
+            
+            if (!hasAccess) {
+                throw createError.forbidden('Access denied to this inventory');
+            }
+        }
+        
         const item = await itemService.createItem({
-            name,
-            description,
-            buyPrice: Number(buyPrice),
-            quantity: Number(quantity),
-            buyedAt: buyedAtDate,
-            inventoryId: inventoryId ? Number(inventoryId) : undefined
+            ...itemData,
+            inventoryId
         });
-
+        
         res.status(201).json(item);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
@@ -263,32 +313,57 @@ itemRouter.post('/', async (req: Request, res: Response, next: NextFunction) => 
  *             schema:
  *               $ref: '#/components/schemas/Item'
  *       400:
- *         description: Bad request
+ *         description: Validation failed
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Item not found
  */
-itemRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { name, description, buyPrice, quantity, buyedAt, inventoryId } = req.body;
-        const buyedAtDate = buyedAt ? new Date(buyedAt) : undefined;
-
+itemRouter.put('/:id',
+    validateParams(idParam),
+    validateBody(itemUpdateInput),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const user = (req as any).user;
+        const { inventoryId: newInventoryId, ...updateData } = req.body;
+        
+        // Get existing item to check current inventory access
+        const existingItem = await itemService.getItemById({ id });
+        
+        if (existingItem.getInventoryId()) {
+            const hasCurrentAccess = await inventoryDB.userHasAccess({
+                userId: user.id,
+                inventoryId: existingItem.getInventoryId()!
+            });
+            
+            if (!hasCurrentAccess) {
+                throw createError.forbidden('Access denied to this item\'s current inventory');
+            }
+        }
+        
+        // If moving to new inventory, check access to target inventory
+        if (newInventoryId && newInventoryId !== existingItem.getInventoryId()) {
+            const hasNewAccess = await inventoryDB.userHasAccess({
+                userId: user.id,
+                inventoryId: newInventoryId
+            });
+            
+            if (!hasNewAccess) {
+                throw createError.forbidden('Access denied to target inventory');
+            }
+        }
+        
         const item = await itemService.updateItem({
-            id: Number(req.params.id),
-            name,
-            description,
-            buyPrice: Number(buyPrice),
-            quantity: Number(quantity),
-            buyedAt: buyedAtDate,
-            inventoryId: inventoryId ? Number(inventoryId) : undefined
+            id,
+            ...updateData,
+            inventoryId: newInventoryId
         });
-
+        
         res.status(200).json(item);
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 /**
  * @swagger
@@ -311,16 +386,34 @@ itemRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) =
  *         description: Item deleted successfully
  *       401:
  *         description: User not authenticated
+ *       403:
+ *         description: Access denied
  *       404:
  *         description: Item not found
  */
-itemRouter.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        await itemService.deleteItem({ id: Number(req.params.id) });
+itemRouter.delete('/:id',
+    validateParams(idParam),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const user = (req as any).user;
+        
+        // Check access via item's inventory
+        const item = await itemService.getItemById({ id });
+        
+        if (item.getInventoryId()) {
+            const hasAccess = await inventoryDB.userHasAccess({
+                userId: user.id,
+                inventoryId: item.getInventoryId()!
+            });
+            
+            if (!hasAccess) {
+                throw createError.forbidden('Access denied to this item\'s inventory');
+            }
+        }
+        
+        await itemService.deleteItem({ id });
         res.status(204).send();
-    } catch (error) {
-        next(error);
-    }
-});
+    })
+);
 
 export { itemRouter };
