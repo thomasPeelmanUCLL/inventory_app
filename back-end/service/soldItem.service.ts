@@ -25,6 +25,13 @@ const getSoldItemsByInventoryId = async ({ inventoryId }: { inventoryId: number 
     return await soldItemDB.getSoldItemsByInventoryId({ inventoryId });
 };
 
+// NEW: Bulk query method to prevent N+1 queries
+const getSoldItemsByInventoryIds = async ({ inventoryIds }: { inventoryIds: number[] }): Promise<SoldItem[]> => {
+    if (inventoryIds.length === 0) return [];
+    return await soldItemDB.getSoldItemsByInventoryIds({ inventoryIds });
+};
+
+// DEPRECATED: Use transactional methods in soldItemDB instead
 const createSoldItem = async ({
                                   itemId,
                                   finalSellPrice,
@@ -42,30 +49,37 @@ const createSoldItem = async ({
     quantity: number;
     soldAt?: Date;
 }): Promise<SoldItem> => {
-    // Validate price
-    const priceNum = typeof finalSellPrice === 'number' ? finalSellPrice : Number(finalSellPrice);
-    if (!priceNum || isNaN(priceNum) || priceNum <= 0) {
-        throw new Error('Invalid finalSellPrice: must be a positive number');
+    // Enhanced validation with Decimal precision
+    const sellPriceDecimal = typeof finalSellPrice === 'number'
+        ? new Prisma.Decimal(finalSellPrice.toFixed(2))
+        : finalSellPrice;
+        
+    if (sellPriceDecimal.lessThanOrEqualTo(0)) {
+        throw new Error('Final sell price must be positive');
+    }
+    
+    if (quantity <= 0) {
+        throw new Error('Quantity must be positive');
     }
 
     const item = await itemService.getItemById({ id: itemId });
     if (item.getQuantity() < quantity) {
-        throw new Error(`Not enough quantity available for item with ID: ${itemId}`);
+        throw new Error(`Not enough quantity available for item with ID: ${itemId}. Available: ${item.getQuantity()}, Requested: ${quantity}`);
     }
 
     const soldItem = new SoldItem({
         itemId,
-        finalSellPrice,
+        finalSellPrice: sellPriceDecimal,
         priceVariableName,
         isCustomPrice,
         payedCash,
         quantity,
-        soldAt
+        soldAt: soldAt || new Date()
     });
 
     const createdSoldItem = await soldItemDB.createSoldItem(soldItem);
 
-    // Update item quantity
+    // Update item quantity - NOTE: This is not transactional, use soldItemDB.createSoldItemWithStockUpdate instead
     const updatedItem = await itemDB.getItemById({ id: itemId });
     if (updatedItem) {
         const newItem = new Item({
@@ -77,7 +91,6 @@ const createSoldItem = async ({
             inventoryId: updatedItem.getInventoryId(),
             buyedAt: updatedItem.getBuyedAt(),
             createdAt: updatedItem.getCreatedAt()
-            // REMOVED: priceVariableId - doesn't exist!
         });
         await itemDB.updateItem(newItem);
     }
@@ -85,6 +98,7 @@ const createSoldItem = async ({
     return createdSoldItem;
 };
 
+// DEPRECATED: Use transactional methods in soldItemDB instead
 const updateSoldItem = async ({
                                   id,
                                   finalSellPrice,
@@ -109,11 +123,26 @@ const updateSoldItem = async ({
         throw new Error(`Item with ID: ${existingSoldItem.getItemId()} does not exist.`);
     }
 
+    // Enhanced validation
+    if (finalSellPrice !== undefined) {
+        const sellPriceDecimal = typeof finalSellPrice === 'number'
+            ? new Prisma.Decimal(finalSellPrice.toFixed(2))
+            : finalSellPrice;
+            
+        if (sellPriceDecimal.lessThanOrEqualTo(0)) {
+            throw new Error('Final sell price must be positive');
+        }
+    }
+
     let quantityDifference = 0;
     if (quantity !== undefined && quantity !== existingSoldItem.getQuantity()) {
+        if (quantity <= 0) {
+            throw new Error('Quantity must be positive');
+        }
+        
         quantityDifference = existingSoldItem.getQuantity() - quantity;
         if (quantityDifference < 0 && item.getQuantity() < Math.abs(quantityDifference)) {
-            throw new Error(`Not enough quantity available for item with ID: ${existingSoldItem.getItemId()}`);
+            throw new Error(`Not enough quantity available for item with ID: ${existingSoldItem.getItemId()}. Available: ${item.getQuantity()}, Additional needed: ${Math.abs(quantityDifference)}`);
         }
     }
 
@@ -134,7 +163,7 @@ const updateSoldItem = async ({
         throw new Error(`Failed to update SoldItem with ID: ${id}`);
     }
 
-    // Adjust item quantity if changed
+    // Adjust item quantity if changed - NOTE: This is not transactional
     if (quantityDifference !== 0) {
         const newItem = new Item({
             id: item.getId(),
@@ -145,7 +174,6 @@ const updateSoldItem = async ({
             inventoryId: item.getInventoryId(),
             buyedAt: item.getBuyedAt(),
             createdAt: item.getCreatedAt()
-            // REMOVED: priceVariableId - doesn't exist!
         });
         await itemDB.updateItem(newItem);
     }
@@ -153,6 +181,7 @@ const updateSoldItem = async ({
     return result;
 };
 
+// DEPRECATED: Use transactional methods in soldItemDB instead
 const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
     const soldItem = await getSoldItemById({ id });
     const item = await itemDB.getItemById({ id: soldItem.getItemId() });
@@ -163,7 +192,7 @@ const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
 
     await soldItemDB.deleteSoldItem({ id });
 
-    // Restore item quantity
+    // Restore item quantity - NOTE: This is not transactional
     const newItem = new Item({
         id: item.getId(),
         name: item.getName(),
@@ -173,7 +202,6 @@ const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
         inventoryId: item.getInventoryId(),
         buyedAt: item.getBuyedAt(),
         createdAt: item.getCreatedAt()
-        // REMOVED: priceVariableId - doesn't exist!
     });
     await itemDB.updateItem(newItem);
 };
@@ -212,7 +240,6 @@ const getAnalyticsByInventoryId = async ({
             profit: number;
         }>;
     }>;
-
     salesByDay: Array<{
         date: string;
         totalBuyPrice: number;
@@ -241,15 +268,29 @@ const getAnalyticsByInventoryId = async ({
         totalProfit: number;
     }>;
 }> => {
+    // Enhanced date validation
+    if (startDate && endDate && startDate > endDate) {
+        throw new Error('Start date must be before end date');
+    }
+    
+    // Prevent overly broad scans (more than 2 years)
+    if (startDate && endDate) {
+        const diffMs = endDate.getTime() - startDate.getTime();
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays > 730) {
+            throw new Error('Date range cannot exceed 2 years');
+        }
+    }
+    
     return await soldItemDB.getAnalyticsByInventoryId({ inventoryId, startDate, endDate });
 };
-
 
 export default {
     getAllSoldItems,
     getSoldItemById,
     getSoldItemsByItemId,
     getSoldItemsByInventoryId,
+    getSoldItemsByInventoryIds, // NEW bulk method
     createSoldItem,
     updateSoldItem,
     deleteSoldItem,
