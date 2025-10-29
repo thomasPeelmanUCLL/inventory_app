@@ -13,11 +13,20 @@ import {
 export type SoldItemDTO = {
   id: number;
   itemId: number;
-  finalSellPrice: number; // normalize to number in hooks layer
-  priceVariableName?: string | null;
+  finalSellPrice: number;
+  priceVariableName?: string | null; // can be null from backend
   isCustomPrice?: boolean;
   payedCash?: boolean;
   quantity: number;
+  soldAt?: string;
+};
+
+type SoldItemPatch = {
+  finalSellPrice?: number;
+  quantity?: number;
+  priceVariableName?: string | null; // allow null to clear value
+  isCustomPrice?: boolean;
+  payedCash?: boolean;
   soldAt?: string;
 };
 
@@ -36,28 +45,26 @@ function normalizeSold(item: any): SoldItemDTO {
 
 export type InventoryAnalyticsDTO = any;
 
-// All sold items
 export function useSoldItems() {
   const { data, error, mutate, isLoading } = useSWR<SoldItemDTO[]>(['/soldItems'] as const, async () => {
     const res = await getAllSoldItems();
     return res.map(normalizeSold);
-  }, {
-    revalidateOnFocus: true,
-    dedupingInterval: 3000,
-    errorRetryCount: 3,
-  });
+  }, { revalidateOnFocus: true, dedupingInterval: 3000, errorRetryCount: 3 });
 
-  const create = async (payload: { itemId: number; finalSellPrice: number; quantity: number; priceVariableName?: string; isCustomPrice?: boolean; payedCash?: boolean; soldAt?: string; }) => {
-    const createdRaw = await createSoldItem(payload);
-    const created = normalizeSold(createdRaw);
+  const create = async (payload: { itemId: number; finalSellPrice: number; quantity: number; priceVariableName?: string | null; isCustomPrice?: boolean; payedCash?: boolean; soldAt?: string; }) => {
+    const created = normalizeSold(await createSoldItem(payload));
     const withDate: SoldItemDTO = { ...created, soldAt: created.soldAt || new Date().toISOString() };
     await mutate([withDate, ...(data || [])], { revalidate: false });
     return created;
   };
 
-  const update = async (id: number, patch: Partial<SoldItemDTO>) => {
-    const updatedRaw = await updateSoldItem(id, patch);
-    const updated = normalizeSold(updatedRaw);
+  const update = async (id: number, patch: SoldItemPatch) => {
+    // Allow clearing priceVariableName by passing null
+    const prepared = { ...patch } as any;
+    if (prepared.priceVariableName === undefined) {
+      // leave as undefined when not provided
+    }
+    const updated = normalizeSold(await updateSoldItem(id, prepared));
     await mutate((data || []).map((it) => (it.id === id ? { ...it, ...updated } : it)), { revalidate: false });
     return updated;
   };
@@ -72,25 +79,22 @@ export function useSoldItems() {
 
 export function useInventorySoldItems(inventoryId: number | null) {
   const key = inventoryId ? (['/soldItems/inventory', inventoryId] as const) : null;
-  const swr = key ? useSWR<SoldItemDTO[]>(key, async () => {
-    const res = await getSoldItemsByInventoryId(inventoryId!);
-    return res.map(normalizeSold);
-  }, { revalidateOnFocus: true, dedupingInterval: 3000 }) : ({} as any);
+  const swr = key ? useSWR<SoldItemDTO[]>(key, async () => (await getSoldItemsByInventoryId(inventoryId!)).map(normalizeSold), { revalidateOnFocus: true, dedupingInterval: 3000 }) : ({} as any);
 
   const data: SoldItemDTO[] | undefined = key ? swr.data : undefined;
   const error = key ? swr.error : undefined;
   const mutate: any = key ? swr.mutate : async () => undefined;
   const isLoading: boolean = key ? swr.isLoading : false;
 
-  const create = async (payload: { itemId: number; finalSellPrice: number; quantity: number; priceVariableName?: string; isCustomPrice?: boolean; payedCash?: boolean; soldAt?: string; }) => {
+  const create = async (payload: { itemId: number; finalSellPrice: number; quantity: number; priceVariableName?: string | null; isCustomPrice?: boolean; payedCash?: boolean; soldAt?: string; }) => {
     const created = normalizeSold(await createSoldItem(payload));
     const withDate: SoldItemDTO = { ...created, soldAt: created.soldAt || new Date().toISOString() };
     await mutate([withDate, ...((data || []) as SoldItemDTO[])], { revalidate: false });
     return created;
   };
 
-  const update = async (id: number, patch: Partial<SoldItemDTO>) => {
-    const updated = normalizeSold(await updateSoldItem(id, patch));
+  const update = async (id: number, patch: SoldItemPatch) => {
+    const updated = normalizeSold(await updateSoldItem(id, patch as any));
     await mutate((data || []).map((it: SoldItemDTO) => (it.id === id ? { ...it, ...updated } : it)), { revalidate: false });
     return updated;
   };
@@ -105,18 +109,13 @@ export function useInventorySoldItems(inventoryId: number | null) {
 
 export function useItemSoldItems(itemId: number | null) {
   const key = itemId ? (['/soldItems/item', itemId] as const) : null;
-  const swr = key ? useSWR<SoldItemDTO[]>(key, async () => {
-    const res = await getSoldItemsByItemId(itemId!);
-    return res.map(normalizeSold);
-  }, { revalidateOnFocus: false, dedupingInterval: 5000 }) : ({} as any);
-
+  const swr = key ? useSWR<SoldItemDTO[]>(key, async () => (await getSoldItemsByItemId(itemId!)).map(normalizeSold), { revalidateOnFocus: false, dedupingInterval: 5000 }) : ({} as any);
   return { soldItems: (key ? swr.data : undefined) || [], error: key ? swr.error : undefined, isLoading: key ? swr.isLoading : false, mutate: key ? swr.mutate : async () => undefined };
 }
 
 export function useSoldItem(soldItemId: number | null) {
   const key = soldItemId ? (['/soldItems', soldItemId] as const) : null;
   const swr = key ? useSWR<SoldItemDTO | null>(key, async () => normalizeSold(await getSoldItemById(soldItemId!)), { revalidateOnFocus: false, dedupingInterval: 10000 }) : ({} as any);
-
   return { soldItem: key ? swr.data : undefined, error: key ? swr.error : undefined, isLoading: key ? swr.isLoading : false, mutate: key ? swr.mutate : async () => undefined };
 }
 
