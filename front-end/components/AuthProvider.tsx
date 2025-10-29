@@ -20,7 +20,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, isPending } = useSession();
+  const { data, isPending } = useSession();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,13 +38,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (session?.user) {
-      setUser(session.user);
+    // Access user from data.user, not session.user
+    if (data?.user) {
+      setUser(data.user);
       setIsLoading(false);
     } else if (!isPending) {
       refreshAuth();
     }
-  }, [session, isPending]);
+  }, [data, isPending]);
 
   const value = {
     user,
