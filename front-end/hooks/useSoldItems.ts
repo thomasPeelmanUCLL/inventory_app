@@ -14,17 +14,27 @@ export type SoldItemDTO = {
   id: number;
   itemId: number;
   finalSellPrice: number;
-  priceVariableName?: string | null; // can be null from backend
+  priceVariableName?: string | null;
   isCustomPrice?: boolean;
   payedCash?: boolean;
   quantity: number;
   soldAt?: string;
 };
 
+type SoldItemCreate = {
+  itemId: number;
+  finalSellPrice: number;
+  quantity: number;
+  priceVariableName?: string; // null not allowed by backend create signature
+  isCustomPrice?: boolean;
+  payedCash?: boolean;
+  soldAt?: string;
+};
+
 type SoldItemPatch = {
   finalSellPrice?: number;
   quantity?: number;
-  priceVariableName?: string | null; // allow null to clear value
+  priceVariableName?: string | null; // allow null to clear value on update
   isCustomPrice?: boolean;
   payedCash?: boolean;
   soldAt?: string;
@@ -51,20 +61,18 @@ export function useSoldItems() {
     return res.map(normalizeSold);
   }, { revalidateOnFocus: true, dedupingInterval: 3000, errorRetryCount: 3 });
 
-  const create = async (payload: { itemId: number; finalSellPrice: number; quantity: number; priceVariableName?: string | null; isCustomPrice?: boolean; payedCash?: boolean; soldAt?: string; }) => {
-    const created = normalizeSold(await createSoldItem(payload));
+  const create = async (payload: SoldItemCreate) => {
+    // If UI passes null to clear, coerce to undefined for create
+    const prepared = { ...payload } as any;
+    if (prepared.priceVariableName === null) prepared.priceVariableName = undefined;
+    const created = normalizeSold(await createSoldItem(prepared));
     const withDate: SoldItemDTO = { ...created, soldAt: created.soldAt || new Date().toISOString() };
     await mutate([withDate, ...(data || [])], { revalidate: false });
     return created;
   };
 
   const update = async (id: number, patch: SoldItemPatch) => {
-    // Allow clearing priceVariableName by passing null
-    const prepared = { ...patch } as any;
-    if (prepared.priceVariableName === undefined) {
-      // leave as undefined when not provided
-    }
-    const updated = normalizeSold(await updateSoldItem(id, prepared));
+    const updated = normalizeSold(await updateSoldItem(id, patch as any));
     await mutate((data || []).map((it) => (it.id === id ? { ...it, ...updated } : it)), { revalidate: false });
     return updated;
   };
@@ -86,8 +94,10 @@ export function useInventorySoldItems(inventoryId: number | null) {
   const mutate: any = key ? swr.mutate : async () => undefined;
   const isLoading: boolean = key ? swr.isLoading : false;
 
-  const create = async (payload: { itemId: number; finalSellPrice: number; quantity: number; priceVariableName?: string | null; isCustomPrice?: boolean; payedCash?: boolean; soldAt?: string; }) => {
-    const created = normalizeSold(await createSoldItem(payload));
+  const create = async (payload: SoldItemCreate) => {
+    const prepared = { ...payload } as any;
+    if (prepared.priceVariableName === null) prepared.priceVariableName = undefined;
+    const created = normalizeSold(await createSoldItem(prepared));
     const withDate: SoldItemDTO = { ...created, soldAt: created.soldAt || new Date().toISOString() };
     await mutate([withDate, ...((data || []) as SoldItemDTO[])], { revalidate: false });
     return created;
