@@ -1,17 +1,68 @@
-import { PriceVariable } from "@types";
+// Enhanced API client with better error handling and authentication
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-const API_BASE_URL = 'http://localhost:3000';
-
+// Enhanced fetch with comprehensive error handling
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
-    const response = await fetch(url, {
-        ...options,
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
-    });
-    return response;
+    try {
+        const response = await fetch(url, {
+            ...options,
+            credentials: 'include', // Critical for Better Auth cookies
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            },
+        });
+        
+        // Handle different types of errors from the secure backend
+        if (!response.ok) {
+            let errorMessage = `HTTP ${response.status}`;
+            let errorDetails = null;
+            
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || errorMessage;
+                errorDetails = errorData.details;
+            } catch {
+                // If JSON parsing fails, use status text
+                errorMessage = response.statusText || errorMessage;
+            }
+            
+            // Handle specific status codes
+            switch (response.status) {
+                case 401:
+                    // Redirect to login or show auth error
+                    if (typeof window !== 'undefined') {
+                        console.warn('🔐 Authentication required - redirecting to login');
+                        window.location.href = '/login';
+                    }
+                    throw new Error('Authentication required');
+                case 403:
+                    throw new Error(`Access denied: ${errorMessage}`);
+                case 404:
+                    throw new Error(`Not found: ${errorMessage}`);
+                case 429:
+                    throw new Error(`Rate limited: ${errorMessage}`);
+                case 400:
+                    if (errorDetails) {
+                        // Zod validation errors
+                        const validationErrors = Array.isArray(errorDetails) 
+                            ? errorDetails.map(e => `${e.field}: ${e.message}`).join(', ')
+                            : errorMessage;
+                        throw new Error(`Validation failed: ${validationErrors}`);
+                    }
+                    throw new Error(`Bad request: ${errorMessage}`);
+                default:
+                    throw new Error(errorMessage);
+            }
+        }
+        
+        return response;
+    } catch (error) {
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+            throw new Error('Network error - ensure backend is running on ' + API_BASE_URL);
+        }
+        throw error;
+    }
 }
 
 // ========================================
@@ -19,7 +70,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
 // ========================================
 
 export async function getAllInventories() {
-    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/my`); // Use /my endpoint
     if (!response.ok) throw new Error('Failed to fetch inventories');
     return response.json();
 }
@@ -45,7 +96,7 @@ export async function createInventory(data: { name: string; description: string 
     return response.json();
 }
 
-export async function updateInventory(id: number, data: { name: string; description: string }) {
+export async function updateInventory(id: number, data: { name?: string; description?: string }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -71,7 +122,7 @@ export async function getInventoryUsers(inventoryId: number) {
     return response.json();
 }
 
-export async function addUserToInventory(inventoryId: number, data: { email: string; role: string }) {
+export async function addUserToInventory(inventoryId: number, data: { userId: string; role: string }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -80,20 +131,11 @@ export async function addUserToInventory(inventoryId: number, data: { email: str
     return response.json();
 }
 
-export async function removeUserFromInventory(inventoryId: number, userId: string) {  // ✅ FIXED: string not number
+export async function removeUserFromInventory(inventoryId: number, userId: string) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users/${userId}`, {
         method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to remove user');
-}
-
-export async function updateUserRole(inventoryId: number, userId: string, role: string) {  // ✅ FIXED: string not number
-    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ role }),
-    });
-    if (!response.ok) throw new Error('Failed to update user role');
-    return response.json();
 }
 
 // ========================================
@@ -158,72 +200,6 @@ export async function deleteItem(itemId: number) {
 }
 
 // ========================================
-// PRICE VARIABLE APIs
-// ========================================
-
-export async function getAllPriceVariables() {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables`);
-    if (!response.ok) throw new Error('Failed to fetch price variables');
-    return response.json();
-}
-
-export async function getPriceVariableById(variableId: number) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`);
-    if (!response.ok) throw new Error('Failed to fetch price variable');
-    return response.json();
-}
-
-// ✅ FIXED: Changed from inventory to item
-export async function getPriceVariablesByItemId(itemId: number) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/item/${itemId}`);
-    if (!response.ok) throw new Error('Failed to fetch price variables');
-    return response.json();
-}
-
-// ✅ FIXED: Changed parameter from inventoryId to itemId, updated data structure
-export async function createPriceVariable(
-    itemId: number,
-    data: {
-        name: string;
-        value: number;
-        type: 'PERCENTAGE' | 'FIXED';
-        isDefault: boolean;
-    }
-): Promise<PriceVariable> {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables`, {
-        method: 'POST',
-        body: JSON.stringify({
-            ...data,
-            itemId: itemId
-        }),
-    });
-    if (!response.ok) throw new Error('Failed to create price variable');
-    return response.json();
-}
-
-// ✅ FIXED: Changed from formula to value, type, isDefault
-export async function updatePriceVariable(variableId: number, data: {
-    name?: string;
-    value?: number;
-    type?: 'PERCENTAGE' | 'FIXED';
-    isDefault?: boolean;
-}) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to update price variable');
-    return response.json();
-}
-
-export async function deletePriceVariable(variableId: number) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, {
-        method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to delete price variable');
-}
-
-// ========================================
 // SOLD ITEM APIs
 // ========================================
 
@@ -251,7 +227,6 @@ export async function getSoldItemsByInventoryId(inventoryId: number) {
     return response.json();
 }
 
-// ✅ FIXED: Changed to match backend expectations (itemId, not inventoryId)
 export async function createSoldItem(data: {
     itemId: number;
     finalSellPrice: number;
@@ -293,7 +268,7 @@ export async function deleteSoldItem(soldItemId: number) {
 }
 
 // ========================================
-// SOLD ITEM ANALYTICS API
+// ANALYTICS API (Fixed date handling)
 // ========================================
 export async function getInventoryAnalytics(
     inventoryId: number,
@@ -301,23 +276,94 @@ export async function getInventoryAnalytics(
     endDate?: Date
 ) {
     const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString());
-    if (endDate) params.append('endDate', endDate.toISOString());
+    
+    // Format dates as YYYY-MM-DD for better server parsing
+    if (startDate) {
+        const dateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+        params.append('startDate', dateStr);
+    }
+    if (endDate) {
+        const dateStr = endDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+        params.append('endDate', dateStr);
+    }
 
     const queryString = params.toString();
     const url = `${API_BASE_URL}/soldItems/inventory/${inventoryId}/analytics${queryString ? `?${queryString}` : ''}`;
 
+    console.log('📊 Analytics URL:', url); // Debug log
+    
     const response = await fetchWithAuth(url);
     if (!response.ok) throw new Error('Failed to fetch analytics');
     return response.json();
 }
 
+// ========================================
+// PRICE VARIABLE APIs  
+// ========================================
+
+export async function getAllPriceVariables() {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables`);
+    if (!response.ok) throw new Error('Failed to fetch price variables');
+    return response.json();
+}
+
+export async function getPriceVariableById(variableId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`);
+    if (!response.ok) throw new Error('Failed to fetch price variable');
+    return response.json();
+}
+
+export async function getPriceVariablesByItemId(itemId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/item/${itemId}`);
+    if (!response.ok) throw new Error('Failed to fetch price variables');
+    return response.json();
+}
+
+export async function createPriceVariable(
+    itemId: number,
+    data: {
+        name: string;
+        value: number;
+        type: 'PERCENTAGE' | 'FIXED';
+        isDefault: boolean;
+    }
+) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables`, {
+        method: 'POST',
+        body: JSON.stringify({
+            ...data,
+            itemId: itemId
+        }),
+    });
+    if (!response.ok) throw new Error('Failed to create price variable');
+    return response.json();
+}
+
+export async function updatePriceVariable(variableId: number, data: {
+    name?: string;
+    value?: number;
+    type?: 'PERCENTAGE' | 'FIXED';
+    isDefault?: boolean;
+}) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update price variable');
+    return response.json();
+}
+
+export async function deletePriceVariable(variableId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete price variable');
+}
 
 // ========================================
 // USER APIs
 // ========================================
 
-// ✅ FIXED: Using correct backend endpoint
 export async function searchUsersByEmail(email: string) {
     const response = await fetchWithAuth(`${API_BASE_URL}/users?email=${encodeURIComponent(email)}`);
     if (!response.ok) throw new Error('Failed to search users');
@@ -330,15 +376,48 @@ export async function getUserById(userId: string) {
     return response.json();
 }
 
-export async function getUserByName(name: string) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/users/name/${name}`);
-    if (!response.ok) throw new Error('Failed to fetch user');
-    return response.json();
-}
-
 export async function getAllUsers() {
     const response = await fetchWithAuth(`${API_BASE_URL}/users`);
     if (!response.ok) throw new Error('Failed to fetch users');
     return response.json();
 }
 
+// ========================================
+// AUTH APIs (Better Auth integration)
+// ========================================
+
+export async function getCurrentSession() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/get-session`);
+        if (!response.ok) return null; // Not authenticated
+        return response.json();
+    } catch {
+        return null; // Network error or not authenticated
+    }
+}
+
+export async function signIn(email: string, password: string) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/sign-in/email`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) throw new Error('Failed to sign in');
+    return response.json();
+}
+
+export async function signOut() {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/sign-out`, {
+        method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to sign out');
+    return response.json();
+}
+
+export async function signUp(email: string, password: string, name: string) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/sign-up/email`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password, name }),
+    });
+    if (!response.ok) throw new Error('Failed to sign up');
+    return response.json();
+}
