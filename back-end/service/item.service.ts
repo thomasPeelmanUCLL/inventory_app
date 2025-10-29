@@ -16,6 +16,12 @@ const getItemsByInventoryId = async ({ inventoryId }: { inventoryId: number }): 
     return await itemDB.getItemsByInventoryId({ inventoryId });
 };
 
+// NEW: Bulk query method to prevent N+1 queries
+const getItemsByInventoryIds = async ({ inventoryIds }: { inventoryIds: number[] }): Promise<Item[]> => {
+    if (inventoryIds.length === 0) return [];
+    return await itemDB.getItemsByInventoryIds({ inventoryIds });
+};
+
 const createItem = async ({
                               name,
                               description,
@@ -31,10 +37,23 @@ const createItem = async ({
     buyedAt?: Date;
     inventoryId?: number;
 }): Promise<Item> => {
+    // Enhanced validation for financial precision
+    const buyPriceDecimal = typeof buyPrice === 'number' 
+        ? new Prisma.Decimal(buyPrice.toFixed(2))
+        : buyPrice;
+        
+    if (buyPriceDecimal.lessThan(0)) {
+        throw new Error('Buy price cannot be negative');
+    }
+    
+    if (quantity < 0) {
+        throw new Error('Quantity cannot be negative');
+    }
+    
     const item = new Item({
         name,
         description,
-        buyPrice,
+        buyPrice: buyPriceDecimal,
         quantity,
         buyedAt,
         inventoryId
@@ -52,10 +71,10 @@ const updateItem = async ({
                               inventoryId
                           }: {
     id: number;
-    name: string;
-    description: string;
-    buyPrice: number | Prisma.Decimal;
-    quantity: number;
+    name?: string;
+    description?: string;
+    buyPrice?: number | Prisma.Decimal;
+    quantity?: number;
     buyedAt?: Date;
     inventoryId?: number;
 }): Promise<Item> => {
@@ -64,14 +83,31 @@ const updateItem = async ({
         throw new Error(`Item with ID: ${id} does not exist.`);
     }
 
+    // Enhanced validation for updates
+    let buyPriceDecimal = existingItem.getBuyPrice();
+    if (buyPrice !== undefined) {
+        buyPriceDecimal = typeof buyPrice === 'number' 
+            ? new Prisma.Decimal(buyPrice.toFixed(2))
+            : buyPrice;
+            
+        if (buyPriceDecimal.lessThan(0)) {
+            throw new Error('Buy price cannot be negative');
+        }
+    }
+    
+    const finalQuantity = quantity !== undefined ? quantity : existingItem.getQuantity();
+    if (finalQuantity < 0) {
+        throw new Error('Quantity cannot be negative');
+    }
+
     const updatedItem = new Item({
         id,
-        name,
-        description,
-        buyPrice,
-        quantity,
-        buyedAt,
-        inventoryId
+        name: name !== undefined ? name : existingItem.getName(),
+        description: description !== undefined ? description : existingItem.getDescription(),
+        buyPrice: buyPriceDecimal,
+        quantity: finalQuantity,
+        buyedAt: buyedAt !== undefined ? buyedAt : existingItem.getBuyedAt(),
+        inventoryId: inventoryId !== undefined ? inventoryId : existingItem.getInventoryId()
     });
 
     const result = await itemDB.updateItem(updatedItem);
@@ -93,6 +129,7 @@ export default {
     getAllItems,
     getItemById,
     getItemsByInventoryId,
+    getItemsByInventoryIds, // NEW bulk method
     createItem,
     updateItem,
     deleteItem,

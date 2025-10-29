@@ -39,7 +39,30 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
             where: { inventoryId },
             include: {
                 priceVariables: true
+            },
+            orderBy: {
+                name: 'asc'
             }
+        });
+    }
+
+    // NEW: Bulk query to prevent N+1 queries when fetching items from multiple inventories
+    async getItemsByInventoryIds({ inventoryIds }: { inventoryIds: number[] }): Promise<Item[]> {
+        if (inventoryIds.length === 0) return [];
+        
+        return this.findMany({
+            where: {
+                inventoryId: {
+                    in: inventoryIds
+                }
+            },
+            include: {
+                priceVariables: true
+            },
+            orderBy: [
+                { inventoryId: 'asc' },
+                { name: 'asc' }
+            ]
         });
     }
 
@@ -94,6 +117,7 @@ export default {
     getAllItems: itemRepository.getAllItems.bind(itemRepository),
     getItemById: itemRepository.getItemById.bind(itemRepository),
     getItemsByInventoryId: itemRepository.getItemsByInventoryId.bind(itemRepository),
+    getItemsByInventoryIds: itemRepository.getItemsByInventoryIds.bind(itemRepository), // NEW
     createItem: itemRepository.createItem.bind(itemRepository),
     updateItem: itemRepository.updateItem.bind(itemRepository),
     deleteItem: itemRepository.deleteItem.bind(itemRepository),
