@@ -125,10 +125,6 @@ export type UserInviteInput = z.infer<typeof userInviteSchema>;
 // HELPER FUNCTIONS
 // ========================================
 
-/**
- * Parse and validate form data with Zod schema
- * Returns { success: true, data } or { success: false, errors }
- */
 export function validateFormData<T>(
   schema: z.ZodSchema<T>,
   data: unknown
@@ -151,24 +147,19 @@ export function validateFormData<T>(
   }
 }
 
-/**
- * Safe parse with defaults for optional fields
- */
 export function safeParseWithDefaults<T>(
   schema: z.ZodSchema<T>,
   data: unknown,
   defaults: Partial<T> = {}
 ): T {
-  const result = schema.safeParse({ ...defaults, ...data });
+  const base: Record<string, any> = (data && typeof data === 'object') ? (data as Record<string, any>) : {};
+  const result = schema.safeParse({ ...defaults, ...base });
   if (!result.success) {
     throw new Error(`Validation failed: ${result.error.errors.map(e => e.message).join(', ')}`);
   }
   return result.data;
 }
 
-/**
- * Format validation errors for display in UI
- */
 export function formatValidationErrors(errors: { field: string; message: string }[]): string {
   if (errors.length === 1) {
     return errors[0].message;
