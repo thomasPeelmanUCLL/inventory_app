@@ -156,7 +156,6 @@ const updateInventory = async ({
     return Inventory.from(inventoryPrisma);
 };
 
-
 // Get users with access to inventory
 const getInventoryUsers = async ({ inventoryId }: { inventoryId: number }) => {
     return await prisma.inventoryUser.findMany({
@@ -165,6 +164,32 @@ const getInventoryUsers = async ({ inventoryId }: { inventoryId: number }) => {
             user: true,
         },
     });
+};
+
+// Authorization helper functions
+const userHasAccess = async ({ userId, inventoryId }: { userId: string; inventoryId: number }): Promise<boolean> => {
+    const access = await prisma.inventoryUser.findUnique({
+        where: {
+            userId_inventoryId: {
+                userId,
+                inventoryId,
+            },
+        },
+    });
+    return !!access;
+};
+
+const userHasAccessViaItem = async ({ userId, itemId }: { userId: string; itemId: number }): Promise<boolean> => {
+    const item = await prisma.item.findUnique({
+        where: { id: itemId },
+        select: { inventoryId: true },
+    });
+    
+    if (!item?.inventoryId) {
+        return false;
+    }
+    
+    return userHasAccess({ userId, inventoryId: item.inventoryId });
 };
 
 export default {
@@ -178,4 +203,7 @@ export default {
     removeUserFromInventory,
     getInventoryUsers,
     updateInventory,
+    // Authorization helpers
+    userHasAccess,
+    userHasAccessViaItem,
 };
