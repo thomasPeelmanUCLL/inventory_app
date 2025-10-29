@@ -1,5 +1,5 @@
 import { SoldItem } from '../model/soldItem';
-import { SoldItem as SoldItemPrisma } from '@prisma/client';
+import { SoldItem as SoldItemPrisma, Prisma } from '@prisma/client';
 import { BaseRepository } from './base.repository';
 import database from "./database";
 
@@ -59,13 +59,12 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         });
     }
 
-
     async createSoldItem(soldItem: SoldItem): Promise<SoldItem> {
         const data = {
             itemId: soldItem.getItemId(),
-            finalSellPrice: soldItem.getFinalSellPrice(), // Changed from sellingPrice
-            priceVariableName: soldItem.getPriceVariableName(), // Added
-            isCustomPrice: soldItem.getIsCustomPrice(), // Added
+            finalSellPrice: soldItem.getFinalSellPrice(),
+            priceVariableName: soldItem.getPriceVariableName(),
+            isCustomPrice: soldItem.getIsCustomPrice(),
             payedCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
@@ -75,6 +74,155 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
                 item: true
             }
         });
+    }
+
+    // TRANSACTIONAL VERSION: Atomically create sold item and update stock
+    async createSoldItemWithStockUpdate(input: {
+        itemId: number;
+        finalSellPrice: Prisma.Decimal | number;
+        priceVariableName?: string | null;
+        isCustomPrice?: boolean;
+        payedCash?: boolean;
+        quantity: number;
+        soldAt?: Date;
+    }): Promise<SoldItemPrisma> {
+        return await database.$transaction(async (tx) => {
+            // 1. Check current stock with row-level locking
+            const item = await tx.item.findUnique({ 
+                where: { id: input.itemId }, 
+                select: { id: true, quantity: true, name: true }
+            });
+            
+            if (!item) {
+                throw new Error('Item not found');
+            }
+
+            if (item.quantity < input.quantity) {
+                throw new Error(`Not enough stock available for ${item.name}. Available: ${item.quantity}, Requested: ${input.quantity}`);
+            }
+
+            // 2. Update item quantity atomically
+            await tx.item.update({
+                where: { id: item.id },
+                data: { quantity: { decrement: input.quantity } },
+            });
+
+            // 3. Create sold item record
+            const createdSoldItem = await tx.soldItem.create({
+                data: {
+                    itemId: input.itemId,
+                    finalSellPrice: input.finalSellPrice,
+                    quantity: input.quantity,
+                    priceVariableName: input.priceVariableName ?? null,
+                    isCustomPrice: !!input.isCustomPrice,
+                    payedCash: !!input.payedCash,
+                    soldAt: input.soldAt ?? new Date(),
+                },
+                include: {
+                    item: true,
+                },
+            });
+
+            return createdSoldItem;
+        }, { timeout: 10000 });
+    }
+
+    // TRANSACTIONAL VERSION: Atomically update sold item and adjust stock
+    async updateSoldItemWithStockAdjustment(id: number, patch: {
+        finalSellPrice?: number | Prisma.Decimal;
+        priceVariableName?: string | null;
+        isCustomPrice?: boolean;
+        payedCash?: boolean;
+        quantity?: number;
+        soldAt?: Date;
+    }): Promise<SoldItemPrisma> {
+        return await database.$transaction(async (tx) => {
+            // 1. Get existing sold item
+            const existing = await tx.soldItem.findUnique({ 
+                where: { id },
+                include: { item: true }
+            });
+            
+            if (!existing) {
+                throw new Error('Sold item not found');
+            }
+
+            let quantityDelta = 0;
+            if (typeof patch.quantity === 'number' && patch.quantity !== existing.quantity) {
+                quantityDelta = existing.quantity - patch.quantity; // positive means return to stock
+                
+                if (quantityDelta < 0) {
+                    // Need more stock - check availability
+                    const item = await tx.item.findUnique({ 
+                        where: { id: existing.itemId }, 
+                        select: { quantity: true, name: true } 
+                    });
+                    
+                    if (!item || item.quantity < Math.abs(quantityDelta)) {
+                        throw new Error(`Not enough stock available for ${item?.name || 'item'}. Available: ${item?.quantity || 0}, Additional needed: ${Math.abs(quantityDelta)}`);
+                    }
+                }
+            }
+
+            // 2. Adjust item quantity if changed
+            if (quantityDelta !== 0) {
+                if (quantityDelta > 0) {
+                    // Return stock
+                    await tx.item.update({ 
+                        where: { id: existing.itemId }, 
+                        data: { quantity: { increment: quantityDelta } } 
+                    });
+                } else {
+                    // Take more stock
+                    await tx.item.update({ 
+                        where: { id: existing.itemId }, 
+                        data: { quantity: { decrement: Math.abs(quantityDelta) } } 
+                    });
+                }
+            }
+
+            // 3. Update sold item
+            const updated = await tx.soldItem.update({
+                where: { id },
+                data: {
+                    finalSellPrice: patch.finalSellPrice ?? existing.finalSellPrice,
+                    priceVariableName: patch.priceVariableName ?? existing.priceVariableName,
+                    isCustomPrice: typeof patch.isCustomPrice === 'boolean' ? patch.isCustomPrice : existing.isCustomPrice,
+                    payedCash: typeof patch.payedCash === 'boolean' ? patch.payedCash : existing.payedCash,
+                    quantity: typeof patch.quantity === 'number' ? patch.quantity : existing.quantity,
+                    soldAt: patch.soldAt ?? existing.soldAt,
+                },
+                include: {
+                    item: true,
+                },
+            });
+
+            return updated;
+        }, { timeout: 10000 });
+    }
+
+    // TRANSACTIONAL VERSION: Atomically delete sold item and restore stock
+    async deleteSoldItemWithStockRestore(id: number): Promise<void> {
+        await database.$transaction(async (tx) => {
+            // 1. Get existing sold item
+            const existing = await tx.soldItem.findUnique({ 
+                where: { id },
+                select: { itemId: true, quantity: true }
+            });
+            
+            if (!existing) {
+                return; // Already deleted
+            }
+
+            // 2. Delete sold item record
+            await tx.soldItem.delete({ where: { id } });
+
+            // 3. Restore stock to item
+            await tx.item.update({
+                where: { id: existing.itemId },
+                data: { quantity: { increment: existing.quantity } },
+            });
+        }, { timeout: 10000 });
     }
 
     async updateSoldItem(soldItem: SoldItem): Promise<SoldItem> {
@@ -99,8 +247,6 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
 
         return result;
     }
-
-
 
     async deleteSoldItem({ id }: { id: number }): Promise<void> {
         return this.delete(id);
@@ -134,7 +280,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             },
         });
 
-        // ✅ Calculate totals with buy price, sell price, and profit
+        // Calculate totals with buy price, sell price, and profit
         const totalBuyPrice = soldItems.reduce((sum, soldItem) => {
             return sum + (Number(soldItem.item.buyPrice) * soldItem.quantity);
         }, 0);
@@ -150,7 +296,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         const cashTransactions = soldItems.filter(item => item.payedCash).length;
         const nonCashTransactions = totalTransactions - cashTransactions;
 
-        // ✅ Top selling items with buy/sell/profit breakdown
+        // Top selling items with buy/sell/profit breakdown
         const itemSales = soldItems.reduce((acc, soldItem) => {
             const itemId = soldItem.itemId;
             const sellPrice = Number(soldItem.finalSellPrice);
@@ -205,7 +351,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             .sort((a: any, b: any) => b.totalProfit - a.totalProfit)
             .slice(0, 10);
 
-        // ✅ Sales by day with buy/sell/profit breakdown
+        // Sales by day with buy/sell/profit breakdown
         const salesByDayMap = soldItems.reduce((acc, soldItem) => {
             const date = soldItem.soldAt.toISOString().split('T')[0];
             const sellPrice = Number(soldItem.finalSellPrice);
@@ -259,7 +405,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             }))
             .sort((a: any, b: any) => a.date.localeCompare(b.date));
 
-        // ✅ Payment method breakdown with buy/sell/profit
+        // Payment method breakdown with buy/sell/profit
         const cashSales = soldItems.filter(item => item.payedCash);
         const cashBuyPrice = cashSales.reduce((sum, s) => sum + (Number(s.item.buyPrice) * s.quantity), 0);
         const cashSellPrice = cashSales.reduce((sum, s) => sum + (Number(s.finalSellPrice) * s.quantity), 0);
@@ -270,7 +416,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         const nonCashSellPrice = nonCashSales.reduce((sum, s) => sum + (Number(s.finalSellPrice) * s.quantity), 0);
         const nonCashProfit = nonCashSellPrice - nonCashBuyPrice;
 
-        // ✅ Price variable breakdown with buy/sell/profit
+        // Price variable breakdown with buy/sell/profit
         const priceVariableMap = soldItems.reduce((acc, soldItem) => {
             const varName = soldItem.priceVariableName || 'No Price Variable';
             if (!acc[varName]) {
@@ -311,10 +457,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             priceVariableBreakdown,
         };
     }
-
 }
-
-
 
 const soldItemRepository = new SoldItemRepository();
 export default {
@@ -325,5 +468,9 @@ export default {
     createSoldItem: soldItemRepository.createSoldItem.bind(soldItemRepository),
     updateSoldItem: soldItemRepository.updateSoldItem.bind(soldItemRepository),
     deleteSoldItem: soldItemRepository.deleteSoldItem.bind(soldItemRepository),
-    getAnalyticsByInventoryId: soldItemRepository.getAnalyticsByInventoryId.bind(soldItemRepository), // ✅ Fixed!
+    getAnalyticsByInventoryId: soldItemRepository.getAnalyticsByInventoryId.bind(soldItemRepository),
+    // Transactional methods
+    createSoldItemWithStockUpdate: soldItemRepository.createSoldItemWithStockUpdate.bind(soldItemRepository),
+    updateSoldItemWithStockAdjustment: soldItemRepository.updateSoldItemWithStockAdjustment.bind(soldItemRepository),
+    deleteSoldItemWithStockRestore: soldItemRepository.deleteSoldItemWithStockRestore.bind(soldItemRepository),
 };
