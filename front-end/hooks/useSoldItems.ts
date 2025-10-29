@@ -10,6 +10,20 @@ import {
   getInventoryAnalytics,
 } from '../lib/api';
 
+// Minimal DTO shapes used by this hook layer
+export type SoldItemDTO = {
+  id: number;
+  itemId: number;
+  finalSellPrice: number | string;
+  priceVariableName?: string | null;
+  isCustomPrice?: boolean;
+  payedCash?: boolean;
+  quantity: number;
+  soldAt?: string;
+};
+
+export type InventoryAnalyticsDTO = any; // callers have their own typing; keep flexible
+
 // Hook for all user-accessible sold items
 export function useSoldItems() {
   const {
@@ -17,7 +31,7 @@ export function useSoldItems() {
     error,
     mutate,
     isLoading,
-  } = useSWR('/soldItems', getAllSoldItems, {
+  } = useSWR<SoldItemDTO[]>('/soldItems', getAllSoldItems, {
     revalidateOnFocus: true,
     dedupingInterval: 3000,
     errorRetryCount: 3,
@@ -34,16 +48,15 @@ export function useSoldItems() {
   }) => {
     try {
       const newSoldItem = await createSoldItem(data);
-      // Add to cache with current timestamp if no soldAt provided
-      const itemWithDate = {
+      const itemWithDate: SoldItemDTO = {
         ...newSoldItem,
         soldAt: newSoldItem.soldAt || new Date().toISOString(),
       };
-      mutate([itemWithDate, ...(soldItems || [])], false); // Add to top (newest first)
+      await mutate([itemWithDate, ...((soldItems as SoldItemDTO[] | undefined) || [])], { revalidate: false });
       return newSoldItem;
-    } catch (error) {
-      mutate();
-      throw error;
+    } catch (err) {
+      await mutate();
+      throw err;
     }
   };
 
@@ -57,27 +70,27 @@ export function useSoldItems() {
   }) => {
     try {
       const updated = await updateSoldItem(soldItemId, data);
-      mutate(
-        soldItems?.map(item => item.id === soldItemId ? { ...item, ...updated } : item),
-        false
+      await mutate(
+        (soldItems || []).map((item: SoldItemDTO) => item.id === soldItemId ? { ...item, ...updated } : item),
+        { revalidate: false }
       );
       return updated;
-    } catch (error) {
-      mutate();
-      throw error;
+    } catch (err) {
+      await mutate();
+      throw err;
     }
   };
 
   const remove = async (soldItemId: number) => {
     try {
       await deleteSoldItem(soldItemId);
-      mutate(
-        soldItems?.filter(item => item.id !== soldItemId),
-        false
+      await mutate(
+        (soldItems || []).filter((item: SoldItemDTO) => item.id !== soldItemId),
+        { revalidate: false }
       );
-    } catch (error) {
-      mutate();
-      throw error;
+    } catch (err) {
+      await mutate();
+      throw err;
     }
   };
 
@@ -99,7 +112,7 @@ export function useInventorySoldItems(inventoryId: number | null) {
     error,
     mutate,
     isLoading,
-  } = useSWR(
+  } = useSWR<SoldItemDTO[]>(
     inventoryId ? `/soldItems/inventory/${inventoryId}` : null,
     () => inventoryId ? getSoldItemsByInventoryId(inventoryId) : null,
     {
@@ -119,42 +132,42 @@ export function useInventorySoldItems(inventoryId: number | null) {
   }) => {
     try {
       const newSoldItem = await createSoldItem(data);
-      const itemWithDate = {
+      const itemWithDate: SoldItemDTO = {
         ...newSoldItem,
         soldAt: newSoldItem.soldAt || new Date().toISOString(),
       };
-      mutate([itemWithDate, ...(soldItems || [])], false);
+      await mutate([itemWithDate, ...((soldItems as SoldItemDTO[] | undefined) || [])], { revalidate: false });
       return newSoldItem;
-    } catch (error) {
-      mutate();
-      throw error;
+    } catch (err) {
+      await mutate();
+      throw err;
     }
   };
 
-  const update = async (soldItemId: number, data: any) => {
+  const update = async (soldItemId: number, data: Partial<SoldItemDTO>) => {
     try {
       const updated = await updateSoldItem(soldItemId, data);
-      mutate(
-        soldItems?.map(item => item.id === soldItemId ? { ...item, ...updated } : item),
-        false
+      await mutate(
+        (soldItems || []).map((item: SoldItemDTO) => item.id === soldItemId ? { ...item, ...updated } : item),
+        { revalidate: false }
       );
       return updated;
-    } catch (error) {
-      mutate();
-      throw error;
+    } catch (err) {
+      await mutate();
+      throw err;
     }
   };
 
   const remove = async (soldItemId: number) => {
     try {
       await deleteSoldItem(soldItemId);
-      mutate(
-        soldItems?.filter(item => item.id !== soldItemId),
-        false
+      await mutate(
+        (soldItems || []).filter((item: SoldItemDTO) => item.id !== soldItemId),
+        { revalidate: false }
       );
-    } catch (error) {
-      mutate();
-      throw error;
+    } catch (err) {
+      await mutate();
+      throw err;
     }
   };
 
@@ -176,7 +189,7 @@ export function useItemSoldItems(itemId: number | null) {
     error,
     mutate,
     isLoading,
-  } = useSWR(
+  } = useSWR<SoldItemDTO[]>(
     itemId ? `/soldItems/item/${itemId}` : null,
     () => itemId ? getSoldItemsByItemId(itemId) : null,
     {
@@ -200,7 +213,7 @@ export function useSoldItem(soldItemId: number | null) {
     error,
     mutate,
     isLoading,
-  } = useSWR(
+  } = useSWR<SoldItemDTO | null>(
     soldItemId ? `/soldItems/${soldItemId}` : null,
     () => soldItemId ? getSoldItemById(soldItemId) : null,
     {
@@ -232,17 +245,17 @@ export function useInventoryAnalytics(
     error,
     mutate,
     isLoading,
-  } = useSWR(
+  } = useSWR<InventoryAnalyticsDTO>(
     cacheKey,
     () => inventoryId ? getInventoryAnalytics(inventoryId, startDate, endDate) : null,
     {
-      revalidateOnFocus: false, // Analytics are expensive, don't auto-refresh
-      dedupingInterval: 30000, // Cache for 30 seconds
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
       errorRetryCount: 2,
     }
   );
 
-  const refresh = () => mutate();
+  const refresh = async () => { await mutate(); };
 
   return {
     analytics,
