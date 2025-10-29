@@ -4,6 +4,7 @@ import itemService from './item.service';
 import soldItemDB from '../repository/soldItem.db';
 import itemDB from '../repository/item.db';
 import { Prisma } from '@prisma/client';
+import { getInventoryAnalyticsPrisma } from './analytics.prisma';
 
 const getAllSoldItems = async (): Promise<SoldItem[]> => {
     return await soldItemDB.getAllSoldItems();
@@ -214,60 +215,7 @@ const getAnalyticsByInventoryId = async ({
     inventoryId: number;
     startDate?: Date;
     endDate?: Date;
-}): Promise<{
-    summary: {
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
-        totalQuantitySold: number;
-        totalTransactions: number;
-        cashTransactions: number;
-        nonCashTransactions: number;
-    };
-    topSellingItems: Array<{
-        itemId: number;
-        itemName: string;
-        totalQuantity: number;
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
-        priceBreakdown: Array<{
-            sellPrice: number;
-            priceVariableName: string | null;
-            quantity: number;
-            totalBuy: number;
-            totalSell: number;
-            profit: number;
-        }>;
-    }>;
-    salesByDay: Array<{
-        date: string;
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
-        totalQuantity: number;
-        transactionCount: number;
-    }>;
-    paymentMethodBreakdown: {
-        cash: {
-            buyPrice: number;
-            sellPrice: number;
-            profit: number;
-        };
-        nonCash: {
-            buyPrice: number;
-            sellPrice: number;
-            profit: number;
-        };
-    };
-    priceVariableBreakdown: Array<{
-        priceVariableName: string;
-        count: number;
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
-    }>;
-}> => {
+}) => {
     // Enhanced date validation
     if (startDate && endDate && startDate > endDate) {
         throw new Error('Start date must be before end date');
@@ -282,7 +230,7 @@ const getAnalyticsByInventoryId = async ({
         }
     }
     
-    return await soldItemDB.getAnalyticsByInventoryId({ inventoryId, startDate, endDate });
+    return await getInventoryAnalyticsPrisma({ inventoryId, startDate, endDate });
 };
 
 export default {
