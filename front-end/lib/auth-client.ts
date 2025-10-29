@@ -13,21 +13,21 @@ export const { signIn, signUp, signOut, useSession, getSession } = authClient;
 
 // Enhanced auth helpers
 export async function requireAuth() {
-    const session = await getSession();
-    if (!session?.user) {
+    const { data } = await getSession();
+    if (!data?.user) {
         if (typeof window !== 'undefined') {
             window.location.href = '/login';
         }
         throw new Error('Authentication required');
     }
-    return session;
+    return data;
 }
 
 // Check if user is authenticated (non-throwing)
 export async function isAuthenticated(): Promise<boolean> {
     try {
-        const session = await getSession();
-        return !!session?.user;
+        const { data } = await getSession();
+        return !!data?.user;
     } catch {
         return false;
     }
