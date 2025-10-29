@@ -1,4 +1,3 @@
-/** ...existing swagger and imports... */
 import express, { NextFunction, Request, Response } from 'express';
 import itemService from '../service/item.service';
 import inventoryDB from '../repository/inventory.db';
@@ -14,6 +13,7 @@ import {
     asyncHandler 
 } from '../util/validators';
 import { createError } from '../middleware/error.middleware';
+import { safeGetItemById } from '../util/safe';
 
 const itemRouter = express.Router();
 
@@ -24,21 +24,17 @@ itemRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
     const userInventories = await inventoryDB.getInventoriesByUserId({ userId: user.id });
     const inventoryIds = userInventories.map(inv => inv.getId());
     if (inventoryIds.length === 0) return res.status(200).json([]);
-    // Fallback: fetch per inventory (since service doesn't have bulk method)
-    const all: any[] = [];
-    for (const invId of inventoryIds) {
-        const items = await itemService.getItemsByInventoryId({ inventoryId: invId });
-        all.push(...items);
-    }
-    res.status(200).json(all);
+    // Use bulk method to avoid N+1
+    const items = await itemService.getItemsByInventoryIds({ inventoryIds });
+    res.status(200).json(items);
 }));
 
 itemRouter.get('/:id', 
     validateParams(idParam),
     asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params as any; // validated to number by zod
+        const { id } = req.params as any; // validated
         const user = (req as any).user;
-        const item = await itemService.getItemById({ id: Number(id) });
+        const item = await safeGetItemById(Number(id));
         if (!item.getInventoryId()) throw createError.notFound('Item not found');
         const hasAccess = await inventoryDB.userHasAccess({ userId: user.id, inventoryId: item.getInventoryId()! });
         if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
@@ -77,7 +73,7 @@ itemRouter.put('/:id',
         const { id } = req.params as any;
         const user = (req as any).user;
         const { inventoryId: newInventoryId, ...updateData } = req.body;
-        const existing = await itemService.getItemById({ id: Number(id) });
+        const existing = await safeGetItemById(Number(id));
         if (existing.getInventoryId()) {
             const ok = await inventoryDB.userHasAccess({ userId: user.id, inventoryId: existing.getInventoryId()! });
             if (!ok) throw createError.forbidden('Access denied to this item\'s current inventory');
@@ -96,7 +92,7 @@ itemRouter.delete('/:id',
     asyncHandler(async (req: Request, res: Response) => {
         const { id } = req.params as any;
         const user = (req as any).user;
-        const item = await itemService.getItemById({ id: Number(id) });
+        const item = await safeGetItemById(Number(id));
         if (item.getInventoryId()) {
             const ok = await inventoryDB.userHasAccess({ userId: user.id, inventoryId: item.getInventoryId()! });
             if (!ok) throw createError.forbidden('Access denied to this item\'s inventory');
