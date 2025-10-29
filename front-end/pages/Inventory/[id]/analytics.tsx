@@ -5,58 +5,70 @@ import { getInventoryAnalytics } from '../../../lib/api';
 import React from 'react';
 import * as XLSX from 'xlsx';
 
+// Helpers to display money/percent whether backend returns strings or numbers
+function asMoney(v: string | number) {
+  if (typeof v === 'number') return v.toFixed(2);
+  return v; // assume already formatted
+}
+function asPercent(v: string | number) {
+  if (typeof v === 'number') return `${v.toFixed(2)}%`;
+  return `${v}%`;
+}
+
 interface AnalyticsData {
     summary: {
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
+        totalBuyPrice: string | number;
+        totalSellPrice: string | number;
+        totalProfit: string | number;
         totalQuantitySold: number;
         totalTransactions: number;
         cashTransactions: number;
         nonCashTransactions: number;
+        averageProfit?: string | number;
+        profitMargin?: string | number;
     };
     topSellingItems: Array<{
         itemId: number;
         itemName: string;
         totalQuantity: number;
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
+        totalBuyPrice: string | number;
+        totalSellPrice: string | number;
+        totalProfit: string | number;
         priceBreakdown?: Array<{
-            sellPrice: number;
+            sellPrice: string | number;
             priceVariableName: string | null;
             quantity: number;
-            totalBuy: number;
-            totalSell: number;
-            profit: number;
+            totalBuy: string | number;
+            totalSell: string | number;
+            profit: string | number;
         }>;
     }>;
     salesByDay: Array<{
         date: string;
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
+        totalBuyPrice: string | number;
+        totalSellPrice: string | number;
+        totalProfit: string | number;
         totalQuantity: number;
         transactionCount: number;
         itemBreakdown?: Array<{
             itemId: number;
             itemName: string;
             quantity: number;
-            buyPrice: number;
-            sellPrice: number;
-            profit: number;
+            buyPrice: string | number;
+            sellPrice: string | number;
+            profit: string | number;
         }>;
     }>;
     paymentMethodBreakdown: {
-        cash: { buyPrice: number; sellPrice: number; profit: number };
-        nonCash: { buyPrice: number; sellPrice: number; profit: number };
+        cash: { buyPrice: string | number; sellPrice: string | number; profit: string | number };
+        nonCash: { buyPrice: string | number; sellPrice: string | number; profit: string | number };
     };
     priceVariableBreakdown: Array<{
         priceVariableName: string;
         count: number;
-        totalBuyPrice: number;
-        totalSellPrice: number;
-        totalProfit: number;
+        totalBuyPrice: string | number;
+        totalSellPrice: string | number;
+        totalProfit: string | number;
     }>;
 }
 
@@ -106,52 +118,52 @@ export default function AnalyticsPage() {
         // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // ✅ Summary Sheet
+        // Summary Sheet (use helpers to keep formatting consistent)
         const summaryData = [
             ['Sales Summary', ''],
             ['Period', `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}`],
             ['', ''],
-            ['Total Profit', `€${analytics.summary.totalProfit.toFixed(2)}`],
-            ['Total Revenue', `€${analytics.summary.totalSellPrice.toFixed(2)}`],
-            ['Total Cost', `€${analytics.summary.totalBuyPrice.toFixed(2)}`],
-            ['Items Sold', analytics.summary.totalQuantitySold.toString()],
-            ['Transactions', analytics.summary.totalTransactions.toString()],
-            ['Cash Payments', analytics.summary.cashTransactions.toString()],
-            ['Card Payments', analytics.summary.nonCashTransactions.toString()],
+            ['Total Profit', `€${asMoney(analytics.summary.totalProfit)}`],
+            ['Total Revenue', `€${asMoney(analytics.summary.totalSellPrice)}`],
+            ['Total Cost', `€${asMoney(analytics.summary.totalBuyPrice)}`],
+            ['Items Sold', String(analytics.summary.totalQuantitySold)],
+            ['Transactions', String(analytics.summary.totalTransactions)],
+            ['Cash Payments', String(analytics.summary.cashTransactions)],
+            ['Card Payments', String(analytics.summary.nonCashTransactions)],
         ];
         const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
         XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
 
-        // ✅ Top Selling Items Sheet
+        // Top Selling Items Sheet
         const itemsData = [
             ['Item Name', 'Quantity Sold', 'Buy Price', 'Sell Price', 'Profit'],
             ...analytics.topSellingItems.map(item => [
                 item.itemName,
-                item.totalQuantity.toString(),
-                item.totalBuyPrice.toFixed(2),
-                item.totalSellPrice.toFixed(2),
-                item.totalProfit.toFixed(2)
+                String(item.totalQuantity),
+                asMoney(item.totalBuyPrice),
+                asMoney(item.totalSellPrice),
+                asMoney(item.totalProfit)
             ])
         ];
         const wsItems = XLSX.utils.aoa_to_sheet(itemsData);
         XLSX.utils.book_append_sheet(wb, wsItems, 'Top Selling Items');
 
-        // ✅ Sales by Day Sheet
+        // Sales by Day Sheet
         const dailyData = [
             ['Date', 'Transactions', 'Items Sold', 'Buy Price', 'Sell Price', 'Profit'],
             ...analytics.salesByDay.map(day => [
                 new Date(day.date).toLocaleDateString(),
-                day.transactionCount.toString(),
-                day.totalQuantity.toString(),
-                day.totalBuyPrice.toFixed(2),
-                day.totalSellPrice.toFixed(2),
-                day.totalProfit.toFixed(2)
+                String(day.transactionCount),
+                String(day.totalQuantity),
+                asMoney(day.totalBuyPrice),
+                asMoney(day.totalSellPrice),
+                asMoney(day.totalProfit)
             ])
         ];
         const wsDaily = XLSX.utils.aoa_to_sheet(dailyData);
         XLSX.utils.book_append_sheet(wb, wsDaily, 'Sales by Day');
 
-        // ✅ Detailed Sales by Day (with item breakdown)
+        // Detailed Sales by Day (with item breakdown)
         const detailedDailyData: any[][] = [
             ['Date', 'Item Name', 'Quantity', 'Buy Price', 'Sell Price', 'Profit']
         ];
@@ -161,10 +173,10 @@ export default function AnalyticsPage() {
                     detailedDailyData.push([
                         new Date(day.date).toLocaleDateString(),
                         item.itemName,
-                        item.quantity.toString(),
-                        item.buyPrice.toFixed(2),
-                        item.sellPrice.toFixed(2),
-                        item.profit.toFixed(2)
+                        String(item.quantity),
+                        asMoney(item.buyPrice),
+                        asMoney(item.sellPrice),
+                        asMoney(item.profit)
                     ]);
                 });
             }
@@ -172,54 +184,47 @@ export default function AnalyticsPage() {
         const wsDetailedDaily = XLSX.utils.aoa_to_sheet(detailedDailyData);
         XLSX.utils.book_append_sheet(wb, wsDetailedDaily, 'Detailed Daily Sales');
 
-        // ✅ Payment Methods Sheet
+        // Payment Methods Sheet
         const paymentData = [
             ['Payment Method', 'Buy Price', 'Sell Price', 'Profit'],
             ['Cash',
-                analytics.paymentMethodBreakdown.cash.buyPrice.toFixed(2),
-                analytics.paymentMethodBreakdown.cash.sellPrice.toFixed(2),
-                analytics.paymentMethodBreakdown.cash.profit.toFixed(2)
+                asMoney(analytics.paymentMethodBreakdown.cash.buyPrice),
+                asMoney(analytics.paymentMethodBreakdown.cash.sellPrice),
+                asMoney(analytics.paymentMethodBreakdown.cash.profit)
             ],
             ['Card',
-                analytics.paymentMethodBreakdown.nonCash.buyPrice.toFixed(2),
-                analytics.paymentMethodBreakdown.nonCash.sellPrice.toFixed(2),
-                analytics.paymentMethodBreakdown.nonCash.profit.toFixed(2)
+                asMoney(analytics.paymentMethodBreakdown.nonCash.buyPrice),
+                asMoney(analytics.paymentMethodBreakdown.nonCash.sellPrice),
+                asMoney(analytics.paymentMethodBreakdown.nonCash.profit)
             ]
         ];
         const wsPayment = XLSX.utils.aoa_to_sheet(paymentData);
         XLSX.utils.book_append_sheet(wb, wsPayment, 'Payment Methods');
 
-        // ✅ Price Variables Sheet
+        // Price Variables Sheet
         if (analytics.priceVariableBreakdown.length > 0) {
             const priceVarData = [
                 ['Price Variable', 'Count', 'Buy Price', 'Sell Price', 'Profit'],
                 ...analytics.priceVariableBreakdown.map(pv => [
                     pv.priceVariableName,
-                    pv.count.toString(),
-                    pv.totalBuyPrice.toFixed(2),
-                    pv.totalSellPrice.toFixed(2),
-                    pv.totalProfit.toFixed(2)
+                    String(pv.count),
+                    asMoney(pv.totalBuyPrice),
+                    asMoney(pv.totalSellPrice),
+                    asMoney(pv.totalProfit)
                 ])
             ];
             const wsPriceVar = XLSX.utils.aoa_to_sheet(priceVarData);
             XLSX.utils.book_append_sheet(wb, wsPriceVar, 'Price Variables');
         }
 
-        // Generate filename with date range
         const filename = `Sales_Analytics_${dateRange.start.toISOString().split('T')[0]}_to_${dateRange.end.toISOString().split('T')[0]}.xlsx`;
-
-        // Save file
         XLSX.writeFile(wb, filename);
     };
 
     const toggleItemExpansion = (itemId: number) => {
         setExpandedItems(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(itemId)) {
-                newSet.delete(itemId);
-            } else {
-                newSet.add(itemId);
-            }
+            if (newSet.has(itemId)) newSet.delete(itemId); else newSet.add(itemId);
             return newSet;
         });
     };
@@ -227,11 +232,7 @@ export default function AnalyticsPage() {
     const toggleDayExpansion = (date: string) => {
         setExpandedDays(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(date)) {
-                newSet.delete(date);
-            } else {
-                newSet.add(date);
-            }
+            if (newSet.has(date)) newSet.delete(date); else newSet.add(date);
             return newSet;
         });
     };
@@ -315,7 +316,7 @@ export default function AnalyticsPage() {
                             />
                         </div>
 
-                        {/* ✅ Export Button */}
+                        {/* Export Button */}
                         <button
                             onClick={exportToExcel}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -330,7 +331,7 @@ export default function AnalyticsPage() {
                     <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg shadow border border-green-200">
                         <p className="text-sm text-gray-600 mb-1">Total Profit</p>
                         <p className="text-3xl font-bold text-green-700">
-                            €{analytics.summary.totalProfit.toFixed(2)}
+                            €{asMoney(analytics.summary.totalProfit)}
                         </p>
                     </div>
                     <div className="bg-white p-6 rounded-lg shadow border">
@@ -379,9 +380,9 @@ export default function AnalyticsPage() {
                                             <td className="py-3 px-4 font-medium">{item.itemName}</td>
                                             <td className="text-center px-4">{item.totalQuantity}</td>
                                             <td className="text-right px-4">
-                                                <div className="text-green-700 font-bold">€{item.totalProfit.toFixed(2)}</div>
+                                                <div className="text-green-700 font-bold">€{asMoney(item.totalProfit)}</div>
                                                 <div className="text-xs text-gray-500">
-                                                    €{item.totalSellPrice.toFixed(2)} - €{item.totalBuyPrice.toFixed(2)}
+                                                    €{asMoney(item.totalSellPrice)} - €{asMoney(item.totalBuyPrice)}
                                                 </div>
                                             </td>
                                         </tr>
@@ -394,7 +395,7 @@ export default function AnalyticsPage() {
                                                             <div key={idx} className="flex justify-between items-center p-2 bg-white rounded border text-sm">
                                                                 <div>
                                                                     <span className="font-medium">{priceDetail.quantity}x</span>
-                                                                    <span className="text-gray-600 ml-2">at €{priceDetail.sellPrice.toFixed(2)}</span>
+                                                                    <span className="text-gray-600 ml-2">at €{asMoney(priceDetail.sellPrice)}</span>
                                                                     {priceDetail.priceVariableName && (
                                                                         <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
                                                                             {priceDetail.priceVariableName}
@@ -402,9 +403,9 @@ export default function AnalyticsPage() {
                                                                     )}
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <div className="font-bold text-green-700">€{priceDetail.profit.toFixed(2)}</div>
+                                                                    <div className="font-bold text-green-700">€{asMoney(priceDetail.profit)}</div>
                                                                     <div className="text-xs text-gray-500">
-                                                                        €{priceDetail.totalSell.toFixed(2)} - €{priceDetail.totalBuy.toFixed(2)}
+                                                                        €{asMoney(priceDetail.totalSell)} - €{asMoney(priceDetail.totalBuy)}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -458,9 +459,9 @@ export default function AnalyticsPage() {
                                             <td className="text-center px-4">{day.transactionCount}</td>
                                             <td className="text-center px-4">{day.totalQuantity}</td>
                                             <td className="text-right px-4">
-                                                <div className="text-green-700 font-bold">€{day.totalProfit.toFixed(2)}</div>
+                                                <div className="text-green-700 font-bold">€{asMoney(day.totalProfit)}</div>
                                                 <div className="text-xs text-gray-500">
-                                                    €{day.totalSellPrice.toFixed(2)} - €{day.totalBuyPrice.toFixed(2)}
+                                                    €{asMoney(day.totalSellPrice)} - €{asMoney(day.totalBuyPrice)}
                                                 </div>
                                             </td>
                                         </tr>
@@ -476,9 +477,9 @@ export default function AnalyticsPage() {
                                                                     <span className="text-gray-600 ml-2">× {itemDetail.quantity}</span>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <div className="font-bold text-green-700">€{itemDetail.profit.toFixed(2)}</div>
+                                                                    <div className="font-bold text-green-700">€{asMoney(itemDetail.profit)}</div>
                                                                     <div className="text-xs text-gray-500">
-                                                                        €{itemDetail.sellPrice.toFixed(2)} - €{itemDetail.buyPrice.toFixed(2)}
+                                                                        €{asMoney(itemDetail.sellPrice)} - €{asMoney(itemDetail.buyPrice)}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -505,12 +506,12 @@ export default function AnalyticsPage() {
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="font-bold text-lg">💵 Cash</span>
                                     <span className="text-2xl font-bold text-green-700">
-                                    €{analytics.paymentMethodBreakdown.cash.profit.toFixed(2)}
+                                    €{asMoney(analytics.paymentMethodBreakdown.cash.profit)}
                                 </span>
                                 </div>
                                 <div className="text-xs text-gray-600">
-                                    Revenue: €{analytics.paymentMethodBreakdown.cash.sellPrice.toFixed(2)} •
-                                    Cost: €{analytics.paymentMethodBreakdown.cash.buyPrice.toFixed(2)}
+                                    Revenue: €{asMoney(analytics.paymentMethodBreakdown.cash.sellPrice)} •
+                                    Cost: €{asMoney(analytics.paymentMethodBreakdown.cash.buyPrice)}
                                 </div>
                             </div>
 
@@ -518,12 +519,12 @@ export default function AnalyticsPage() {
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="font-bold text-lg">💳 Card</span>
                                     <span className="text-2xl font-bold text-blue-700">
-                                    €{analytics.paymentMethodBreakdown.nonCash.profit.toFixed(2)}
+                                    €{asMoney(analytics.paymentMethodBreakdown.nonCash.profit)}
                                 </span>
                                 </div>
                                 <div className="text-xs text-gray-600">
-                                    Revenue: €{analytics.paymentMethodBreakdown.nonCash.sellPrice.toFixed(2)} •
-                                    Cost: €{analytics.paymentMethodBreakdown.nonCash.buyPrice.toFixed(2)}
+                                    Revenue: €{asMoney(analytics.paymentMethodBreakdown.nonCash.sellPrice)} •
+                                    Cost: €{asMoney(analytics.paymentMethodBreakdown.nonCash.buyPrice)}
                                 </div>
                             </div>
                         </div>
@@ -542,10 +543,10 @@ export default function AnalyticsPage() {
                                         </div>
                                         <div className="text-right">
                                             <div className="text-2xl font-bold text-green-700">
-                                                €{pv.totalProfit.toFixed(2)}
+                                                €{asMoney(pv.totalProfit)}
                                             </div>
                                             <div className="text-xs text-gray-600">
-                                                €{pv.totalSellPrice.toFixed(2)} - €{pv.totalBuyPrice.toFixed(2)}
+                                                €{asMoney(pv.totalSellPrice)} - €{asMoney(pv.totalBuyPrice)}
                                             </div>
                                         </div>
                                     </div>
