@@ -19,6 +19,7 @@ import {
 import { createError } from '../middleware/error.middleware';
 import { soldItemToDTO, soldItemsToDTO, analyticsToDTO } from '../dto/soldItem.dto';
 import { safeGetSoldItemById } from '../util/safe';
+import { SoldItem } from '../model/soldItem';
 
 const soldItemRouter = express.Router();
 
@@ -78,7 +79,7 @@ soldItemRouter.get('/:id',
     })
 );
 
-// ** MISSING ROUTE CAUSING 404: Analytics endpoint **
+// Analytics endpoint
 soldItemRouter.get('/inventory/:inventoryId/analytics',
     validateParams(inventoryIdParam),
     validateQuery(analyticsQuery),
@@ -86,8 +87,6 @@ soldItemRouter.get('/inventory/:inventoryId/analytics',
     asyncHandler(async (req: Request, res: Response) => {
         const { inventoryId } = req.params as any;
         const { startDate, endDate } = req.query as any;
-        
-        console.log(`📊 Analytics request for inventory ${inventoryId}:`, { startDate, endDate });
         
         const analytics = await soldItemService.getAnalyticsByInventoryId({
             inventoryId: Number(inventoryId),
@@ -110,8 +109,7 @@ soldItemRouter.post('/',
         const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: data.itemId });
         if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
         
-        // Use transactional create method
-        const soldItem = await soldItemDB.createSoldItemWithStockUpdate({
+        const created = await soldItemDB.createSoldItemWithStockUpdate({
             itemId: data.itemId,
             finalSellPrice: data.finalSellPrice,
             quantity: data.quantity,
@@ -121,7 +119,7 @@ soldItemRouter.post('/',
             soldAt: data.soldAt ? new Date(data.soldAt) : undefined,
         });
         
-        res.status(201).json(soldItemToDTO(SoldItem.from(soldItem), true));
+        res.status(201).json(soldItemToDTO(SoldItem.from(created), true));
     })
 );
 
@@ -134,11 +132,10 @@ soldItemRouter.put('/:id',
         const user = (req as any).user;
         const data = req.body;
         
-        const soldItem = await safeGetSoldItemById(Number(id));
-        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: soldItem.getItemId() });
+        const existing = await safeGetSoldItemById(Number(id));
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: existing.getItemId() });
         if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
         
-        // Use transactional update method
         const updated = await soldItemDB.updateSoldItemWithStockAdjustment(Number(id), {
             finalSellPrice: data.finalSellPrice,
             quantity: data.quantity,
@@ -159,11 +156,10 @@ soldItemRouter.delete('/:id',
         const { id } = req.params as any;
         const user = (req as any).user;
         
-        const soldItem = await safeGetSoldItemById(Number(id));
-        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: soldItem.getItemId() });
+        const existing = await safeGetSoldItemById(Number(id));
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: existing.getItemId() });
         if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
         
-        // Use transactional delete method to restore stock
         await soldItemDB.deleteSoldItemWithStockRestore(Number(id));
         res.status(204).send();
     })
