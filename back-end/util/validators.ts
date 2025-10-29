@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Request, Response, NextFunction } from 'express';
 
 // Parameter validators
 export const idParam = z.object({
@@ -141,5 +142,12 @@ export const validateQuery = (schema: z.ZodSchema) => {
             }
             next(error);
         }
+    };
+};
+
+// Async error wrapper to catch async route handler errors
+export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+        Promise.resolve(fn(req, res, next)).catch(next);
     };
 };
