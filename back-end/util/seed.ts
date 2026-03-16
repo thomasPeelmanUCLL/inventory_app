@@ -8,50 +8,59 @@ const main = async () => {
     await prisma.user.deleteMany();
     await prisma.inventory.deleteMany();
 
-    // Create users
+    // Create users (using Better Auth compatible structure)
     const users = await Promise.all([
         prisma.user.create({
             data: {
-                id: 1,
-                password: await bcrypt.hash('lindas123', 12),
                 name: 'linda',
                 email: 'linda.lawson@ucll.be',
                 role: 'admin',
                 age: 23,
+                emailVerified: true,
             },
         }),
         prisma.user.create({
             data: {
-                id: 2,
-                password: await bcrypt.hash('john123', 12),
                 name: 'john',
                 email: 'john.doe@example.com',
                 role: 'user',
                 age: 28,
+                emailVerified: true,
             },
         }),
         prisma.user.create({
             data: {
-                id: 3,
-                password: await bcrypt.hash('max123', 12),
                 name: 'max',
                 email: 'max.mustermann@example.com',
                 role: 'user',
                 age: 35,
+                emailVerified: true,
             },
         }),
         prisma.user.create({
             data: {
-                password: await bcrypt.hash('guest123', 12),
                 name: 'guest',
                 email: 'guestuser@example.com',
                 role: 'guest',
                 age: 35,
+                emailVerified: false,
             },
         }),
     ]);
 
-
+    // Create account credentials for each user
+    const passwords = ['lindas123', 'john123', 'max123', 'guest123'];
+    for (let i = 0; i < users.length; i++) {
+        const hashed = await bcrypt.hash(passwords[i], 12);
+        await prisma.account.create({
+            data: {
+                userId: users[i].id,
+                accountId: users[i].id,
+                providerId: 'credential',
+                password: hashed,
+            },
+        });
+    }
 
     console.log('Seed data created:');
     console.log('Users:', users);
@@ -60,21 +69,18 @@ const main = async () => {
     const inventories = await Promise.all([
         prisma.inventory.create({
             data: {
-                id: 1,
                 name: 'Inventory A',
                 description: 'Description for Inventory A',
             },
         }),
         prisma.inventory.create({
             data: {
-                id: 2,
                 name: 'Inventory B',
                 description: 'Description for Inventory B',
             },
         }),
         prisma.inventory.create({
             data: {
-                id: 3,
                 name: 'Inventory C',
                 description: 'Description for Inventory C',
             },

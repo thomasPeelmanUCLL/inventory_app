@@ -1,9 +1,11 @@
 import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
 import { useSession } from '../lib/auth-client';
+import { AuthProvider } from '../components/AuthProvider';
+import { ErrorBoundary } from '../components/ErrorHandling';
 import '../styles/globals.css';
 
-export default function App({ Component, pageProps }: AppProps) {
+function AppContent({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const { data: session, isPending } = useSession();
 
@@ -26,4 +28,14 @@ export default function App({ Component, pageProps }: AppProps) {
   }
 
   return <Component {...pageProps} />;
+}
+
+export default function App(props: AppProps) {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent {...props} />
+      </AuthProvider>
+    </ErrorBoundary>
+  );
 }

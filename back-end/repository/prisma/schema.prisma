@@ -88,6 +88,7 @@ model InventoryUser {
   inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
 
   @@unique([userId, inventoryId])
+  @@index([userId], name: "idx_inventoryUser_userId")
   @@map("inventory_users")
 }
 
@@ -118,6 +119,7 @@ model Item {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
+  @@index([inventoryId], name: "idx_item_inventoryId")
   @@map("items")
 }
 
@@ -132,5 +134,8 @@ model SoldItem {
   payedCash         Boolean  @default(false)
   soldAt            DateTime @default(now())
 
+  @@index([itemId], name: "idx_soldItem_itemId")
+  @@index([soldAt], name: "idx_soldItem_soldAt")
+  @@index([itemId, soldAt], name: "idx_soldItem_itemId_soldAt")
   @@map("sold_items")
 }
