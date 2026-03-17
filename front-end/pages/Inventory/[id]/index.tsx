@@ -104,7 +104,7 @@ const InventoryOverviewPage = () => {
                 quantity: activeSellModal.quantity,
                 priceVariableName: activeSellModal.priceVariableName,
                 isCustomPrice: activeSellModal.isCustomPrice || false,
-                payedCash: activeSellModal.paymentMethod === 'cash',
+                paidWithCash: activeSellModal.paymentMethod === 'cash',
             });
             await fetchInventory();
             setActiveSellModal(null);
@@ -131,7 +131,7 @@ const InventoryOverviewPage = () => {
                     quantity: cartEntry.quantityToSell,
                     priceVariableName: cartEntry.priceVariableName,
                     isCustomPrice: cartEntry.isCustomPrice || false,
-                    payedCash: paidWithCash,
+                    paidWithCash: paidWithCash,
                 }))
             );
             setCartItems([]);
