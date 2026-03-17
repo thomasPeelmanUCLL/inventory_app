@@ -82,7 +82,6 @@
  */
 import express, { NextFunction, Request, Response } from 'express';
 import userService from '../service/user.service';
-import {optionalAuth} from "../middleware/auth.middleware";
 
 const userRouter = express.Router();
 
@@ -116,40 +115,6 @@ const userRouter = express.Router();
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/User'
- *             examples:
- *               allUsers:
- *                 summary: All users
- *                 value:
- *                   - id: "ckl1234567890abcdef"
- *                     email: "john@example.com"
- *                     name: "John Doe"
- *                     role: "user"
- *                     age: 25
- *                     emailVerified: false
- *                     createdAt: "2024-01-15T10:30:00Z"
- *                     updatedAt: "2024-01-15T10:30:00Z"
- *                   - id: "ckl0987654321fedcba"
- *                     email: "jane@example.com"
- *                     name: "Jane Smith"
- *                     role: "admin"
- *                     age: 30
- *                     emailVerified: true
- *                     createdAt: "2024-01-10T08:00:00Z"
- *                     updatedAt: "2024-01-10T08:00:00Z"
- *               singleUser:
- *                 summary: User found by email
- *                 value:
- *                   - id: "ckl1234567890abcdef"
- *                     email: "john@example.com"
- *                     name: "John Doe"
- *                     role: "user"
- *                     age: 25
- *                     emailVerified: false
- *                     createdAt: "2024-01-15T10:30:00Z"
- *                     updatedAt: "2024-01-15T10:30:00Z"
- *               notFound:
- *                 summary: No users found
- *                 value: []
  */
 userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -164,53 +129,6 @@ userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
         }
     } catch (error) {
         console.error('Error fetching users:', error);
-
-        // Check if it's a "does not exist" error
-        if (error instanceof Error && error.message.includes('does not exist')) {
-            res.status(404).json({
-                error: error.message,
-                timestamp: new Date().toISOString()
-            });
-        } else {
-            // For other errors, return 500
-            res.status(500).json({
-                error: 'Internal server error',
-                timestamp: new Date().toISOString()
-            });
-        }
-    }
-});
-
-/**
- * @swagger
- * /users/{id}:
- *   get:
- *     summary: Get user by ID
- *     tags:
- *       - Users
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID (CUID)
- *     responses:
- *       200:
- *         description: User details
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
- *       404:
- *         description: User not found
- */
-userRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const user = await userService.getUserById({ id: req.params.id });
-        res.status(200).json(user);
-    } catch (error) {
-        console.error('Error fetching user by ID:', error);
         if (error instanceof Error && error.message.includes('does not exist')) {
             res.status(404).json({
                 error: error.message,
@@ -269,6 +187,48 @@ userRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunc
     }
 });
 
-
+/**
+ * @swagger
+ * /users/{id}:
+ *   get:
+ *     summary: Get user by ID
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID (CUID)
+ *     responses:
+ *       200:
+ *         description: User details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ */
+userRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = await userService.getUserById({ id: req.params.id });
+        res.status(200).json(user);
+    } catch (error) {
+        console.error('Error fetching user by ID:', error);
+        if (error instanceof Error && error.message.includes('does not exist')) {
+            res.status(404).json({
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({
+                error: 'Internal server error',
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+});
 
 export { userRouter };
