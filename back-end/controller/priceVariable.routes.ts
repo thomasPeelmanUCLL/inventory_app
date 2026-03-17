@@ -93,42 +93,6 @@ priceVariableRouter.get('/', async (req: Request, res: Response, next: NextFunct
 
 /**
  * @swagger
- * /priceVariables/{id}:
- *   get:
- *     summary: Get a price variable by ID
- *     tags:
- *       - Price Variables
- *     security:
- *       - betterAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: The price variable details
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PriceVariable'
- *       401:
- *         description: User not authenticated
- *       404:
- *         description: Price variable not found
- */
-priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const priceVariable = await priceVariableService.getPriceVariableById({ id: Number(req.params.id) });
-        res.status(200).json(priceVariable);
-    } catch (error) {
-        next(error);
-    }
-});
-
-/**
- * @swagger
  * /priceVariables/item/{itemId}:
  *   get:
  *     summary: Get price variables by item ID
@@ -161,6 +125,42 @@ priceVariableRouter.get('/item/:itemId', async (req: Request, res: Response, nex
             itemId: Number(req.params.itemId)
         });
         res.status(200).json(priceVariables);
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * @swagger
+ * /priceVariables/{id}:
+ *   get:
+ *     summary: Get a price variable by ID
+ *     tags:
+ *       - Price Variables
+ *     security:
+ *       - betterAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: The price variable details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PriceVariable'
+ *       401:
+ *         description: User not authenticated
+ *       404:
+ *         description: Price variable not found
+ */
+priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const priceVariable = await priceVariableService.getPriceVariableById({ id: Number(req.params.id) });
+        res.status(200).json(priceVariable);
     } catch (error) {
         next(error);
     }
