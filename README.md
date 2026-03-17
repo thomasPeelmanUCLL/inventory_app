@@ -145,11 +145,24 @@ The deploy workflow handles full cluster bootstrapping on every run — it creat
 |---|---|
 | `POSTGRES_PASSWORD` | Password for the in-cluster PostgreSQL database |
 | `BETTER_AUTH_SECRET` | Secret key for Better Auth session signing |
-| `FRONTEND_URL` | Production front-end URL (e.g. `https://app.yourdomain.com`) |
-| `BACKEND_URL` | Production back-end URL (e.g. `https://api.yourdomain.com`) |
+| `FRONTEND_URL` | Production front-end URL (e.g. `https://inventory.thomaspeelman.be`) |
+| `BACKEND_URL` | Production back-end URL (e.g. `https://api.thomaspeelman.be`) |
 | `NEXT_PUBLIC_API_URL` | Same as `BACKEND_URL`, injected at Docker build time |
 | `KUBECONFIG` | Base64-encoded kubeconfig for the production cluster |
 | `K8S_API_SERVER` | Kubernetes API server URL |
 
 > `DATABASE_URL` is **not** a required secret — it is assembled automatically as
 > `postgresql://inventory:<POSTGRES_PASSWORD>@postgres.inventory.svc.cluster.local:5432/inventory`.
+
+---
+
+## Production Deployment Checklist
+
+Before the first deploy to a fresh cluster, complete the following steps:
+
+- [ ] Add all 7 GitHub Actions secrets listed above (`Settings → Secrets and variables → Actions`)
+- [ ] Update the domain in `k8s/ingress.yml` to match your `FRONTEND_URL` and `BACKEND_URL` secrets
+- [ ] Ensure your Traefik ingress controller is running in the cluster with a `cloudflare` cert resolver configured
+- [ ] Ensure your kubeconfig points to the real cluster API server (not localhost)
+- [ ] Push to `main` — the workflow will create all secrets, apply manifests, run migrations, and roll out both deployments automatically
+- [ ] Remove `.idea/` from git tracking: `git rm -r --cached .idea && git commit -m "chore: untrack .idea"`
