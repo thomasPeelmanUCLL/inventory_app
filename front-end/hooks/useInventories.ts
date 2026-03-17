@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { getMyInventories, getInventoryById, createInventory, updateInventory, deleteInventory } from '../lib/api';
+import { Inventory } from '../types';
 
 export function useInventories() {
   const {
@@ -9,7 +10,7 @@ export function useInventories() {
     isLoading,
   } = useSWR('/inventories/my', getMyInventories, {
     revalidateOnFocus: true,
-    dedupingInterval: 5000, // Cache for 5 seconds
+    dedupingInterval: 5000,
     errorRetryCount: 3,
     errorRetryInterval: 2000,
   });
@@ -17,11 +18,9 @@ export function useInventories() {
   const create = async (data: { name: string; description: string }) => {
     try {
       const newInventory = await createInventory(data);
-      // Optimistic update
       mutate([...(inventories || []), newInventory], false);
       return newInventory;
     } catch (error) {
-      // Revalidate on error to sync state
       mutate();
       throw error;
     }
@@ -30,9 +29,8 @@ export function useInventories() {
   const update = async (id: number, data: { name?: string; description?: string }) => {
     try {
       const updated = await updateInventory(id, data);
-      // Update cache optimistically
       mutate(
-        inventories?.map(inv => inv.id === id ? { ...inv, ...updated } : inv),
+        inventories?.map((inv: Inventory) => inv.id === id ? { ...inv, ...updated } : inv),
         false
       );
       return updated;
@@ -45,9 +43,8 @@ export function useInventories() {
   const remove = async (id: number) => {
     try {
       await deleteInventory(id);
-      // Remove from cache optimistically
       mutate(
-        inventories?.filter(inv => inv.id !== id),
+        inventories?.filter((inv: Inventory) => inv.id !== id),
         false
       );
     } catch (error) {
@@ -78,7 +75,7 @@ export function useInventory(id: number | null) {
     () => id ? getInventoryById(id) : null,
     {
       revalidateOnFocus: false,
-      dedupingInterval: 10000, // Cache single items longer
+      dedupingInterval: 10000,
     }
   );
 

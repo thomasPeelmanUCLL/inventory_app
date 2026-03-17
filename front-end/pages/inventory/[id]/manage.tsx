@@ -125,32 +125,32 @@ const ManageItemsPage = () => {
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Name</div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="text" value={itemBeingEdited.name ?? ''}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited, name: e.target.value })}
+                                                        <input type="text" value={itemBeingEdited!.name ?? ''}
+                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, name: e.target.value })}
                                                             className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div className="font-medium">{item.name}</div>}
                                                 </div>
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Description</div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="text" value={itemBeingEdited.description ?? ''}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited, description: e.target.value })}
+                                                        <input type="text" value={itemBeingEdited!.description ?? ''}
+                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, description: e.target.value })}
                                                             className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div className="text-sm">{item.description}</div>}
                                                 </div>
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Buy Price</div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="number" step="0.01" value={itemBeingEdited.buyPrice ?? 0}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited, buyPrice: parseFloat(e.target.value) })}
+                                                        <input type="number" step="0.01" value={itemBeingEdited!.buyPrice ?? 0}
+                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, buyPrice: parseFloat(e.target.value) })}
                                                             className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div className="text-green-600 font-medium">€{Number(item.buyPrice || 0).toFixed(2)}</div>}
                                                 </div>
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Quantity</div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="number" value={itemBeingEdited.quantity ?? 0}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited, quantity: parseInt(e.target.value) })}
+                                                        <input type="number" value={itemBeingEdited!.quantity ?? 0}
+                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, quantity: parseInt(e.target.value) })}
                                                             className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div>{item.quantity}</div>}
                                                 </div>

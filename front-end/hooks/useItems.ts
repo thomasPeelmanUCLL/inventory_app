@@ -1,7 +1,7 @@
 import useSWR from 'swr';
 import { getAllItems, getItemById, getItemsByInventoryId, createItem, updateItem, deleteItem } from '../lib/api';
+import { Item } from '../types';
 
-// Hook for all user-accessible items
 export function useItems() {
   const {
     data: items,
@@ -24,7 +24,6 @@ export function useItems() {
   }) => {
     try {
       const newItem = await createItem(data);
-      // Add to cache optimistically
       mutate([...(items || []), newItem], false);
       return newItem;
     } catch (error) {
@@ -43,9 +42,8 @@ export function useItems() {
   }) => {
     try {
       const updated = await updateItem(itemId, data);
-      // Update in cache
       mutate(
-        items?.map(item => item.id === itemId ? { ...item, ...updated } : item),
+        items?.map((item: Item) => item.id === itemId ? { ...item, ...updated } : item),
         false
       );
       return updated;
@@ -58,9 +56,8 @@ export function useItems() {
   const remove = async (itemId: number) => {
     try {
       await deleteItem(itemId);
-      // Remove from cache
       mutate(
-        items?.filter(item => item.id !== itemId),
+        items?.filter((item: Item) => item.id !== itemId),
         false
       );
     } catch (error) {
@@ -80,7 +77,6 @@ export function useItems() {
   };
 }
 
-// Hook for items in a specific inventory
 export function useInventoryItems(inventoryId: number | null) {
   const {
     data: items,
@@ -104,7 +100,6 @@ export function useInventoryItems(inventoryId: number | null) {
     buyedAt?: string;
   }) => {
     if (!inventoryId) throw new Error('No inventory selected');
-    
     try {
       const newItem = await createItem({ ...data, inventoryId });
       mutate([...(items || []), newItem], false);
@@ -125,7 +120,7 @@ export function useInventoryItems(inventoryId: number | null) {
     try {
       const updated = await updateItem(itemId, data);
       mutate(
-        items?.map(item => item.id === itemId ? { ...item, ...updated } : item),
+        items?.map((item: Item) => item.id === itemId ? { ...item, ...updated } : item),
         false
       );
       return updated;
@@ -139,7 +134,7 @@ export function useInventoryItems(inventoryId: number | null) {
     try {
       await deleteItem(itemId);
       mutate(
-        items?.filter(item => item.id !== itemId),
+        items?.filter((item: Item) => item.id !== itemId),
         false
       );
     } catch (error) {
@@ -159,7 +154,6 @@ export function useInventoryItems(inventoryId: number | null) {
   };
 }
 
-// Hook for single item
 export function useItem(itemId: number | null) {
   const {
     data: item,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Head from 'next/head';
-import Header from '@components/layout/header';
+import Header from '@components/layout/Header';
 import HomePageInformation from '@components/home/HomePageInformation';
 
 const HomePage: React.FC = () => {
