@@ -34,10 +34,10 @@ soldItemRouter.get('/', asyncHandler(async (req: Request, res: Response) => {
     if (inventoryIds.length === 0) return res.status(200).json([]);
     
     const soldItems = await soldItemDB.getSoldItemsByInventoryIds({ inventoryIds });
-    res.status(200).json(soldItemsToDTO(soldItems, true)); // Include item details
+    res.status(200).json(soldItemsToDTO(soldItems, true));
 }));
 
-// Get sold items by inventory ID
+// Get sold items by inventory ID — static path, must be before /:id
 soldItemRouter.get('/inventory/:inventoryId',
     validateParams(inventoryIdParam),
     requireInventoryAccess('inventoryId'),
@@ -48,38 +48,7 @@ soldItemRouter.get('/inventory/:inventoryId',
     })
 );
 
-// Get sold items by item ID
-soldItemRouter.get('/item/:itemId',
-    validateParams(itemIdParam),
-    asyncHandler(async (req: Request, res: Response) => {
-        const { itemId } = req.params as any;
-        const user = (req as any).user;
-        
-        // Check access via item's inventory
-        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: Number(itemId) });
-        if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
-        
-        const soldItems = await soldItemService.getSoldItemsByItemId({ itemId: Number(itemId) });
-        res.status(200).json(soldItemsToDTO(soldItems, true));
-    })
-);
-
-// Get sold item by ID
-soldItemRouter.get('/:id',
-    validateParams(idParam),
-    asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params as any;
-        const user = (req as any).user;
-        const soldItem = await safeGetSoldItemById(Number(id));
-        
-        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: soldItem.getItemId() });
-        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
-        
-        res.status(200).json(soldItemToDTO(soldItem, true));
-    })
-);
-
-// Analytics endpoint
+// Analytics endpoint — static path, must be before /:id
 soldItemRouter.get('/inventory/:inventoryId/analytics',
     validateParams(inventoryIdParam),
     validateQuery(analyticsQuery),
@@ -98,6 +67,36 @@ soldItemRouter.get('/inventory/:inventoryId/analytics',
     })
 );
 
+// Get sold items by item ID — static path, must be before /:id
+soldItemRouter.get('/item/:itemId',
+    validateParams(itemIdParam),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { itemId } = req.params as any;
+        const user = (req as any).user;
+        
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: Number(itemId) });
+        if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
+        
+        const soldItems = await soldItemService.getSoldItemsByItemId({ itemId: Number(itemId) });
+        res.status(200).json(soldItemsToDTO(soldItems, true));
+    })
+);
+
+// Get sold item by ID — catch-all, must be last GET
+soldItemRouter.get('/:id',
+    validateParams(idParam),
+    asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params as any;
+        const user = (req as any).user;
+        const soldItem = await safeGetSoldItemById(Number(id));
+        
+        const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: soldItem.getItemId() });
+        if (!hasAccess) throw createError.forbidden('Access denied to this sold item\'s inventory');
+        
+        res.status(200).json(soldItemToDTO(soldItem, true));
+    })
+);
+
 // Create sold item (transactional)
 soldItemRouter.post('/',
     validateBody(soldItemInput),
@@ -105,7 +104,6 @@ soldItemRouter.post('/',
         const user = (req as any).user;
         const data = req.body;
         
-        // Check access to item's inventory
         const hasAccess = await inventoryDB.userHasAccessViaItem({ userId: user.id, itemId: data.itemId });
         if (!hasAccess) throw createError.forbidden('Access denied to this item\'s inventory');
         
