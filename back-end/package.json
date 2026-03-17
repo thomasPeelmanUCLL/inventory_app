@@ -10,7 +10,7 @@
     },
     "scripts": {
         "test": "jest",
-        "start": "nodemon -L app.ts --delay 3",
+        "start": "nodemon -L app.ts --delay 3 --require tsconfig-paths/register",
         "prisma:migrate": "prisma migrate deploy",
         "prisma:generate": "prisma generate",
         "prisma:studio": "prisma studio",
@@ -21,7 +21,7 @@
         "ext": "ts",
         "delay": "3",
         "execMap": {
-            "ts": "ts-node"
+            "ts": "ts-node -r tsconfig-paths/register"
         }
     },
     "dependencies": {
@@ -51,6 +51,7 @@
         "prisma": "^5.1.1",
         "ts-jest": "^29.2.5",
         "ts-node": "^10.9.0",
+        "tsconfig-paths": "^4.2.0",
         "typescript": "^4.9.0"
     },
     "keywords": [

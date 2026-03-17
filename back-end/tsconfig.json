@@ -3,6 +3,18 @@
         "module": "commonjs",
         "target": "es6",
         "rootDir": "./",
+        "baseUrl": "./",
+        "paths": {
+            "@model/*": ["model/*"],
+            "@repository/*": ["repository/*"],
+            "@service/*": ["service/*"],
+            "@controller/*": ["controller/*"],
+            "@middleware/*": ["middleware/*"],
+            "@dto/*": ["dto/*"],
+            "@util/*": ["util/*"],
+            "@lib/*": ["lib/*"],
+            "@types": ["types/index.ts"]
+        },
         "strict": true,
         "esModuleInterop": true
     }

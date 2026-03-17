@@ -4,9 +4,11 @@
     "baseUrl": ".",
     "paths": {
       "@components/*": ["components/*"],
-      "@services/*": ["services/*"],
+      "@lib/*": ["lib/*"],
+      "@hooks/*": ["hooks/*"],
       "@types": ["types/index.ts"],
-      "@styles/*": ["styles/*"]
+      "@styles/*": ["styles/*"],
+      "@pages/*": ["pages/*"]
     },
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
