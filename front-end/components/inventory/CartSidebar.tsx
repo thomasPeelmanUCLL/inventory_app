@@ -5,15 +5,15 @@ interface CartSidebarProps {
     cart: CartItem[];
     onClose: () => void;
     onRemoveItem: (itemId: number) => void;
-    onUpdateQuantity: (itemId: number, quantity: number) => void;
-    onCheckout: (payedCash: boolean) => void;
+    onUpdateQuantity: (itemId: number, newQuantity: number) => void;
+    onCheckout: (paidWithCash: boolean) => void;
 }
 
 const CartSidebar: React.FC<CartSidebarProps> = ({ cart, onClose, onRemoveItem, onUpdateQuantity, onCheckout }) => {
-    const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card'>('cash');
 
-    const getTotalPrice = () =>
-        cart.reduce((total, item) => total + Number(item.finalSellPrice || 0) * item.quantityToSell, 0);
+    const calculateCartTotal = () =>
+        cart.reduce((runningTotal, cartEntry) => runningTotal + Number(cartEntry.finalSellPrice || 0) * cartEntry.quantityToSell, 0);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
@@ -29,21 +29,21 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ cart, onClose, onRemoveItem, 
                     ) : (
                         <>
                             <div className="space-y-4 mb-6">
-                                {cart.map((cartItem) => (
-                                    <div key={`${cartItem.item.id}-${cartItem.priceVariableName || 'base'}`} className="border border-gray-200 rounded-lg p-4">
+                                {cart.map((cartEntry) => (
+                                    <div key={`${cartEntry.item.id}-${cartEntry.priceVariableName || 'base'}`} className="border border-gray-200 rounded-lg p-4">
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex-1">
-                                                <h3 className="font-semibold">{cartItem.item.name}</h3>
-                                                {cartItem.priceVariableName && (
-                                                    <div className="text-sm text-blue-600">{cartItem.priceVariableName}</div>
+                                                <h3 className="font-semibold">{cartEntry.item.name}</h3>
+                                                {cartEntry.priceVariableName && (
+                                                    <div className="text-sm text-blue-600">{cartEntry.priceVariableName}</div>
                                                 )}
-                                                {cartItem.isCustomPrice && (
+                                                {cartEntry.isCustomPrice && (
                                                     <div className="text-xs text-orange-600">Custom Price</div>
                                                 )}
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-lg font-bold text-green-600">
-                                                    €{Number(cartItem.finalSellPrice || 0).toFixed(2)}
+                                                    €{Number(cartEntry.finalSellPrice || 0).toFixed(2)}
                                                 </div>
                                                 <div className="text-xs text-gray-500">per item</div>
                                             </div>
@@ -52,15 +52,15 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ cart, onClose, onRemoveItem, 
                                             <div className="flex items-center gap-2">
                                                 <label className="text-sm text-gray-600">Qty:</label>
                                                 <input
-                                                    type="number" min="1" max={cartItem.item.quantity}
-                                                    value={cartItem.quantityToSell}
-                                                    onChange={(e) => cartItem.item.id && onUpdateQuantity(cartItem.item.id, parseInt(e.target.value))}
+                                                    type="number" min="1" max={cartEntry.item.quantity}
+                                                    value={cartEntry.quantityToSell}
+                                                    onChange={(e) => cartEntry.item.id && onUpdateQuantity(cartEntry.item.id, parseInt(e.target.value))}
                                                     className="w-20 px-2 py-1 border border-gray-300 rounded"
                                                 />
-                                                <span className="text-xs text-gray-500">/ {cartItem.item.quantity} available</span>
+                                                <span className="text-xs text-gray-500">/ {cartEntry.item.quantity} available</span>
                                             </div>
                                             <button
-                                                onClick={() => cartItem.item.id && onRemoveItem(cartItem.item.id)}
+                                                onClick={() => cartEntry.item.id && onRemoveItem(cartEntry.item.id)}
                                                 className="text-red-600 hover:text-red-800 text-sm"
                                             >
                                                 Remove
@@ -70,7 +70,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ cart, onClose, onRemoveItem, 
                                             <div className="flex justify-between text-sm">
                                                 <span className="text-gray-600">Subtotal:</span>
                                                 <span className="font-semibold">
-                                                    €{(Number(cartItem.finalSellPrice || 0) * cartItem.quantityToSell).toFixed(2)}
+                                                    €{(Number(cartEntry.finalSellPrice || 0) * cartEntry.quantityToSell).toFixed(2)}
                                                 </span>
                                             </div>
                                         </div>
@@ -81,17 +81,16 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ cart, onClose, onRemoveItem, 
                             <div className="border-t border-gray-200 pt-4 mb-4">
                                 <div className="flex justify-between items-center text-xl font-bold mb-4">
                                     <span>Total:</span>
-                                    <span className="text-green-600">€{getTotalPrice().toFixed(2)}</span>
+                                    <span className="text-green-600">€{calculateCartTotal().toFixed(2)}</span>
                                 </div>
 
-                                {/* Payment method toggle */}
                                 <div className="mb-4">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Payment method</label>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => setPaymentMethod('cash')}
+                                            onClick={() => setSelectedPaymentMethod('cash')}
                                             className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                                                paymentMethod === 'cash'
+                                                selectedPaymentMethod === 'cash'
                                                     ? 'bg-green-600 text-white'
                                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                             }`}
@@ -99,9 +98,9 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ cart, onClose, onRemoveItem, 
                                             Cash
                                         </button>
                                         <button
-                                            onClick={() => setPaymentMethod('card')}
+                                            onClick={() => setSelectedPaymentMethod('card')}
                                             className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                                                paymentMethod === 'card'
+                                                selectedPaymentMethod === 'card'
                                                     ? 'bg-blue-600 text-white'
                                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                             }`}
@@ -113,10 +112,10 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ cart, onClose, onRemoveItem, 
                             </div>
 
                             <button
-                                onClick={() => onCheckout(paymentMethod === 'cash')}
+                                onClick={() => onCheckout(selectedPaymentMethod === 'cash')}
                                 className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
                             >
-                                Checkout ({paymentMethod === 'cash' ? 'Cash' : 'Card'})
+                                Checkout ({selectedPaymentMethod === 'cash' ? 'Cash' : 'Card'})
                             </button>
                         </>
                     )}

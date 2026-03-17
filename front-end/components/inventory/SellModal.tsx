@@ -7,27 +7,27 @@ type Props = {
     onClose: () => void;
     onAddToCart: () => void;
     onBuyNow: () => void;
-    onChange: (data: SellModalData) => void;
+    onChange: (updatedSaleData: SellModalData) => void;
 };
 
 const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, onChange }: Props) => {
-    const [selectedPriceVariable, setSelectedPriceVariable] = useState('');
-    const [customPrice, setCustomPrice] = useState('');
+    const [selectedPriceVariableName, setSelectedPriceVariableName] = useState('');
+    const [customPriceInput, setCustomPriceInput] = useState('');
 
     useEffect(() => {
-        const defaultPV = priceVariables.find(pv => pv.isDefault);
-        if (defaultPV && !selectedPriceVariable && !customPrice) {
-            handlePriceVariableChange(defaultPV.name);
+        const defaultPriceVariable = priceVariables.find(priceVariable => priceVariable.isDefault);
+        if (defaultPriceVariable && !selectedPriceVariableName && !customPriceInput) {
+            handlePriceVariableChange(defaultPriceVariable.name);
         }
     }, [priceVariables]);
 
-    const handleQuantityChange = (quantity: number) => {
-        onChange({ ...sellModal, quantity });
+    const handleQuantityChange = (newQuantity: number) => {
+        onChange({ ...sellModal, quantity: newQuantity });
     };
 
     const handlePriceVariableChange = (variableName: string) => {
-        setSelectedPriceVariable(variableName);
-        setCustomPrice('');
+        setSelectedPriceVariableName(variableName);
+        setCustomPriceInput('');
 
         if (variableName === '') {
             onChange({
@@ -37,34 +37,34 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                 isCustomPrice: false,
             });
         } else {
-            const priceVar = priceVariables.find(pv => pv.name === variableName);
-            let newPrice = sellModal.item.buyPrice;
+            const matchedPriceVariable = priceVariables.find(priceVariable => priceVariable.name === variableName);
+            let calculatedPrice = sellModal.item.buyPrice;
 
-            if (priceVar) {
-                if (priceVar.type === 'PERCENTAGE') {
-                    newPrice = sellModal.item.buyPrice * (1 + priceVar.value / 100);
-                } else if (priceVar.type === 'FIXED') {
-                    newPrice = priceVar.value;
+            if (matchedPriceVariable) {
+                if (matchedPriceVariable.type === 'PERCENTAGE') {
+                    calculatedPrice = sellModal.item.buyPrice * (1 + matchedPriceVariable.value / 100);
+                } else if (matchedPriceVariable.type === 'FIXED') {
+                    calculatedPrice = matchedPriceVariable.value;
                 }
             }
 
             onChange({
                 ...sellModal,
-                finalSellPrice: newPrice,
+                finalSellPrice: calculatedPrice,
                 priceVariableName: variableName,
                 isCustomPrice: false,
             });
         }
     };
 
-    const handleCustomPriceChange = (price: string) => {
-        setCustomPrice(price);
-        setSelectedPriceVariable('Custom');
-        const priceNum = parseFloat(price);
-        if (!isNaN(priceNum) && priceNum > 0) {
+    const handleCustomPriceChange = (rawInput: string) => {
+        setCustomPriceInput(rawInput);
+        setSelectedPriceVariableName('Custom');
+        const parsedPrice = parseFloat(rawInput);
+        if (!isNaN(parsedPrice) && parsedPrice > 0) {
             onChange({
                 ...sellModal,
-                finalSellPrice: priceNum,
+                finalSellPrice: parsedPrice,
                 priceVariableName: 'Custom',
                 isCustomPrice: true,
             });
@@ -75,7 +75,7 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
         onChange({ ...sellModal, paymentMethod });
     };
 
-    const totalPrice = sellModal.finalSellPrice * sellModal.quantity;
+    const totalSalePrice = sellModal.finalSellPrice * sellModal.quantity;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -106,27 +106,27 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Price Variable</label>
                             <select
-                                value={selectedPriceVariable === 'Custom' ? '' : selectedPriceVariable}
+                                value={selectedPriceVariableName === 'Custom' ? '' : selectedPriceVariableName}
                                 onChange={(e) => handlePriceVariableChange(e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Base Price</option>
-                                {priceVariables.map((pv) => (
-                                    <option key={pv.id} value={pv.name}>{pv.name}</option>
+                                {priceVariables.map((priceVariable) => (
+                                    <option key={priceVariable.id} value={priceVariable.name}>{priceVariable.name}</option>
                                 ))}
                                 <option value="Custom">Custom</option>
                             </select>
                         </div>
                     )}
 
-                    {selectedPriceVariable === 'Custom' && (
+                    {selectedPriceVariableName === 'Custom' && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Custom Sell Price</label>
                             <div className="relative">
                                 <span className="absolute left-3 top-2 text-gray-500">€</span>
                                 <input
                                     type="number" step="0.01" min="0"
-                                    value={customPrice}
+                                    value={customPriceInput}
                                     onChange={(e) => handleCustomPriceChange(e.target.value)}
                                     placeholder={Number(sellModal.item.buyPrice).toFixed(2)}
                                     className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -164,7 +164,7 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                     <div className="border-t pt-4">
                         <div className="flex justify-between items-center text-lg font-bold">
                             <span>Total:</span>
-                            <span>€{totalPrice.toFixed(2)}</span>
+                            <span>€{totalSalePrice.toFixed(2)}</span>
                         </div>
                     </div>
 

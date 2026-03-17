@@ -1,4 +1,3 @@
-// API client with authentication and error handling
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
@@ -14,12 +13,12 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
         if (!response.ok) {
             let errorMessage = `HTTP ${response.status}`;
-            let errorDetails = null;
+            let validationDetails = null;
 
             try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorData.message || errorMessage;
-                errorDetails = errorData.details;
+                const errorBody = await response.json();
+                errorMessage = errorBody.error || errorBody.message || errorMessage;
+                validationDetails = errorBody.details;
             } catch {
                 errorMessage = response.statusText || errorMessage;
             }
@@ -35,11 +34,11 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
                 case 429:
                     throw new Error(`Rate limited: ${errorMessage}`);
                 case 400:
-                    if (errorDetails) {
-                        const validationErrors = Array.isArray(errorDetails)
-                            ? errorDetails.map((e: any) => `${e.field}: ${e.message}`).join(', ')
+                    if (validationDetails) {
+                        const fieldErrors = Array.isArray(validationDetails)
+                            ? validationDetails.map((fieldError: any) => `${fieldError.field}: ${fieldError.message}`).join(', ')
                             : errorMessage;
-                        throw new Error(`Validation failed: ${validationErrors}`);
+                        throw new Error(`Validation failed: ${fieldErrors}`);
                     }
                     throw new Error(`Bad request: ${errorMessage}`);
                 default:
@@ -48,11 +47,11 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
         }
 
         return response;
-    } catch (error) {
-        if (error instanceof TypeError && error.message.includes('fetch')) {
+    } catch (networkError) {
+        if (networkError instanceof TypeError && networkError.message.includes('fetch')) {
             throw new Error('Network error - ensure backend is running on ' + API_BASE_URL);
         }
-        throw error;
+        throw networkError;
     }
 }
 
@@ -65,29 +64,29 @@ export async function getMyInventories() {
     return response.json();
 }
 
-export async function getInventoryById(id: number) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${id}`);
+export async function getInventoryById(inventoryId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}`);
     return response.json();
 }
 
-export async function createInventory(data: { name: string; description: string }) {
+export async function createInventory(inventoryData: { name: string; description: string }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(inventoryData),
     });
     return response.json();
 }
 
-export async function updateInventory(id: number, data: { name?: string; description?: string }) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${id}`, {
+export async function updateInventory(inventoryId: number, inventoryData: { name?: string; description?: string }) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify(inventoryData),
     });
     return response.json();
 }
 
-export async function deleteInventory(id: number) {
-    await fetchWithAuth(`${API_BASE_URL}/inventorys/${id}`, { method: 'DELETE' });
+export async function deleteInventory(inventoryId: number) {
+    await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}`, { method: 'DELETE' });
 }
 
 // ========================================
@@ -99,10 +98,10 @@ export async function getInventoryUsers(inventoryId: number) {
     return response.json();
 }
 
-export async function addUserToInventory(inventoryId: number, data: { email: string; role: string }) {
+export async function addUserToInventory(inventoryId: number, userInviteData: { email: string; role: string }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(userInviteData),
     });
     return response.json();
 }
@@ -130,32 +129,32 @@ export async function getItemsByInventoryId(inventoryId: number) {
     return response.json();
 }
 
-export async function createItem(data: {
+export async function createItem(itemData: {
     name: string;
     description: string;
     buyPrice: number;
     quantity: number;
-    buyedAt?: string;
+    purchasedAt?: string;
     inventoryId?: number;
 }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/items`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(itemData),
     });
     return response.json();
 }
 
-export async function updateItem(itemId: number, data: {
+export async function updateItem(itemId: number, itemData: {
     name?: string;
     description?: string;
     buyPrice?: number;
     quantity?: number;
-    buyedAt?: string;
+    purchasedAt?: string;
     inventoryId?: number;
 }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/items/${itemId}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify(itemData),
     });
     return response.json();
 }
@@ -188,33 +187,33 @@ export async function getSoldItemsByInventoryId(inventoryId: number) {
     return response.json();
 }
 
-export async function createSoldItem(data: {
+export async function createSoldItem(saleData: {
     itemId: number;
     finalSellPrice: number;
     quantity: number;
     priceVariableName?: string;
     isCustomPrice?: boolean;
-    payedCash?: boolean;
+    paidWithCash?: boolean;
     soldAt?: string;
 }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/soldItems`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(saleData),
     });
     return response.json();
 }
 
-export async function updateSoldItem(soldItemId: number, data: {
+export async function updateSoldItem(soldItemId: number, saleData: {
     finalSellPrice?: number;
     quantity?: number;
     priceVariableName?: string;
     isCustomPrice?: boolean;
-    payedCash?: boolean;
+    paidWithCash?: boolean;
     soldAt?: string;
 }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/soldItems/${soldItemId}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify(saleData),
     });
     return response.json();
 }
@@ -228,11 +227,11 @@ export async function deleteSoldItem(soldItemId: number) {
 // ========================================
 
 export async function getInventoryAnalytics(inventoryId: number, startDate?: Date, endDate?: Date) {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
-    const qs = params.toString();
-    const url = `${API_BASE_URL}/soldItems/inventory/${inventoryId}/analytics${qs ? `?${qs}` : ''}`;
+    const queryParams = new URLSearchParams();
+    if (startDate) queryParams.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) queryParams.append('endDate', endDate.toISOString().split('T')[0]);
+    const queryString = queryParams.toString();
+    const url = `${API_BASE_URL}/soldItems/inventory/${inventoryId}/analytics${queryString ? `?${queryString}` : ''}`;
     const response = await fetchWithAuth(url);
     return response.json();
 }
@@ -246,8 +245,8 @@ export async function getAllPriceVariables() {
     return response.json();
 }
 
-export async function getPriceVariableById(variableId: number) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`);
+export async function getPriceVariableById(priceVariableId: number) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${priceVariableId}`);
     return response.json();
 }
 
@@ -256,7 +255,7 @@ export async function getPriceVariablesByItemId(itemId: number) {
     return response.json();
 }
 
-export async function createPriceVariable(itemId: number, data: {
+export async function createPriceVariable(itemId: number, priceVariableData: {
     name: string;
     value: number;
     type: 'PERCENTAGE' | 'FIXED';
@@ -264,26 +263,26 @@ export async function createPriceVariable(itemId: number, data: {
 }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables`, {
         method: 'POST',
-        body: JSON.stringify({ ...data, itemId }),
+        body: JSON.stringify({ ...priceVariableData, itemId }),
     });
     return response.json();
 }
 
-export async function updatePriceVariable(variableId: number, data: {
+export async function updatePriceVariable(priceVariableId: number, priceVariableData: {
     name?: string;
     value?: number;
     type?: 'PERCENTAGE' | 'FIXED';
     isDefault?: boolean;
 }) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${priceVariableId}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify(priceVariableData),
     });
     return response.json();
 }
 
-export async function deletePriceVariable(variableId: number) {
-    await fetchWithAuth(`${API_BASE_URL}/priceVariables/${variableId}`, { method: 'DELETE' });
+export async function deletePriceVariable(priceVariableId: number) {
+    await fetchWithAuth(`${API_BASE_URL}/priceVariables/${priceVariableId}`, { method: 'DELETE' });
 }
 
 // ========================================

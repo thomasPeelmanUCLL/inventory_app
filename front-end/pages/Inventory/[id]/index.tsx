@@ -17,119 +17,124 @@ import { Item, Inventory, CartItem, SellModalData, PriceVariable } from '@types'
 
 const InventoryOverviewPage = () => {
     const router = useRouter();
-    const { id } = router.query;
+    const { id: inventoryIdParam } = router.query;
     const { data: session } = useSession();
     const { toast, showToast } = useToast();
 
     const [inventory, setInventory] = useState<Inventory | null>(null);
-    const [priceVariables, setPriceVariables] = useState<PriceVariable[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [showManageUsers, setShowManageUsers] = useState(false);
-    const [sellModal, setSellModal] = useState<SellModalData | null>(null);
-    const [cart, setCart] = useState<CartItem[]>([]);
+    const [allPriceVariables, setAllPriceVariables] = useState<PriceVariable[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [showManageUsersModal, setShowManageUsersModal] = useState(false);
+    const [activeSellModal, setActiveSellModal] = useState<SellModalData | null>(null);
+    const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
 
-    useEffect(() => { if (id) void fetchInventory(); }, [id]);
+    useEffect(() => { if (inventoryIdParam) void fetchInventory(); }, [inventoryIdParam]);
 
     const fetchInventory = async () => {
         try {
-            setLoading(true);
-            setError(null);
-            const data = await getInventoryById(Number(id));
-            setInventory(data);
-            await fetchAllPriceVariables(data.items);
+            setIsLoading(true);
+            setLoadError(null);
+            const fetchedInventory = await getInventoryById(Number(inventoryIdParam));
+            setInventory(fetchedInventory);
+            await fetchAllItemPriceVariables(fetchedInventory.items);
         } catch (err: any) {
-            setError(err.message || 'Failed to load inventory');
+            setLoadError(err.message || 'Failed to load inventory');
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const fetchAllPriceVariables = async (items: Item[]) => {
-        if (!items || items.length === 0) { setPriceVariables([]); return; }
+    const fetchAllItemPriceVariables = async (items: Item[]) => {
+        if (!items || items.length === 0) { setAllPriceVariables([]); return; }
         try {
-            const results = await Promise.all(items.filter(i => i.id).map(i => getPriceVariablesByItemId(i.id!)));
-            setPriceVariables(results.flat());
+            const priceVariableResults = await Promise.all(
+                items.filter(item => item.id).map(item => getPriceVariablesByItemId(item.id!))
+            );
+            setAllPriceVariables(priceVariableResults.flat());
         } catch {
-            setPriceVariables([]);
+            setAllPriceVariables([]);
         }
     };
 
-    const getUserRole = () => {
+    const getCurrentUserRole = () => {
         if (!inventory || !session?.user) return 'viewer';
-        return inventory.users?.find(u => u.user.id === session.user.id)?.role || 'viewer';
+        return inventory.users?.find(member => member.user.id === session.user.id)?.role || 'viewer';
     };
 
-    const handleItemClick = (item: Item) => {
-        setSellModal({ item, quantity: 1, finalSellPrice: item.buyPrice || 0, paymentMethod: 'cash' });
+    const handleItemClick = (clickedItem: Item) => {
+        setActiveSellModal({ item: clickedItem, quantity: 1, finalSellPrice: clickedItem.buyPrice || 0, paymentMethod: 'cash' });
     };
 
     const handleAddToCart = () => {
-        if (!sellModal) return;
-        const existing = cart.find(ci =>
-            ci.item.id === sellModal.item.id &&
-            ci.priceVariableName === sellModal.priceVariableName &&
-            ci.isCustomPrice === sellModal.isCustomPrice
+        if (!activeSellModal) return;
+        const existingCartEntry = cartItems.find(cartEntry =>
+            cartEntry.item.id === activeSellModal.item.id &&
+            cartEntry.priceVariableName === activeSellModal.priceVariableName &&
+            cartEntry.isCustomPrice === activeSellModal.isCustomPrice
         );
-        if (existing) {
-            setCart(cart.map(ci =>
-                ci.item.id === sellModal.item.id &&
-                ci.priceVariableName === sellModal.priceVariableName &&
-                ci.isCustomPrice === sellModal.isCustomPrice
-                    ? { ...ci, quantityToSell: ci.quantityToSell + sellModal.quantity }
-                    : ci
+        if (existingCartEntry) {
+            setCartItems(cartItems.map(cartEntry =>
+                cartEntry.item.id === activeSellModal.item.id &&
+                cartEntry.priceVariableName === activeSellModal.priceVariableName &&
+                cartEntry.isCustomPrice === activeSellModal.isCustomPrice
+                    ? { ...cartEntry, quantityToSell: cartEntry.quantityToSell + activeSellModal.quantity }
+                    : cartEntry
             ));
         } else {
-            setCart([...cart, {
-                item: sellModal.item,
-                quantityToSell: sellModal.quantity,
-                finalSellPrice: sellModal.finalSellPrice,
-                priceVariableName: sellModal.priceVariableName,
-                isCustomPrice: sellModal.isCustomPrice,
+            setCartItems([...cartItems, {
+                item: activeSellModal.item,
+                quantityToSell: activeSellModal.quantity,
+                finalSellPrice: activeSellModal.finalSellPrice,
+                priceVariableName: activeSellModal.priceVariableName,
+                isCustomPrice: activeSellModal.isCustomPrice,
             }]);
         }
-        setSellModal(null);
+        setActiveSellModal(null);
         setIsCartOpen(true);
     };
 
     const handleBuyNow = async () => {
-        if (!sellModal || !sellModal.item.id) return;
+        if (!activeSellModal || !activeSellModal.item.id) return;
         try {
             await createSoldItem({
-                itemId: sellModal.item.id,
-                finalSellPrice: sellModal.finalSellPrice,
-                quantity: sellModal.quantity,
-                priceVariableName: sellModal.priceVariableName,
-                isCustomPrice: sellModal.isCustomPrice || false,
-                payedCash: sellModal.paymentMethod === 'cash',
+                itemId: activeSellModal.item.id,
+                finalSellPrice: activeSellModal.finalSellPrice,
+                quantity: activeSellModal.quantity,
+                priceVariableName: activeSellModal.priceVariableName,
+                isCustomPrice: activeSellModal.isCustomPrice || false,
+                payedCash: activeSellModal.paymentMethod === 'cash',
             });
             await fetchInventory();
-            setSellModal(null);
+            setActiveSellModal(null);
             showToast('Item sold successfully!');
         } catch (err: any) {
             showToast(err.message || 'Failed to sell item', 'error');
         }
     };
 
-    const handleRemoveFromCart = (itemId: number) => setCart(cart.filter(ci => ci.item.id !== itemId));
+    const handleRemoveFromCart = (itemId: number) =>
+        setCartItems(cartItems.filter(cartEntry => cartEntry.item.id !== itemId));
 
-    const handleUpdateCartQuantity = (itemId: number, quantity: number) =>
-        setCart(cart.map(ci => ci.item.id === itemId ? { ...ci, quantityToSell: quantity } : ci));
+    const handleUpdateCartQuantity = (itemId: number, newQuantity: number) =>
+        setCartItems(cartItems.map(cartEntry =>
+            cartEntry.item.id === itemId ? { ...cartEntry, quantityToSell: newQuantity } : cartEntry
+        ));
 
-    const handleCheckout = async (payedCash: boolean) => {
+    const handleCheckout = async (paidWithCash: boolean) => {
         try {
             await Promise.all(
-                cart.filter(ci => ci.item.id).map(ci => createSoldItem({
-                    itemId: ci.item.id!,
-                    finalSellPrice: ci.finalSellPrice,
-                    quantity: ci.quantityToSell,
-                    priceVariableName: ci.priceVariableName,
-                    isCustomPrice: ci.isCustomPrice || false,
-                    payedCash,
+                cartItems.filter(cartEntry => cartEntry.item.id).map(cartEntry => createSoldItem({
+                    itemId: cartEntry.item.id!,
+                    finalSellPrice: cartEntry.finalSellPrice,
+                    quantity: cartEntry.quantityToSell,
+                    priceVariableName: cartEntry.priceVariableName,
+                    isCustomPrice: cartEntry.isCustomPrice || false,
+                    payedCash: paidWithCash,
                 }))
             );
-            setCart([]);
+            setCartItems([]);
             setIsCartOpen(false);
             await fetchInventory();
             showToast('Checkout successful!');
@@ -138,14 +143,16 @@ const InventoryOverviewPage = () => {
         }
     };
 
-    if (loading) return (<><Header /><LoadingScreen /></>);
-    if (error) return (<><Header /><ErrorScreen message={error} onRetry={fetchInventory} /></>);
+    if (isLoading) return (<><Header /><LoadingScreen /></>);
+    if (loadError) return (<><Header /><ErrorScreen message={loadError} onRetry={fetchInventory} /></>);
     if (!inventory) return (<><Header /><ErrorScreen message="Inventory not found" /></>);
 
-    const role = getUserRole();
-    const canEdit = role === 'owner' || role === 'editor';
-    const isOwner = role === 'owner';
-    const itemPriceVariables = sellModal?.item.id ? priceVariables.filter(pv => pv.itemId === sellModal.item.id) : [];
+    const currentUserRole = getCurrentUserRole();
+    const canEdit = currentUserRole === 'owner' || currentUserRole === 'editor';
+    const isOwner = currentUserRole === 'owner';
+    const sellModalPriceVariables = activeSellModal?.item.id
+        ? allPriceVariables.filter(priceVariable => priceVariable.itemId === activeSellModal.item.id)
+        : [];
 
     return (
         <>
@@ -158,8 +165,8 @@ const InventoryOverviewPage = () => {
                 </Link>
 
                 <InventoryHeader
-                    inventory={inventory} role={role} canEdit={canEdit} isOwner={isOwner}
-                    activeTab="overview" onManageUsers={() => setShowManageUsers(true)}
+                    inventory={inventory} role={currentUserRole} canEdit={canEdit} isOwner={isOwner}
+                    activeTab="overview" onManageUsers={() => setShowManageUsersModal(true)}
                 />
 
                 <div className="bg-white rounded-lg shadow-md p-6">
@@ -169,26 +176,26 @@ const InventoryOverviewPage = () => {
                     <ItemsGrid items={inventory.items || []} onItemClick={handleItemClick} />
                 </div>
 
-                {sellModal && (
+                {activeSellModal && (
                     <SellModal
-                        sellModal={sellModal} priceVariables={itemPriceVariables}
-                        onClose={() => setSellModal(null)} onAddToCart={handleAddToCart}
-                        onBuyNow={handleBuyNow} onChange={setSellModal}
+                        sellModal={activeSellModal} priceVariables={sellModalPriceVariables}
+                        onClose={() => setActiveSellModal(null)} onAddToCart={handleAddToCart}
+                        onBuyNow={handleBuyNow} onChange={setActiveSellModal}
                     />
                 )}
 
                 {isCartOpen && (
                     <CartSidebar
-                        cart={cart} onClose={() => setIsCartOpen(false)}
+                        cart={cartItems} onClose={() => setIsCartOpen(false)}
                         onRemoveItem={handleRemoveFromCart} onUpdateQuantity={handleUpdateCartQuantity}
                         onCheckout={handleCheckout}
                     />
                 )}
 
-                {showManageUsers && (
+                {showManageUsersModal && (
                     <ManageUsersModal
-                        inventoryId={Number(id)} isOwner={isOwner}
-                        onClose={() => { setShowManageUsers(false); void fetchInventory(); }}
+                        inventoryId={Number(inventoryIdParam)} isOwner={isOwner}
+                        onClose={() => { setShowManageUsersModal(false); void fetchInventory(); }}
                     />
                 )}
             </div>

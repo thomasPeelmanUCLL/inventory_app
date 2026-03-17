@@ -17,86 +17,86 @@ import { Inventory, SoldItem } from '@types';
 
 const HistoryPage = () => {
     const router = useRouter();
-    const { id } = router.query;
+    const { id: inventoryIdParam } = router.query;
     const { data: session } = useSession();
     const { toast, showToast } = useToast();
 
     const [inventory, setInventory] = useState<Inventory | null>(null);
     const [salesHistory, setSalesHistory] = useState<SoldItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [showManageUsers, setShowManageUsers] = useState(false);
-    const [revertingId, setRevertingId] = useState<number | null>(null);
-    const [revertConfirm, setRevertConfirm] = useState<number | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [showManageUsersModal, setShowManageUsersModal] = useState(false);
+    const [revertingInProgressId, setRevertingInProgressId] = useState<number | null>(null);
+    const [revertConfirmSaleId, setRevertConfirmSaleId] = useState<number | null>(null);
 
     useEffect(() => {
-        if (id) { void fetchInventory(); void fetchSalesHistory(); }
-    }, [id]);
+        if (inventoryIdParam) { void fetchInventory(); void fetchSalesHistory(); }
+    }, [inventoryIdParam]);
 
     const fetchInventory = async () => {
         try {
-            setLoading(true);
-            setError(null);
-            const data = await getInventoryById(Number(id));
-            setInventory(data);
+            setIsLoading(true);
+            setLoadError(null);
+            const fetchedInventory = await getInventoryById(Number(inventoryIdParam));
+            setInventory(fetchedInventory);
         } catch (err: any) {
-            setError(err.message || 'Failed to load inventory');
+            setLoadError(err.message || 'Failed to load inventory');
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
     const fetchSalesHistory = async () => {
         try {
-            const data = await getSoldItemsByInventoryId(Number(id));
-            setSalesHistory(data);
+            const fetchedSales = await getSoldItemsByInventoryId(Number(inventoryIdParam));
+            setSalesHistory(fetchedSales);
         } catch (err: any) {
-            setError(err.message || 'Failed to load sales history');
+            setLoadError(err.message || 'Failed to load sales history');
         }
     };
 
     const handleRevertSale = async (saleId: number) => {
         try {
-            setRevertingId(saleId);
+            setRevertingInProgressId(saleId);
             await deleteSoldItem(saleId);
             await fetchSalesHistory();
             await fetchInventory();
-            setRevertConfirm(null);
+            setRevertConfirmSaleId(null);
             showToast('Sale reverted successfully');
         } catch (err: any) {
             showToast(err.message || 'Failed to revert sale', 'error');
         } finally {
-            setRevertingId(null);
+            setRevertingInProgressId(null);
         }
     };
 
-    const getUserRole = () => {
+    const getCurrentUserRole = () => {
         if (!inventory || !session?.user) return 'viewer';
-        return inventory.users?.find(u => u.user.id === session.user.id)?.role || 'viewer';
+        return inventory.users?.find(member => member.user.id === session.user.id)?.role || 'viewer';
     };
 
-    if (loading) return (<><Header /><LoadingScreen /></>);
-    if (error) return (<><Header /><ErrorScreen message={error} onRetry={fetchInventory} /></>);
+    if (isLoading) return (<><Header /><LoadingScreen /></>);
+    if (loadError) return (<><Header /><ErrorScreen message={loadError} onRetry={fetchInventory} /></>);
     if (!inventory) return (<><Header /><ErrorScreen message="Inventory not found" /></>);
 
-    const role = getUserRole();
-    const canEdit = role === 'owner' || role === 'editor';
-    const isOwner = role === 'owner';
-    const totalRevenue = salesHistory.reduce((t, s) => t + s.finalSellPrice * s.quantity, 0);
-    const totalItems = salesHistory.reduce((t, s) => t + s.quantity, 0);
+    const currentUserRole = getCurrentUserRole();
+    const canEdit = currentUserRole === 'owner' || currentUserRole === 'editor';
+    const isOwner = currentUserRole === 'owner';
+    const totalRevenueFromSales = salesHistory.reduce((runningTotal, sale) => runningTotal + sale.finalSellPrice * sale.quantity, 0);
+    const totalItemsSold = salesHistory.reduce((runningTotal, sale) => runningTotal + sale.quantity, 0);
 
     return (
         <>
             <Header />
             <Toast toast={toast} />
 
-            {revertConfirm !== null && (
+            {revertConfirmSaleId !== null && (
                 <ConfirmDialog
                     title="Revert this sale?"
                     description="The item quantity will be restored."
                     confirmLabel="Revert"
-                    onConfirm={() => handleRevertSale(revertConfirm)}
-                    onCancel={() => setRevertConfirm(null)}
+                    onConfirm={() => handleRevertSale(revertConfirmSaleId)}
+                    onCancel={() => setRevertConfirmSaleId(null)}
                 />
             )}
 
@@ -106,26 +106,26 @@ const HistoryPage = () => {
                 </Link>
 
                 <InventoryHeader
-                    inventory={inventory} role={role} canEdit={canEdit} isOwner={isOwner}
-                    activeTab="history" onManageUsers={() => setShowManageUsers(true)}
+                    inventory={inventory} role={currentUserRole} canEdit={canEdit} isOwner={isOwner}
+                    activeTab="history" onManageUsers={() => setShowManageUsersModal(true)}
                 />
 
                 <div className="mt-8">
                     <HistoryStatsCards
-                        totalRevenue={totalRevenue} totalItems={totalItems}
+                        totalRevenue={totalRevenueFromSales} totalItems={totalItemsSold}
                         totalTransactions={salesHistory.length}
                     />
                 </div>
 
                 <SalesHistoryTable
-                    sales={salesHistory} canEdit={canEdit} revertingId={revertingId}
-                    onRevert={(id) => setRevertConfirm(id)}
+                    sales={salesHistory} canEdit={canEdit} revertingId={revertingInProgressId}
+                    onRevert={(saleId) => setRevertConfirmSaleId(saleId)}
                 />
 
-                {showManageUsers && (
+                {showManageUsersModal && (
                     <ManageUsersModal
-                        inventoryId={Number(id)} isOwner={isOwner}
-                        onClose={() => { setShowManageUsers(false); void fetchInventory(); }}
+                        inventoryId={Number(inventoryIdParam)} isOwner={isOwner}
+                        onClose={() => { setShowManageUsersModal(false); void fetchInventory(); }}
                     />
                 )}
             </div>
