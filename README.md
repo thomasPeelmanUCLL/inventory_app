@@ -31,6 +31,7 @@ A full-stack inventory management system for tracking items, recording sales, an
 | Auth | Better Auth |
 | Export | SheetJS (xlsx) |
 | Containerisation | Docker / Docker Compose |
+| CI/CD | GitHub Actions, GHCR, Kubernetes |
 
 ---
 
@@ -63,11 +64,15 @@ inventory_app/
 │   │           └── analytics.tsx # Analytics dashboard
 │   └── types/
 └── back-end/
-    ├── src/
-    │   ├── routes/
-    │   ├── services/
-    │   └── prisma/
-    └── prisma/
+    ├── controller/          # Express routers (*.routes.ts)
+    ├── service/             # Business logic (*.service.ts)
+    ├── repository/          # Prisma DB access (*.db.ts)
+    ├── model/               # Domain classes
+    ├── dto/                 # Response shapes (*.dto.ts)
+    ├── middleware/          # auth, authorization, error handling
+    ├── lib/
+    │   └── auth.ts          # Better Auth instance
+    └── repository/prisma/
         └── schema.prisma
 ```
 
@@ -100,7 +105,7 @@ npm install
 npm run dev
 ```
 
-The front-end runs on `http://localhost:3001` and expects the back-end on `http://localhost:3000` by default. Override with `NEXT_PUBLIC_API_URL` in `front-end/.env.local`.
+The front-end runs on `http://localhost:8080` and expects the back-end on `http://localhost:3000` by default.
 
 ---
 
@@ -114,5 +119,30 @@ NEXT_PUBLIC_API_URL=http://localhost:3000
 **`back-end/.env`**
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/inventory
-BETTER_AUTH_SECRET=your-secret
+BETTER_AUTH_SECRET=your-secret-here
+FRONTEND_URL=http://localhost:8080
+BACKEND_URL=http://localhost:3000
 ```
+
+---
+
+## CI/CD
+
+Two GitHub Actions workflows run on every push to `main`:
+
+| Workflow | What it does |
+|---|---|
+| `ci.yml` | Type-check, lint, build (frontend + backend); runs Prisma migrations against a test Postgres container |
+| `deploy.yml` | Repeats CI checks, builds and pushes Docker images to GHCR, then deploys to Kubernetes |
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|---|---|
+| `DATABASE_URL` | Production PostgreSQL connection string |
+| `BETTER_AUTH_SECRET` | Secret key for Better Auth session signing |
+| `FRONTEND_URL` | Production front-end URL (e.g. `https://app.yourdomain.com`) |
+| `BACKEND_URL` | Production back-end URL (e.g. `https://api.yourdomain.com`) |
+| `NEXT_PUBLIC_API_URL` | Same as `BACKEND_URL`, injected at Docker build time |
+| `KUBECONFIG` | Base64-encoded kubeconfig for the production cluster |
+| `K8S_API_SERVER` | Kubernetes API server URL |
