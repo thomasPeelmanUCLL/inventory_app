@@ -9,7 +9,7 @@ import { Inventory } from '@types';
 const InventoriesPage = () => {
     const { data: session } = useSession();
     const [inventories, setInventories] = useState<Inventory[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
     useEffect(() => {
@@ -18,18 +18,18 @@ const InventoriesPage = () => {
 
     const fetchInventories = async () => {
         try {
-            const data = await getMyInventories();
-            setInventories(data);
-        } catch (error) {
-            console.error('Error fetching inventories:', error);
+            const fetchedInventories = await getMyInventories();
+            setInventories(fetchedInventories);
+        } catch (fetchError) {
+            console.error('Error fetching inventories:', fetchError);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const handleCreate = async (form: { name: string; description: string }) => {
+    const handleCreate = async (newInventoryData: { name: string; description: string }) => {
         try {
-            await createInventory(form);
+            await createInventory(newInventoryData);
             setShowCreateModal(false);
             await fetchInventories();
         } catch {
@@ -37,10 +37,10 @@ const InventoriesPage = () => {
         }
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (inventoryId: number) => {
         if (!confirm('Are you sure you want to delete this inventory?')) return;
         try {
-            await deleteInventory(id);
+            await deleteInventory(inventoryId);
             await fetchInventories();
         } catch {
             alert('Failed to delete inventory. Only owners can delete.');
@@ -61,7 +61,7 @@ const InventoriesPage = () => {
                     </button>
                 </div>
 
-                {loading ? (
+                {isLoading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className="text-lg text-gray-600">Loading...</div>
                     </div>
@@ -77,10 +77,10 @@ const InventoriesPage = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {inventories.map((inv) => (
+                        {inventories.map((inventory) => (
                             <InventoryCard
-                                key={inv.id}
-                                inventory={inv}
+                                key={inventory.id}
+                                inventory={inventory}
                                 currentUserId={session?.user.id}
                                 onDelete={handleDelete}
                             />

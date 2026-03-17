@@ -21,13 +21,13 @@ type TopItem = {
 };
 
 export default function TopSellingTable({ items }: { items: TopItem[] }) {
-    const [expanded, setExpanded] = useState<Set<number>>(new Set());
+    const [expandedItemIds, setExpandedItemIds] = useState<Set<number>>(new Set());
 
-    const toggle = (id: number) =>
-        setExpanded(prev => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
+    const toggleItemExpanded = (itemId: number) =>
+        setExpandedItemIds(prev => {
+            const updatedSet = new Set(prev);
+            updatedSet.has(itemId) ? updatedSet.delete(itemId) : updatedSet.add(itemId);
+            return updatedSet;
         });
 
     return (
@@ -47,36 +47,36 @@ export default function TopSellingTable({ items }: { items: TopItem[] }) {
                         {items.length === 0 && (
                             <tr><td colSpan={4} className="text-center py-8 text-gray-500">No items sold yet</td></tr>
                         )}
-                        {items.map((item) => {
-                            const isExpanded = expanded.has(item.itemId);
+                        {items.map((topItem) => {
+                            const isExpanded = expandedItemIds.has(topItem.itemId);
                             return (
-                                <React.Fragment key={item.itemId}>
-                                    <tr className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => toggle(item.itemId)}>
+                                <React.Fragment key={topItem.itemId}>
+                                    <tr className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => toggleItemExpanded(topItem.itemId)}>
                                         <td className="py-3 px-4 text-gray-400">{isExpanded ? '▼' : '▶'}</td>
-                                        <td className="py-3 px-4 font-medium">{item.itemName}</td>
-                                        <td className="text-center px-4">{item.totalQuantity}</td>
+                                        <td className="py-3 px-4 font-medium">{topItem.itemName}</td>
+                                        <td className="text-center px-4">{topItem.totalQuantity}</td>
                                         <td className="text-right px-4">
-                                            <div className="text-green-700 font-bold">€{asMoney(item.totalProfit)}</div>
-                                            <div className="text-xs text-gray-500">€{asMoney(item.totalSellPrice)} - €{asMoney(item.totalBuyPrice)}</div>
+                                            <div className="text-green-700 font-bold">€{asMoney(topItem.totalProfit)}</div>
+                                            <div className="text-xs text-gray-500">€{asMoney(topItem.totalSellPrice)} - €{asMoney(topItem.totalBuyPrice)}</div>
                                         </td>
                                     </tr>
-                                    {isExpanded && item.priceBreakdown && (
+                                    {isExpanded && topItem.priceBreakdown && (
                                         <tr className="bg-gray-50">
                                             <td colSpan={4} className="px-4 py-2">
                                                 <div className="ml-8 space-y-2">
                                                     <div className="text-sm font-semibold text-gray-700 mb-2">Sales by Price:</div>
-                                                    {item.priceBreakdown.map((pd, idx) => (
-                                                        <div key={idx} className="flex justify-between items-center p-2 bg-white rounded border text-sm">
+                                                    {topItem.priceBreakdown.map((priceBreakdownEntry, entryIndex) => (
+                                                        <div key={entryIndex} className="flex justify-between items-center p-2 bg-white rounded border text-sm">
                                                             <div>
-                                                                <span className="font-medium">{pd.quantity}x</span>
-                                                                <span className="text-gray-600 ml-2">at €{asMoney(pd.sellPrice)}</span>
-                                                                {pd.priceVariableName && (
-                                                                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{pd.priceVariableName}</span>
+                                                                <span className="font-medium">{priceBreakdownEntry.quantity}x</span>
+                                                                <span className="text-gray-600 ml-2">at €{asMoney(priceBreakdownEntry.sellPrice)}</span>
+                                                                {priceBreakdownEntry.priceVariableName && (
+                                                                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{priceBreakdownEntry.priceVariableName}</span>
                                                                 )}
                                                             </div>
                                                             <div className="text-right">
-                                                                <div className="font-bold text-green-700">€{asMoney(pd.profit)}</div>
-                                                                <div className="text-xs text-gray-500">€{asMoney(pd.totalSell)} - €{asMoney(pd.totalBuy)}</div>
+                                                                <div className="font-bold text-green-700">€{asMoney(priceBreakdownEntry.profit)}</div>
+                                                                <div className="text-xs text-gray-500">€{asMoney(priceBreakdownEntry.totalSell)} - €{asMoney(priceBreakdownEntry.totalBuy)}</div>
                                                             </div>
                                                         </div>
                                                     ))}
