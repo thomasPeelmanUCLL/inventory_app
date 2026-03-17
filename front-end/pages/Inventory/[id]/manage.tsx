@@ -5,6 +5,8 @@ import Header from '../../../components/layout/header';
 import InventoryHeader from '../../../components/inventory/InventoryHeader';
 import ManageUsersModal from '../../../components/inventory/ManageUsersModal';
 import PriceVariablesSection from '../../../components/inventory/PriceVariablesSection';
+import LoadingScreen from '../../../components/common/LoadingScreen';
+import ErrorScreen from '../../../components/common/ErrorScreen';
 import { getInventoryById, updateItem, deleteItem } from '../../../lib/api';
 import { useSession } from '../../../lib/auth-client';
 import { Item, Inventory } from '@types';
@@ -16,9 +18,17 @@ const ManageItemsPage = () => {
 
     const [inventory, setInventory] = useState<Inventory | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [showManageUsers, setShowManageUsers] = useState(false);
     const [editingItem, setEditingItem] = useState<Item | null>(null);
     const [expandedItemId, setExpandedItemId] = useState<number | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
 
     useEffect(() => {
         if (id) void fetchInventory();
@@ -27,10 +37,11 @@ const ManageItemsPage = () => {
     const fetchInventory = async () => {
         try {
             setLoading(true);
+            setError(null);
             const data = await getInventoryById(Number(id));
             setInventory(data);
-        } catch (error) {
-            console.error('Error fetching inventory:', error);
+        } catch (err: any) {
+            setError(err.message || 'Failed to load inventory');
         } finally {
             setLoading(false);
         }
@@ -47,15 +58,22 @@ const ManageItemsPage = () => {
             });
             await fetchInventory();
             setEditingItem(null);
-        } catch { alert('Failed to update item'); }
+            showToast('Item updated successfully');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to update item', 'error');
+        }
     };
 
     const handleDeleteItem = async (itemId: number) => {
-        if (!confirm('Delete this item?')) return;
         try {
             await deleteItem(itemId);
             await fetchInventory();
-        } catch { alert('Failed to delete item'); }
+            setDeleteConfirm(null);
+            showToast('Item deleted');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to delete item', 'error');
+            setDeleteConfirm(null);
+        }
     };
 
     const getUserRole = () => {
@@ -63,8 +81,9 @@ const ManageItemsPage = () => {
         return inventory.users?.find(u => u.user.id === session.user.id)?.role || 'viewer';
     };
 
-    if (loading) return (<><Header /><div className="container mx-auto px-4 py-8"><div className="text-center">Loading...</div></div></>);
-    if (!inventory) return (<><Header /><div className="container mx-auto px-4 py-8"><div className="text-center text-red-600">Inventory not found</div></div></>);
+    if (loading) return (<><Header /><LoadingScreen /></>);
+    if (error) return (<><Header /><ErrorScreen message={error} onRetry={fetchInventory} /></>);
+    if (!inventory) return (<><Header /><ErrorScreen message="Inventory not found" /></>);
 
     const role = getUserRole();
     const canEdit = role === 'owner' || role === 'editor';
@@ -73,16 +92,44 @@ const ManageItemsPage = () => {
     return (
         <>
             <Header />
+
+            {/* Toast */}
+            {toast && (
+                <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium ${
+                    toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+                }`}>
+                    {toast.message}
+                </div>
+            )}
+
+            {/* Delete confirm dialog */}
+            {deleteConfirm !== null && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                    <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+                        <h3 className="text-lg font-bold mb-2">Delete item?</h3>
+                        <p className="text-gray-600 mb-6">This action cannot be undone.</p>
+                        <div className="flex gap-3 justify-end">
+                            <button onClick={() => setDeleteConfirm(null)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                                Cancel
+                            </button>
+                            <button onClick={() => handleDeleteItem(deleteConfirm)}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="container mx-auto px-4 py-8">
-                <Link href="/inventory" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">← Back to Inventories</Link>
+                <Link href="/Inventory" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">
+                    ← Back to Inventories
+                </Link>
 
                 <InventoryHeader
-                    inventory={inventory}
-                    role={role}
-                    canEdit={canEdit}
-                    isOwner={isOwner}
-                    activeTab="manage"
-                    onManageUsers={() => setShowManageUsers(true)}
+                    inventory={inventory} role={role} canEdit={canEdit} isOwner={isOwner}
+                    activeTab="manage" onManageUsers={() => setShowManageUsers(true)}
                 />
 
                 <div className="bg-white rounded-lg shadow-md p-6">
@@ -94,36 +141,42 @@ const ManageItemsPage = () => {
                         <div className="space-y-4">
                             {inventory.items.map((item) => (
                                 <div key={item.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                    {/* Item header row */}
                                     <div className="bg-gray-50 p-4">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1 grid grid-cols-4 gap-4">
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Name</div>
                                                     {editingItem?.id === item.id ? (
-                                                        <input type="text" value={editingItem.name ?? ''} onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded" />
+                                                        <input type="text" value={editingItem.name ?? ''}
+                                                            onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div className="font-medium">{item.name}</div>}
                                                 </div>
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Description</div>
                                                     {editingItem?.id === item.id ? (
-                                                        <input type="text" value={editingItem.description ?? ''} onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded" />
+                                                        <input type="text" value={editingItem.description ?? ''}
+                                                            onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div className="text-sm">{item.description}</div>}
                                                 </div>
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Buy Price</div>
                                                     {editingItem?.id === item.id ? (
-                                                        <input type="number" step="0.01" value={editingItem.buyPrice ?? 0} onChange={(e) => setEditingItem({ ...editingItem, buyPrice: parseFloat(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded" />
+                                                        <input type="number" step="0.01" value={editingItem.buyPrice ?? 0}
+                                                            onChange={(e) => setEditingItem({ ...editingItem, buyPrice: parseFloat(e.target.value) })}
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div className="text-green-600 font-medium">€{Number(item.buyPrice || 0).toFixed(2)}</div>}
                                                 </div>
                                                 <div>
                                                     <div className="text-xs text-gray-500 mb-1">Quantity</div>
                                                     {editingItem?.id === item.id ? (
-                                                        <input type="number" value={editingItem.quantity ?? 0} onChange={(e) => setEditingItem({ ...editingItem, quantity: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded" />
+                                                        <input type="number" value={editingItem.quantity ?? 0}
+                                                            onChange={(e) => setEditingItem({ ...editingItem, quantity: parseInt(e.target.value) })}
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
                                                     ) : <div>{item.quantity}</div>}
                                                 </div>
                                             </div>
-
                                             {canEdit && (
                                                 <div className="ml-4 flex gap-2">
                                                     {editingItem?.id === item.id ? (
@@ -140,15 +193,13 @@ const ManageItemsPage = () => {
                                                             >
                                                                 {expandedItemId === item.id ? '▼' : '▶'} Prices
                                                             </button>
-                                                            <button onClick={() => item.id && handleDeleteItem(item.id)} className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                                                            <button onClick={() => item.id && setDeleteConfirm(item.id)} className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
                                                         </>
                                                     )}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-
-                                    {/* Price variables — extracted component */}
                                     {expandedItemId === item.id && item.id && (
                                         <PriceVariablesSection itemId={item.id} canEdit={canEdit} />
                                     )}
@@ -162,8 +213,7 @@ const ManageItemsPage = () => {
 
                 {showManageUsers && (
                     <ManageUsersModal
-                        inventoryId={Number(id)}
-                        isOwner={isOwner}
+                        inventoryId={Number(id)} isOwner={isOwner}
                         onClose={() => { setShowManageUsers(false); void fetchInventory(); }}
                     />
                 )}
