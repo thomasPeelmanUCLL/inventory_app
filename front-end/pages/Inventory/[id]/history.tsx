@@ -8,34 +8,29 @@ import HistoryStatsCards from '../../../components/history/HistoryStatsCards';
 import SalesHistoryTable from '../../../components/history/SalesHistoryTable';
 import LoadingScreen from '../../../components/common/LoadingScreen';
 import ErrorScreen from '../../../components/common/ErrorScreen';
+import Toast from '../../../components/common/Toast';
+import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { getInventoryById, getSoldItemsByInventoryId, deleteSoldItem } from '../../../lib/api';
 import { useSession } from '../../../lib/auth-client';
+import { useToast } from '../../../hooks/useToast';
 import { Inventory, SoldItem } from '@types';
 
 const HistoryPage = () => {
     const router = useRouter();
     const { id } = router.query;
     const { data: session } = useSession();
+    const { toast, showToast } = useToast();
 
     const [inventory, setInventory] = useState<Inventory | null>(null);
     const [salesHistory, setSalesHistory] = useState<SoldItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [showManageUsers, setShowManageUsers] = useState(false);
     const [revertingId, setRevertingId] = useState<number | null>(null);
     const [revertConfirm, setRevertConfirm] = useState<number | null>(null);
 
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 3000);
-    };
-
     useEffect(() => {
-        if (id) {
-            void fetchInventory();
-            void fetchSalesHistory();
-        }
+        if (id) { void fetchInventory(); void fetchSalesHistory(); }
     }, [id]);
 
     const fetchInventory = async () => {
@@ -93,34 +88,16 @@ const HistoryPage = () => {
     return (
         <>
             <Header />
+            <Toast toast={toast} />
 
-            {/* Toast */}
-            {toast && (
-                <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium ${
-                    toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-                }`}>
-                    {toast.message}
-                </div>
-            )}
-
-            {/* Revert confirm dialog */}
             {revertConfirm !== null && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-                    <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-                        <h3 className="text-lg font-bold mb-2">Revert this sale?</h3>
-                        <p className="text-gray-600 mb-6">The item quantity will be restored.</p>
-                        <div className="flex gap-3 justify-end">
-                            <button onClick={() => setRevertConfirm(null)}
-                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-                                Cancel
-                            </button>
-                            <button onClick={() => handleRevertSale(revertConfirm)}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                                Revert
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    title="Revert this sale?"
+                    description="The item quantity will be restored."
+                    confirmLabel="Revert"
+                    onConfirm={() => handleRevertSale(revertConfirm)}
+                    onCancel={() => setRevertConfirm(null)}
+                />
             )}
 
             <div className="container mx-auto px-4 py-8">

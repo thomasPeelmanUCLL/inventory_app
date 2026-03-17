@@ -1,23 +1,16 @@
 import { useState, useEffect } from 'react';
 import { getInventoryUsers, addUserToInventory, removeUserFromInventory, getAllUsers } from '../../lib/api';
 import { useSession } from '../../lib/auth-client';
+import ConfirmDialog from '../common/ConfirmDialog';
 
 type InventoryUser = {
     id: number;
     userId: string;
     role: string;
-    user: {
-        id: string;
-        name: string;
-        email: string;
-    };
+    user: { id: string; name: string; email: string };
 };
 
-type User = {
-    id: string;
-    name: string;
-    email: string;
-};
+type User = { id: string; name: string; email: string };
 
 type Props = {
     inventoryId: number;
@@ -36,9 +29,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
     const [error, setError] = useState('');
     const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchData();
-    }, [inventoryId]);
+    useEffect(() => { fetchData(); }, [inventoryId]);
 
     const fetchData = async () => {
         try {
@@ -49,8 +40,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
             setInventoryUsers(users);
             setAllUsers(allUsersData);
             setError('');
-        } catch (error) {
-            console.error('Error fetching data:', error);
+        } catch (err) {
             setError('Failed to load users');
         } finally {
             setLoading(false);
@@ -59,10 +49,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
 
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedUserEmail) {
-            setError('Please select a user');
-            return;
-        }
+        if (!selectedUserEmail) { setError('Please select a user'); return; }
         try {
             await addUserToInventory(inventoryId, { email: selectedUserEmail, role: selectedRole });
             setShowAddUser(false);
@@ -70,8 +57,8 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
             setSelectedRole('viewer');
             setError('');
             await fetchData();
-        } catch (error: any) {
-            setError(error.message || 'Failed to add user');
+        } catch (err: any) {
+            setError(err.message || 'Failed to add user');
         }
     };
 
@@ -81,45 +68,29 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
             setError('');
             setRemoveConfirm(null);
             await fetchData();
-        } catch (error: any) {
-            setError(error.message || 'Failed to remove user');
+        } catch (err: any) {
+            setError(err.message || 'Failed to remove user');
             setRemoveConfirm(null);
         }
     };
 
-    const availableUsers = allUsers.filter(
-        (user) => !inventoryUsers.some((iu) => iu.userId === user.id)
-    );
+    const availableUsers = allUsers.filter(u => !inventoryUsers.some(iu => iu.userId === u.id));
 
     const getRoleBadge = (role: string) => {
-        const colors = {
-            owner: 'bg-purple-100 text-purple-800',
-            editor: 'bg-blue-100 text-blue-800',
-            viewer: 'bg-gray-100 text-gray-800',
-        };
+        const colors = { owner: 'bg-purple-100 text-purple-800', editor: 'bg-blue-100 text-blue-800', viewer: 'bg-gray-100 text-gray-800' };
         return colors[role as keyof typeof colors] || colors.viewer;
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            {/* Remove confirm dialog */}
             {removeConfirm !== null && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center">
-                    <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-                        <h3 className="text-lg font-bold mb-2">Remove user?</h3>
-                        <p className="text-gray-600 mb-6">They will lose access to this inventory.</p>
-                        <div className="flex gap-3 justify-end">
-                            <button onClick={() => setRemoveConfirm(null)}
-                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-                                Cancel
-                            </button>
-                            <button onClick={() => handleRemoveUser(removeConfirm)}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                                Remove
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    title="Remove user?"
+                    description="They will lose access to this inventory."
+                    confirmLabel="Remove"
+                    onConfirm={() => handleRemoveUser(removeConfirm)}
+                    onCancel={() => setRemoveConfirm(null)}
+                />
             )}
 
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
@@ -130,9 +101,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
 
                 <div className="p-6 space-y-6">
                     {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                            {error}
-                        </div>
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">{error}</div>
                     )}
 
                     {loading ? (
@@ -180,27 +149,18 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
                                         <form onSubmit={handleAddUser} className="space-y-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
-                                                <select
-                                                    value={selectedUserEmail}
-                                                    onChange={(e) => setSelectedUserEmail(e.target.value)}
-                                                    required
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                                >
+                                                <select value={selectedUserEmail} onChange={(e) => setSelectedUserEmail(e.target.value)} required
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                                     <option value="">Choose a user...</option>
                                                     {availableUsers.map((user) => (
-                                                        <option key={user.id} value={user.email}>
-                                                            {user.name} ({user.email})
-                                                        </option>
+                                                        <option key={user.id} value={user.email}>{user.name} ({user.email})</option>
                                                     ))}
                                                 </select>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                                                <select
-                                                    value={selectedRole}
-                                                    onChange={(e) => setSelectedRole(e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                                >
+                                                <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                                     <option value="viewer">Viewer (Read only)</option>
                                                     <option value="editor">Editor (Can edit)</option>
                                                     <option value="owner">Owner (Full control)</option>

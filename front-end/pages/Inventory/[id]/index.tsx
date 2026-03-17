@@ -9,34 +9,28 @@ import CartSidebar from '../../../components/inventory/CartSidebar';
 import ManageUsersModal from '../../../components/inventory/ManageUsersModal';
 import LoadingScreen from '../../../components/common/LoadingScreen';
 import ErrorScreen from '../../../components/common/ErrorScreen';
+import Toast from '../../../components/common/Toast';
 import { getInventoryById, createSoldItem, getPriceVariablesByItemId } from '../../../lib/api';
 import { useSession } from '../../../lib/auth-client';
+import { useToast } from '../../../hooks/useToast';
 import { Item, Inventory, CartItem, SellModalData, PriceVariable } from '@types';
 
 const InventoryOverviewPage = () => {
     const router = useRouter();
     const { id } = router.query;
     const { data: session } = useSession();
+    const { toast, showToast } = useToast();
 
     const [inventory, setInventory] = useState<Inventory | null>(null);
     const [priceVariables, setPriceVariables] = useState<PriceVariable[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [showManageUsers, setShowManageUsers] = useState(false);
     const [sellModal, setSellModal] = useState<SellModalData | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
-    const [confirmRevert, setConfirmRevert] = useState<(() => void) | null>(null);
 
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 3000);
-    };
-
-    useEffect(() => {
-        if (id) void fetchInventory();
-    }, [id]);
+    useEffect(() => { if (id) void fetchInventory(); }, [id]);
 
     const fetchInventory = async () => {
         try {
@@ -55,9 +49,7 @@ const InventoryOverviewPage = () => {
     const fetchAllPriceVariables = async (items: Item[]) => {
         if (!items || items.length === 0) { setPriceVariables([]); return; }
         try {
-            const results = await Promise.all(
-                items.filter(i => i.id).map(i => getPriceVariablesByItemId(i.id!))
-            );
+            const results = await Promise.all(items.filter(i => i.id).map(i => getPriceVariablesByItemId(i.id!)));
             setPriceVariables(results.flat());
         } catch {
             setPriceVariables([]);
@@ -75,10 +67,10 @@ const InventoryOverviewPage = () => {
 
     const handleAddToCart = () => {
         if (!sellModal) return;
-        const existing = cart.find(
-            ci => ci.item.id === sellModal.item.id &&
-                ci.priceVariableName === sellModal.priceVariableName &&
-                ci.isCustomPrice === sellModal.isCustomPrice
+        const existing = cart.find(ci =>
+            ci.item.id === sellModal.item.id &&
+            ci.priceVariableName === sellModal.priceVariableName &&
+            ci.isCustomPrice === sellModal.isCustomPrice
         );
         if (existing) {
             setCart(cart.map(ci =>
@@ -120,27 +112,22 @@ const InventoryOverviewPage = () => {
         }
     };
 
-    const handleRemoveFromCart = (itemId: number) => {
-        setCart(cart.filter(ci => ci.item.id !== itemId));
-    };
+    const handleRemoveFromCart = (itemId: number) => setCart(cart.filter(ci => ci.item.id !== itemId));
 
-    const handleUpdateCartQuantity = (itemId: number, quantity: number) => {
+    const handleUpdateCartQuantity = (itemId: number, quantity: number) =>
         setCart(cart.map(ci => ci.item.id === itemId ? { ...ci, quantityToSell: quantity } : ci));
-    };
 
     const handleCheckout = async (payedCash: boolean) => {
         try {
             await Promise.all(
-                cart
-                    .filter(ci => ci.item.id)
-                    .map(ci => createSoldItem({
-                        itemId: ci.item.id!,
-                        finalSellPrice: ci.finalSellPrice,
-                        quantity: ci.quantityToSell,
-                        priceVariableName: ci.priceVariableName,
-                        isCustomPrice: ci.isCustomPrice || false,
-                        payedCash,
-                    }))
+                cart.filter(ci => ci.item.id).map(ci => createSoldItem({
+                    itemId: ci.item.id!,
+                    finalSellPrice: ci.finalSellPrice,
+                    quantity: ci.quantityToSell,
+                    priceVariableName: ci.priceVariableName,
+                    isCustomPrice: ci.isCustomPrice || false,
+                    payedCash,
+                }))
             );
             setCart([]);
             setIsCartOpen(false);
@@ -163,15 +150,7 @@ const InventoryOverviewPage = () => {
     return (
         <>
             <Header />
-
-            {/* Toast */}
-            {toast && (
-                <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium transition-all ${
-                    toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-                }`}>
-                    {toast.message}
-                </div>
-            )}
+            <Toast toast={toast} />
 
             <div className="container mx-auto px-4 py-8">
                 <Link href="/Inventory" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">

@@ -6,6 +6,9 @@ import {
     deletePriceVariable,
 } from '../../lib/api';
 import { PriceVariable } from '@types';
+import { useToast } from '../../hooks/useToast';
+import Toast from '../common/Toast';
+import ConfirmDialog from '../common/ConfirmDialog';
 
 type PriceVariablesSectionProps = {
     itemId: number;
@@ -18,19 +21,14 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingPV, setEditingPV] = useState<PriceVariable | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
+    const { toast, showToast } = useToast();
     const [newPV, setNewPV] = useState({
         name: '',
         value: '',
         type: 'PERCENTAGE' as 'PERCENTAGE' | 'FIXED',
         isDefault: false,
     });
-
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 3000);
-    };
 
     const reload = async () => {
         const data = await getPriceVariablesByItemId(itemId);
@@ -105,33 +103,16 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
 
     return (
         <div className="p-4 bg-white border-t border-gray-200 relative">
-            {/* Toast */}
-            {toast && (
-                <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium ${
-                    toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-                }`}>
-                    {toast.message}
-                </div>
-            )}
+            <Toast toast={toast} />
 
-            {/* Delete confirm dialog */}
             {deleteConfirm !== null && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-                    <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-                        <h3 className="text-lg font-bold mb-2">Delete price variable?</h3>
-                        <p className="text-gray-600 mb-6">This action cannot be undone.</p>
-                        <div className="flex gap-3 justify-end">
-                            <button onClick={() => setDeleteConfirm(null)}
-                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-                                Cancel
-                            </button>
-                            <button onClick={() => handleDelete(deleteConfirm)}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    title="Delete price variable?"
+                    description="This action cannot be undone."
+                    confirmLabel="Delete"
+                    onConfirm={() => handleDelete(deleteConfirm)}
+                    onCancel={() => setDeleteConfirm(null)}
+                />
             )}
 
             <div className="flex justify-between items-center mb-4">
@@ -149,9 +130,7 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
             {showAddForm && (
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <h4 className="font-medium mb-3">New Price Variable</h4>
-                    {formError && (
-                        <p className="text-sm text-red-600 mb-3">{formError}</p>
-                    )}
+                    {formError && <p className="text-sm text-red-600 mb-3">{formError}</p>}
                     <div className="grid grid-cols-2 gap-3">
                         <input
                             type="text" placeholder="Name (e.g., Regular Markup)"
@@ -185,11 +164,7 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
                     <div className="flex gap-2 mt-3">
                         <button onClick={handleCreate} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Create</button>
                         <button
-                            onClick={() => {
-                                setShowAddForm(false);
-                                setFormError(null);
-                                setNewPV({ name: '', value: '', type: 'PERCENTAGE', isDefault: false });
-                            }}
+                            onClick={() => { setShowAddForm(false); setFormError(null); setNewPV({ name: '', value: '', type: 'PERCENTAGE', isDefault: false }); }}
                             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                         >
                             Cancel
