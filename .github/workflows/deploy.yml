@@ -183,11 +183,18 @@ jobs:
           fi
           kubectl cluster-info
 
+      - name: Create / update postgres secret
+        run: |
+          kubectl create secret generic postgres-secret \
+            --namespace inventory \
+            --from-literal=POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Create / update backend secret
         run: |
           kubectl create secret generic inventory-backend-secret \
             --namespace inventory \
-            --from-literal=DATABASE_URL=${{ secrets.DATABASE_URL }} \
+            --from-literal=DATABASE_URL=postgresql://inventory:${{ secrets.POSTGRES_PASSWORD }}@postgres.inventory.svc.cluster.local:5432/inventory \
             --from-literal=BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }} \
             --from-literal=FRONTEND_URL=${{ secrets.FRONTEND_URL }} \
             --from-literal=BACKEND_URL=${{ secrets.BACKEND_URL }} \
@@ -195,6 +202,9 @@ jobs:
 
       - name: Apply manifest changes
         run: kubectl apply -f k8s/
+
+      - name: Wait for postgres to be ready
+        run: kubectl rollout status deployment/postgres -n inventory --timeout=120s
 
       - name: Run Prisma migrations
         run: |
@@ -204,7 +214,7 @@ jobs:
             --image=${{ needs.docker-backend.outputs.sha_tag }} \
             --restart=Never \
             --namespace=inventory \
-            --env="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --env="DATABASE_URL=postgresql://inventory:${{ secrets.POSTGRES_PASSWORD }}@postgres.inventory.svc.cluster.local:5432/inventory" \
             --command -- npx prisma migrate deploy
 
           kubectl wait pod/prisma-migrate \
