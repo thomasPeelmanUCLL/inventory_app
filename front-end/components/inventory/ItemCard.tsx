@@ -2,15 +2,13 @@ import { Item } from '@types';
 
 type Props = {
     item: Item;
-    onClick: (item: Item) => void;
+    canEdit: boolean;
+    onSell: (item: Item) => void;
 };
 
-const ItemCard = ({ item, onClick }: Props) => {
+const ItemCard = ({ item, canEdit, onSell }: Props) => {
     return (
-        <div
-            onClick={() => onClick(item)}
-            className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow"
-        >
+        <div className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow">
             <h3 className="text-lg font-semibold mb-2">{item.name}</h3>
             <p className="text-gray-600 text-sm mb-4">{item.description}</p>
             <div className="flex justify-between items-center">
@@ -21,6 +19,14 @@ const ItemCard = ({ item, onClick }: Props) => {
                     Qty: {item.quantity}
                 </span>
             </div>
+            {canEdit && (
+                <button
+                    onClick={() => onSell(item)}
+                    className="mt-3 w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Sell
+                </button>
+            )}
         </div>
     );
 };

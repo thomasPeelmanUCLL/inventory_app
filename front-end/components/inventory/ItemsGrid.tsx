@@ -1,13 +1,13 @@
-import Link from 'next/link';
 import ItemCard from './ItemCard';
-import { Item } from '@types';  // Import from types instead
+import { Item } from '@types';
 
 type Props = {
     items: Item[];
-    onItemClick: (item: Item) => void;
+    canEdit: boolean;
+    onSell: (item: Item) => void;
 };
 
-const ItemsGrid = ({ items, onItemClick }: Props) => {
+const ItemsGrid = ({ items, canEdit, onSell }: Props) => {
     if (items.length === 0) {
         return (
             <div className="text-center py-12 text-gray-500">
@@ -22,7 +22,8 @@ const ItemsGrid = ({ items, onItemClick }: Props) => {
                 <ItemCard
                     key={item.id}
                     item={item}
-                    onClick={onItemClick}
+                    canEdit={canEdit}
+                    onSell={onSell}
                 />
             ))}
         </div>
