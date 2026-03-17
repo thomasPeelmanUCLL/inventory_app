@@ -41,6 +41,16 @@ spec:
                 secretKeyRef:
                   name: inventory-backend-secret
                   key: BETTER_AUTH_SECRET
+            - name: FRONTEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: inventory-backend-secret
+                  key: FRONTEND_URL
+            - name: BACKEND_URL
+              valueFrom:
+                secretKeyRef:
+                  name: inventory-backend-secret
+                  key: BACKEND_URL
           livenessProbe:
             httpGet:
               path: /health

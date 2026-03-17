@@ -6,7 +6,5 @@ metadata:
 data:
   NODE_ENV: "production"
   PORT: "3000"
-  # Set this to your frontend's public URL
-  FRONTEND_URL: "https://inventory.example.com"
-  # In-cluster DNS name for postgres
+  # FRONTEND_URL and BACKEND_URL are injected via secret, not here
   # DATABASE_URL is injected via secret, not here
