@@ -19,16 +19,17 @@ const PORT = process.env.PORT || 3000;
 
 // Production environment validation
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.FRONTEND_URL) {
-    console.error('❌ FRONTEND_URL environment variable is required in production!');
-    process.exit(1);
-  }
-  if (!process.env.DATABASE_URL) {
-    console.error('❌ DATABASE_URL environment variable is required!');
-    process.exit(1);
-  }
-  if (!process.env.BETTER_AUTH_SECRET) {
-    console.error('❌ BETTER_AUTH_SECRET environment variable is required!');
+  const required: Record<string, string | undefined> = {
+    FRONTEND_URL: process.env.FRONTEND_URL,
+    BACKEND_URL: process.env.BACKEND_URL,
+    DATABASE_URL: process.env.DATABASE_URL,
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+  };
+  const missing = Object.entries(required)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (missing.length > 0) {
+    console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
     process.exit(1);
   }
   console.log('✅ Production environment validated');
