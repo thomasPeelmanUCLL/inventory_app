@@ -17,6 +17,9 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
     const [loaded, setLoaded] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingPV, setEditingPV] = useState<PriceVariable | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
     const [newPV, setNewPV] = useState({
         name: '',
         value: '',
@@ -24,10 +27,19 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
         isDefault: false,
     });
 
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
+
+    const reload = async () => {
+        const data = await getPriceVariablesByItemId(itemId);
+        setVariables(data);
+    };
+
     const load = async () => {
         try {
-            const data = await getPriceVariablesByItemId(itemId);
-            setVariables(data);
+            await reload();
             setLoaded(true);
         } catch {
             setVariables([]);
@@ -41,7 +53,11 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
     }
 
     const handleCreate = async () => {
-        if (!newPV.name || !newPV.value) { alert('Please fill in all fields'); return; }
+        if (!newPV.name || !newPV.value) {
+            setFormError('Please fill in all fields');
+            return;
+        }
+        setFormError(null);
         try {
             await createPriceVariable(itemId, {
                 name: newPV.name,
@@ -51,9 +67,11 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
             });
             setNewPV({ name: '', value: '', type: 'PERCENTAGE', isDefault: false });
             setShowAddForm(false);
-            const data = await getPriceVariablesByItemId(itemId);
-            setVariables(data);
-        } catch { alert('Failed to create price variable'); }
+            await reload();
+            showToast('Price variable created');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to create price variable', 'error');
+        }
     };
 
     const handleUpdate = async () => {
@@ -66,22 +84,56 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
                 isDefault: editingPV.isDefault,
             });
             setEditingPV(null);
-            const data = await getPriceVariablesByItemId(itemId);
-            setVariables(data);
-        } catch { alert('Failed to update price variable'); }
+            await reload();
+            showToast('Price variable updated');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to update price variable', 'error');
+        }
     };
 
     const handleDelete = async (pvId: number) => {
-        if (!confirm('Delete this price variable?')) return;
         try {
             await deletePriceVariable(pvId);
-            const data = await getPriceVariablesByItemId(itemId);
-            setVariables(data);
-        } catch { alert('Failed to delete price variable'); }
+            setDeleteConfirm(null);
+            await reload();
+            showToast('Price variable deleted');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to delete price variable', 'error');
+            setDeleteConfirm(null);
+        }
     };
 
     return (
-        <div className="p-4 bg-white border-t border-gray-200">
+        <div className="p-4 bg-white border-t border-gray-200 relative">
+            {/* Toast */}
+            {toast && (
+                <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium ${
+                    toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+                }`}>
+                    {toast.message}
+                </div>
+            )}
+
+            {/* Delete confirm dialog */}
+            {deleteConfirm !== null && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                    <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+                        <h3 className="text-lg font-bold mb-2">Delete price variable?</h3>
+                        <p className="text-gray-600 mb-6">This action cannot be undone.</p>
+                        <div className="flex gap-3 justify-end">
+                            <button onClick={() => setDeleteConfirm(null)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                                Cancel
+                            </button>
+                            <button onClick={() => handleDelete(deleteConfirm)}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Price Variables</h3>
                 {canEdit && (
@@ -97,18 +149,18 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
             {showAddForm && (
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <h4 className="font-medium mb-3">New Price Variable</h4>
+                    {formError && (
+                        <p className="text-sm text-red-600 mb-3">{formError}</p>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                         <input
-                            type="text"
-                            placeholder="Name (e.g., Regular Markup)"
+                            type="text" placeholder="Name (e.g., Regular Markup)"
                             value={newPV.name}
                             onChange={(e) => setNewPV({ ...newPV, name: e.target.value })}
                             className="px-3 py-2 border border-gray-300 rounded"
                         />
                         <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Value"
+                            type="number" step="0.01" placeholder="Value"
                             value={newPV.value}
                             onChange={(e) => setNewPV({ ...newPV, value: e.target.value })}
                             className="px-3 py-2 border border-gray-300 rounded"
@@ -123,8 +175,7 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
                         </select>
                         <label className="flex items-center gap-2">
                             <input
-                                type="checkbox"
-                                checked={newPV.isDefault}
+                                type="checkbox" checked={newPV.isDefault}
                                 onChange={(e) => setNewPV({ ...newPV, isDefault: e.target.checked })}
                                 className="w-4 h-4"
                             />
@@ -134,7 +185,11 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
                     <div className="flex gap-2 mt-3">
                         <button onClick={handleCreate} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Create</button>
                         <button
-                            onClick={() => { setShowAddForm(false); setNewPV({ name: '', value: '', type: 'PERCENTAGE', isDefault: false }); }}
+                            onClick={() => {
+                                setShowAddForm(false);
+                                setFormError(null);
+                                setNewPV({ name: '', value: '', type: 'PERCENTAGE', isDefault: false });
+                            }}
                             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                         >
                             Cancel
@@ -151,9 +206,15 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
                         <div key={pv.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                             {editingPV?.id === pv.id ? (
                                 <div className="grid grid-cols-4 gap-2">
-                                    <input type="text" value={editingPV.name} onChange={(e) => setEditingPV({ ...editingPV, name: e.target.value })} className="px-2 py-1 border border-gray-300 rounded" />
-                                    <input type="number" step="0.01" value={editingPV.value} onChange={(e) => setEditingPV({ ...editingPV, value: parseFloat(e.target.value) })} className="px-2 py-1 border border-gray-300 rounded" />
-                                    <select value={editingPV.type} onChange={(e) => setEditingPV({ ...editingPV, type: e.target.value as 'PERCENTAGE' | 'FIXED' })} className="px-2 py-1 border border-gray-300 rounded">
+                                    <input type="text" value={editingPV.name}
+                                        onChange={(e) => setEditingPV({ ...editingPV, name: e.target.value })}
+                                        className="px-2 py-1 border border-gray-300 rounded" />
+                                    <input type="number" step="0.01" value={editingPV.value}
+                                        onChange={(e) => setEditingPV({ ...editingPV, value: parseFloat(e.target.value) })}
+                                        className="px-2 py-1 border border-gray-300 rounded" />
+                                    <select value={editingPV.type}
+                                        onChange={(e) => setEditingPV({ ...editingPV, type: e.target.value as 'PERCENTAGE' | 'FIXED' })}
+                                        className="px-2 py-1 border border-gray-300 rounded">
                                         <option value="PERCENTAGE">%</option>
                                         <option value="FIXED">€</option>
                                     </select>
@@ -176,7 +237,7 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
                                     {canEdit && pv.id && (
                                         <div className="flex gap-2">
                                             <button onClick={() => setEditingPV({ ...pv })} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Edit</button>
-                                            <button onClick={() => handleDelete(pv.id!)} className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">Delete</button>
+                                            <button onClick={() => setDeleteConfirm(pv.id!)} className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">Delete</button>
                                         </div>
                                     )}
                                 </div>

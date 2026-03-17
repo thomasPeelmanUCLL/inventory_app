@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Item, SellModalData, PriceVariable } from '@types';
+import { SellModalData, PriceVariable } from '@types';
 
 type Props = {
     sellModal: SellModalData;
@@ -14,7 +14,6 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
     const [selectedPriceVariable, setSelectedPriceVariable] = useState('');
     const [customPrice, setCustomPrice] = useState('');
 
-    // Initialize with default price variable
     useEffect(() => {
         const defaultPV = priceVariables.find(pv => pv.isDefault);
         if (defaultPV && !selectedPriceVariable && !customPrice) {
@@ -31,30 +30,21 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
         setCustomPrice('');
 
         if (variableName === '') {
-            // Reset to base price
             onChange({
                 ...sellModal,
                 finalSellPrice: sellModal.item.buyPrice,
                 priceVariableName: undefined,
-                isCustomPrice: false
+                isCustomPrice: false,
             });
         } else {
-            // Find the selected price variable and calculate new price
             const priceVar = priceVariables.find(pv => pv.name === variableName);
             let newPrice = sellModal.item.buyPrice;
 
             if (priceVar) {
-                console.log('🔍 Found price variable:', priceVar);
-                console.log('🔍 Base price:', sellModal.item.buyPrice);
-
                 if (priceVar.type === 'PERCENTAGE') {
-                    // Apply percentage: price * (1 + percentage/100)
                     newPrice = sellModal.item.buyPrice * (1 + priceVar.value / 100);
-                    console.log(`🔍 Percentage ${priceVar.value}%: ${newPrice}`);
                 } else if (priceVar.type === 'FIXED') {
-                    // Apply fixed amount: price + fixed value
-                    newPrice =  priceVar.value;
-                    console.log(`🔍 Fixed +${priceVar.value}: ${newPrice}`);
+                    newPrice = priceVar.value;
                 }
             }
 
@@ -62,23 +52,21 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                 ...sellModal,
                 finalSellPrice: newPrice,
                 priceVariableName: variableName,
-                isCustomPrice: false
+                isCustomPrice: false,
             });
         }
     };
 
-
     const handleCustomPriceChange = (price: string) => {
         setCustomPrice(price);
-        setSelectedPriceVariable('Custom'); // Set to Custom
-
+        setSelectedPriceVariable('Custom');
         const priceNum = parseFloat(price);
         if (!isNaN(priceNum) && priceNum > 0) {
             onChange({
                 ...sellModal,
                 finalSellPrice: priceNum,
                 priceVariableName: 'Custom',
-                isCustomPrice: true
+                isCustomPrice: true,
             });
         }
     };
@@ -94,24 +82,20 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-bold">{sellModal.item.name}</h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                        ✕
-                    </button>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
                 </div>
 
                 <div className="space-y-4">
                     <div>
                         <p className="text-gray-600">{sellModal.item.description}</p>
                         <p className="text-sm text-gray-500">Available: {sellModal.item.quantity}</p>
-                        <p className="text-sm text-gray-500">Base Price: ${Number(sellModal.item.buyPrice).toFixed(2)}</p>
+                        <p className="text-sm text-gray-500">Base Price: €{Number(sellModal.item.buyPrice).toFixed(2)}</p>
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
                         <input
-                            type="number"
-                            min="1"
-                            max={sellModal.item.quantity}
+                            type="number" min="1" max={sellModal.item.quantity}
                             value={sellModal.quantity}
                             onChange={(e) => handleQuantityChange(parseInt(e.target.value))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -128,25 +112,20 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                             >
                                 <option value="">Base Price</option>
                                 {priceVariables.map((pv) => (
-                                    <option key={pv.id} value={pv.name}>
-                                        {pv.name}
-                                    </option>
+                                    <option key={pv.id} value={pv.name}>{pv.name}</option>
                                 ))}
                                 <option value="Custom">Custom</option>
                             </select>
                         </div>
                     )}
 
-                    {/* Only show custom price input if "Custom" is selected */}
                     {selectedPriceVariable === 'Custom' && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Custom Sell Price</label>
                             <div className="relative">
-                                <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                <span className="absolute left-3 top-2 text-gray-500">€</span>
                                 <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
+                                    type="number" step="0.01" min="0"
                                     value={customPrice}
                                     onChange={(e) => handleCustomPriceChange(e.target.value)}
                                     placeholder={Number(sellModal.item.buyPrice).toFixed(2)}
@@ -185,7 +164,7 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                     <div className="border-t pt-4">
                         <div className="flex justify-between items-center text-lg font-bold">
                             <span>Total:</span>
-                            <span>${totalPrice.toFixed(2)}</span>
+                            <span>€{totalPrice.toFixed(2)}</span>
                         </div>
                     </div>
 

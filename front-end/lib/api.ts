@@ -26,7 +26,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
             switch (response.status) {
                 case 401:
-                    if (typeof window !== 'undefined') window.location.href = '/login';
+                    if (typeof window !== 'undefined') window.location.href = '/Login';
                     throw new Error('Authentication required');
                 case 403:
                     throw new Error(`Access denied: ${errorMessage}`);
@@ -99,7 +99,7 @@ export async function getInventoryUsers(inventoryId: number) {
     return response.json();
 }
 
-export async function addUserToInventory(inventoryId: number, data: { userId: string; role: string }) {
+export async function addUserToInventory(inventoryId: number, data: { email: string; role: string }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users`, {
         method: 'POST',
         body: JSON.stringify(data),
