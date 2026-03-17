@@ -35,6 +35,45 @@ A full-stack inventory management system for tracking items, recording sales, an
 
 ---
 
+## Network Architecture
+
+All inter-service communication in production happens **pod-to-pod over the Kubernetes cluster network** — nothing crosses the public internet between services.
+
+```
+Browser
+  │
+  ├─► NEXT_PUBLIC_API_URL (public, HTTPS)   ← better-auth only (sign-in, sign-up, session cookies)
+  │
+  └─► frontend pod  (public, HTTPS via Traefik ingress)
+        │
+        ├─► /api/backend/* rewrite ──► inventory-backend ClusterIP  (pod-to-pod, no ingress)
+        │                                     │
+        │                                     └─► postgres ClusterIP  (pod-to-pod, no ingress)
+        │
+        └─► SSR requests also go directly to inventory-backend ClusterIP
+```
+
+### Why this matters
+
+| Connection | How | Public? |
+|---|---|---|
+| Browser → Frontend | Traefik ingress, HTTPS | ✅ Yes |
+| Browser → Better Auth | Traefik ingress, HTTPS | ✅ Yes (required for cookies) |
+| Frontend → Backend API | Next.js rewrite → ClusterIP | ❌ No |
+| Backend → PostgreSQL | ClusterIP DNS | ❌ No |
+
+The backend exposes **no public Ingress** for its REST API — only the auth endpoints (`/api/auth/*`) are publicly reachable, which is required by Better Auth for browser-side cookie flows.
+
+### Key environment variables
+
+| Variable | Where set | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | Baked into Docker image at build time | Browser → Better Auth public URL |
+| `INTERNAL_API_URL` | `frontend-configmap.yml` (runtime) | Next.js server → backend ClusterIP (pod-to-pod) |
+| `DATABASE_URL` | K8s secret (runtime) | Backend → PostgreSQL ClusterIP (pod-to-pod) |
+
+---
+
 ## Project Structure
 
 ```
@@ -49,8 +88,8 @@ inventory_app/
 │   │   ├── inventory/       # InventoryCard, SellModal, CartSidebar, …
 │   │   └── layout/          # Header
 │   ├── lib/
-│   │   ├── api.ts           # All API calls
-│   │   └── auth-client.ts   # Better Auth client
+│   │   ├── api.ts           # All API calls (routed via /api/backend/* in production)
+│   │   └── auth-client.ts   # Better Auth client (talks directly to public backend URL)
 │   ├── pages/
 │   │   ├── index.tsx
 │   │   ├── Login/
@@ -63,17 +102,28 @@ inventory_app/
 │   │           ├── history.tsx   # Sales history
 │   │           └── analytics.tsx # Analytics dashboard
 │   └── types/
-└── back-end/
-    ├── controller/          # Express routers (*.routes.ts)
-    ├── service/             # Business logic (*.service.ts)
-    ├── repository/          # Prisma DB access (*.db.ts)
-    ├── model/               # Domain classes
-    ├── dto/                 # Response shapes (*.dto.ts)
-    ├── middleware/          # auth, authorization, error handling
-    ├── lib/
-    │   └── auth.ts          # Better Auth instance
-    └── repository/prisma/
-        └── schema.prisma
+├── back-end/
+│   ├── controller/          # Express routers (*.routes.ts)
+│   ├── service/             # Business logic (*.service.ts)
+│   ├── repository/          # Prisma DB access (*.db.ts)
+│   ├── model/               # Domain classes
+│   ├── dto/                 # Response shapes (*.dto.ts)
+│   ├── middleware/          # auth, authorization, error handling
+│   ├── lib/
+│   │   └── auth.ts          # Better Auth instance
+│   └── repository/prisma/
+│       └── schema.prisma
+└── k8s/                     # Kubernetes manifests
+    ├── namespace.yml
+    ├── frontend-deployment.yml
+    ├── frontend-configmap.yml   # INTERNAL_API_URL lives here
+    ├── frontend-service.yml
+    ├── backend-deployment.yml
+    ├── backend-configmap.yml
+    ├── backend-service.yml      # ClusterIP only — no public ingress
+    ├── postgres.yml             # ClusterIP only — no public ingress
+    ├── ingress.yml              # Only frontend + backend auth are exposed
+    └── hpa.yml
 ```
 
 ---
@@ -113,7 +163,12 @@ The front-end runs on `http://localhost:8080` and expects the back-end on `http:
 
 **`front-end/.env.local`**
 ```env
+# Public URL for better-auth (browser needs this for auth cookie flows)
 NEXT_PUBLIC_API_URL=http://localhost:3000
+
+# Internal URL for pod-to-pod API proxying (Next.js rewrites, server-side only)
+# In Kubernetes: http://inventory-backend.inventory.svc.cluster.local
+INTERNAL_API_URL=http://localhost:3000
 ```
 
 **`back-end/.env`**
@@ -124,7 +179,10 @@ FRONTEND_URL=http://localhost:8080
 BACKEND_URL=http://localhost:3000
 ```
 
-> In production the `DATABASE_URL` is constructed automatically by the deploy workflow from `POSTGRES_PASSWORD` and points to the in-cluster PostgreSQL service.
+> In production, `INTERNAL_API_URL` is set in `k8s/frontend-configmap.yml` and points to the backend ClusterIP service — the browser never sees this value. `NEXT_PUBLIC_API_URL` is baked into the Docker image at build time and is the only value the browser ever uses.
+
+> `DATABASE_URL` is constructed automatically by the deploy workflow as
+> `postgresql://inventory:<POSTGRES_PASSWORD>@postgres.inventory.svc.cluster.local:5432/inventory`.
 
 ---
 
@@ -147,12 +205,11 @@ The deploy workflow handles full cluster bootstrapping on every run — it creat
 | `BETTER_AUTH_SECRET` | Secret key for Better Auth session signing |
 | `FRONTEND_URL` | Production front-end URL (e.g. `https://inventory.thomaspeelman.be`) |
 | `BACKEND_URL` | Production back-end URL (e.g. `https://api.thomaspeelman.be`) |
-| `NEXT_PUBLIC_API_URL` | Same as `BACKEND_URL`, injected at Docker build time |
+| `NEXT_PUBLIC_API_URL` | Same as `BACKEND_URL` — baked into the frontend image at build time for better-auth |
 | `KUBECONFIG` | Base64-encoded kubeconfig for the production cluster |
 | `K8S_API_SERVER` | Kubernetes API server URL |
 
-> `DATABASE_URL` is **not** a required secret — it is assembled automatically as
-> `postgresql://inventory:<POSTGRES_PASSWORD>@postgres.inventory.svc.cluster.local:5432/inventory`.
+> `DATABASE_URL` and `INTERNAL_API_URL` are **not** GitHub secrets — they are assembled/set automatically from other values during deployment.
 
 ---
 
