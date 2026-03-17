@@ -34,6 +34,10 @@ spec:
               value: "3000"
             - name: HOSTNAME
               value: "::"
+            # INTERNAL_API_URL is loaded from configmap via envFrom above.
+            # It points to the backend ClusterIP service (pod-to-pod, never public).
+            # NEXT_PUBLIC_API_URL is baked into the image at build time from the
+            # NEXT_PUBLIC_API_URL GitHub Actions secret — no runtime env needed.
           startupProbe:
             httpGet:
               path: /api/health

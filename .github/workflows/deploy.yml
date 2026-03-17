@@ -202,12 +202,8 @@ jobs:
             --from-literal=BACKEND_URL=${{ secrets.BACKEND_URL }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Create / update frontend secret
-        run: |
-          kubectl create secret generic inventory-frontend-secret \
-            --namespace inventory \
-            --from-literal=INTERNAL_API_URL=${{ secrets.INTERNAL_API_URL }} \
-            --dry-run=client -o yaml | kubectl apply -f -
+      # INTERNAL_API_URL is not a secret — it lives in frontend-configmap.yml
+      # and is applied in the next step via kubectl apply -f k8s/
 
       - name: Apply manifest changes
         run: kubectl apply -f k8s/
