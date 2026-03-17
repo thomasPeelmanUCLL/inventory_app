@@ -9,8 +9,8 @@ type InventoryCardProps = {
 
 export default function InventoryCard({ inventory, currentUserId, onDelete }: InventoryCardProps) {
     const router = useRouter();
-    const role = inventory.users?.find(u => u.user.id === currentUserId)?.role || 'viewer';
-    const isOwner = role === 'owner';
+    const currentUserRole = inventory.users?.find(member => member.user.id === currentUserId)?.role || 'viewer';
+    const isOwner = currentUserRole === 'owner';
 
     return (
         <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6">
@@ -19,11 +19,11 @@ export default function InventoryCard({ inventory, currentUserId, onDelete }: In
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">{inventory.name}</h3>
                     <p className="text-gray-600 text-sm mb-3">{inventory.description}</p>
                     <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
-                        role === 'owner' ? 'bg-purple-100 text-purple-800' :
-                        role === 'editor' ? 'bg-blue-100 text-blue-800' :
+                        currentUserRole === 'owner' ? 'bg-purple-100 text-purple-800' :
+                        currentUserRole === 'editor' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
                     }`}>
-                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                        {currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)}
                     </span>
                 </div>
             </div>

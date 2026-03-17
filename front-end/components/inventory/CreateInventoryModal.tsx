@@ -6,16 +6,16 @@ type CreateInventoryModalProps = {
 };
 
 export default function CreateInventoryModal({ onClose, onCreate }: CreateInventoryModalProps) {
-    const [form, setForm] = useState({ name: '', description: '' });
-    const [submitting, setSubmitting] = useState(false);
+    const [newInventoryForm, setNewInventoryForm] = useState({ name: '', description: '' });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitting(true);
+        setIsSubmitting(true);
         try {
-            await onCreate(form);
+            await onCreate(newInventoryForm);
         } finally {
-            setSubmitting(false);
+            setIsSubmitting(false);
         }
     };
 
@@ -29,8 +29,8 @@ export default function CreateInventoryModal({ onClose, onCreate }: CreateInvent
                         <input
                             type="text"
                             required
-                            value={form.name}
-                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            value={newInventoryForm.name}
+                            onChange={(e) => setNewInventoryForm({ ...newInventoryForm, name: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                     </div>
@@ -38,8 +38,8 @@ export default function CreateInventoryModal({ onClose, onCreate }: CreateInvent
                         <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                         <textarea
                             required
-                            value={form.description}
-                            onChange={(e) => setForm({ ...form, description: e.target.value })}
+                            value={newInventoryForm.description}
+                            onChange={(e) => setNewInventoryForm({ ...newInventoryForm, description: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             rows={3}
                         />
@@ -54,10 +54,10 @@ export default function CreateInventoryModal({ onClose, onCreate }: CreateInvent
                         </button>
                         <button
                             type="submit"
-                            disabled={submitting}
+                            disabled={isSubmitting}
                             className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
                         >
-                            {submitting ? 'Creating...' : 'Create'}
+                            {isSubmitting ? 'Creating...' : 'Create'}
                         </button>
                     </div>
                 </form>
