@@ -1,4 +1,8 @@
 # ── Backend IngressRoute ───────────────────────────────────────
+# Only /api/auth/* is exposed publicly — required by Better Auth for
+# browser-side cookie flows (sign-in, sign-up, session management).
+# All other API routes (/inventorys, /items, etc.) are internal only,
+# reached via the Next.js rewrite proxy pod-to-pod.
 # Domain must match the BACKEND_URL GitHub Actions secret (without https://).
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -9,7 +13,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`api.thomaspeelman.be`)   # ← update to match your BACKEND_URL domain
+    - match: Host(`api.thomaspeelman.be`) && PathPrefix(`/api/auth`)
       kind: Rule
       services:
         - name: inventory-backend
