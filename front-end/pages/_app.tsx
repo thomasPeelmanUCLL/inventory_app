@@ -7,14 +7,14 @@ export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const { data: session, isPending } = useSession();
 
-  const publicRoutes = ['/Login', '/Register'];
+  const publicRoutes = ['/', '/Login', '/Register'];
   const isPublicRoute = publicRoutes.includes(router.pathname);
 
   if (isPending && !isPublicRoute) {
     return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-lg">Loading...</div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
     );
   }
 
