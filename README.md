@@ -124,6 +124,8 @@ FRONTEND_URL=http://localhost:8080
 BACKEND_URL=http://localhost:3000
 ```
 
+> In production the `DATABASE_URL` is constructed automatically by the deploy workflow from `POSTGRES_PASSWORD` and points to the in-cluster PostgreSQL service.
+
 ---
 
 ## CI/CD
@@ -135,14 +137,19 @@ Two GitHub Actions workflows run on every push to `main`:
 | `ci.yml` | Type-check, lint, build (frontend + backend); runs Prisma migrations against a test Postgres container |
 | `deploy.yml` | Repeats CI checks, builds and pushes Docker images to GHCR, then deploys to Kubernetes |
 
+The deploy workflow handles full cluster bootstrapping on every run — it creates/updates all Kubernetes secrets before applying manifests, so no manual `kubectl` setup is needed on a fresh cluster.
+
 ### Required GitHub Secrets
 
 | Secret | Description |
 |---|---|
-| `DATABASE_URL` | Production PostgreSQL connection string |
+| `POSTGRES_PASSWORD` | Password for the in-cluster PostgreSQL database |
 | `BETTER_AUTH_SECRET` | Secret key for Better Auth session signing |
 | `FRONTEND_URL` | Production front-end URL (e.g. `https://app.yourdomain.com`) |
 | `BACKEND_URL` | Production back-end URL (e.g. `https://api.yourdomain.com`) |
 | `NEXT_PUBLIC_API_URL` | Same as `BACKEND_URL`, injected at Docker build time |
 | `KUBECONFIG` | Base64-encoded kubeconfig for the production cluster |
 | `K8S_API_SERVER` | Kubernetes API server URL |
+
+> `DATABASE_URL` is **not** a required secret — it is assembled automatically as
+> `postgresql://inventory:<POSTGRES_PASSWORD>@postgres.inventory.svc.cluster.local:5432/inventory`.
