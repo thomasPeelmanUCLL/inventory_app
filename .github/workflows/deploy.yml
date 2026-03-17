@@ -35,9 +35,11 @@ jobs:
       - run: npx tsc --noEmit
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3000
+          INTERNAL_API_URL: http://localhost:3000
       - run: npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3000
+          INTERNAL_API_URL: http://localhost:3000
 
   ci-backend:
     name: Backend · Type-check · Lint
@@ -198,6 +200,13 @@ jobs:
             --from-literal=BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }} \
             --from-literal=FRONTEND_URL=${{ secrets.FRONTEND_URL }} \
             --from-literal=BACKEND_URL=${{ secrets.BACKEND_URL }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create / update frontend secret
+        run: |
+          kubectl create secret generic inventory-frontend-secret \
+            --namespace inventory \
+            --from-literal=INTERNAL_API_URL=${{ secrets.INTERNAL_API_URL }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply manifest changes

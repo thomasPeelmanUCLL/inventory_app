@@ -16,7 +16,10 @@ jobs:
         working-directory: front-end
 
     env:
+      # Public URL for better-auth (browser-side auth flows)
       NEXT_PUBLIC_API_URL: http://localhost:3000
+      # Internal URL for pod-to-pod API proxying (Next.js rewrites)
+      INTERNAL_API_URL: http://localhost:3000
 
     steps:
       - uses: actions/checkout@v4
