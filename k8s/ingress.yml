@@ -1,0 +1,36 @@
+# ── Backend IngressRoute ───────────────────────────────────────
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: backend-ingress
+  namespace: inventory
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`api.inventory.example.com`)   # ← replace with your real domain
+      kind: Rule
+      services:
+        - name: inventory-backend
+          port: 80
+  tls:
+    certResolver: cloudflare
+
+---
+# ── Frontend IngressRoute ──────────────────────────────────────
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: frontend-ingress
+  namespace: inventory
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`inventory.example.com`)   # ← replace with your real domain
+      kind: Rule
+      services:
+        - name: inventory-frontend
+          port: 80
+  tls:
+    certResolver: cloudflare

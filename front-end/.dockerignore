@@ -1,0 +1,26 @@
+node_modules
+.next
+out
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# CI / repo metadata
+.git
+.gitignore
+.github
+
+# Docs
+README.md
+*.md
+
+# Docker / k8s — not needed inside the build context
+Dockerfile
+.dockerignore
+k8s/
+
+# Logs
+*.log
+npm-debug.log*

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: inventory
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  # Set this to your frontend's public URL
+  FRONTEND_URL: "https://inventory.example.com"
+  # In-cluster DNS name for postgres
+  # DATABASE_URL is injected via secret, not here
