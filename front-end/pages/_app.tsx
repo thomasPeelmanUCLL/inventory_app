@@ -7,7 +7,7 @@ export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const { data: session, isPending } = useSession();
 
-  const publicRoutes = ['/', '/Login', '/Register'];
+  const publicRoutes = ['/', '/login', '/register'];
   const isPublicRoute = publicRoutes.includes(router.pathname);
 
   if (isPending && !isPublicRoute) {
@@ -20,7 +20,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
   if (!session && !isPublicRoute) {
     if (typeof window !== 'undefined') {
-      router.push('/Login');
+      router.push('/login');
     }
     return null;
   }
