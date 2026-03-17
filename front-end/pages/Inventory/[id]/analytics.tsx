@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Header from '../../../components/layout/header';
-import { getInventoryAnalytics } from '../../../lib/api';
-import React from 'react';
 import * as XLSX from 'xlsx';
+import Header from '../../../components/layout/header';
+import LoadingScreen from '../../../components/common/LoadingScreen';
+import ErrorScreen from '../../../components/common/ErrorScreen';
+import AnalyticsDateBar from '../../../components/analytics/AnalyticsDateBar';
+import SummaryCards from '../../../components/analytics/SummaryCards';
+import TopSellingTable from '../../../components/analytics/TopSellingTable';
+import SalesByDayTable from '../../../components/analytics/SalesByDayTable';
+import PaymentMethodsCard from '../../../components/analytics/PaymentMethodsCard';
+import PriceVariablesCard from '../../../components/analytics/PriceVariablesCard';
+import { getInventoryAnalytics } from '../../../lib/api';
+import { asMoney } from '../../../components/analytics/analyticsHelpers';
 
-// Helpers to display money/percent whether backend returns strings or numbers
-function asMoney(v: string | number) {
-  if (typeof v === 'number') return v.toFixed(2);
-  return v; // assume already formatted
-}
-function asPercent(v: string | number) {
-  if (typeof v === 'number') return `${v.toFixed(2)}%`;
-  return `${v}%`;
-}
+type DateRange = { start: Date; end: Date };
 
 interface AnalyticsData {
     summary: {
@@ -24,8 +24,6 @@ interface AnalyticsData {
         totalTransactions: number;
         cashTransactions: number;
         nonCashTransactions: number;
-        averageProfit?: string | number;
-        profitMargin?: string | number;
     };
     topSellingItems: Array<{
         itemId: number;
@@ -74,17 +72,15 @@ interface AnalyticsData {
 
 export default function AnalyticsPage() {
     const router = useRouter();
-    const {id} = router.query;
+    const { id } = router.query;
     const inventoryId = Number(id);
 
-    const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
-    const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [dateRange, setDateRange] = useState<{ start: Date, end: Date }>({
+    const [dateRange, setDateRange] = useState<DateRange>({
         start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        end: new Date()
+        end: new Date(),
     });
 
     useEffect(() => {
@@ -96,16 +92,9 @@ export default function AnalyticsPage() {
         try {
             setLoading(true);
             setError(null);
-
-            console.log('📊 Fetching analytics for inventory:', inventoryId);
-            console.log('📅 Date range:', dateRange.start.toISOString(), '-', dateRange.end.toISOString());
-
             const data = await getInventoryAnalytics(inventoryId, dateRange.start, dateRange.end);
-
-            console.log('✅ Analytics data:', data);
             setAnalytics(data);
         } catch (err: any) {
-            console.error('❌ Failed to load analytics:', err);
             setError(err.message || 'Failed to load analytics');
         } finally {
             setLoading(false);
@@ -114,11 +103,8 @@ export default function AnalyticsPage() {
 
     const exportToExcel = () => {
         if (!analytics) return;
-
-        // Create workbook
         const wb = XLSX.utils.book_new();
 
-        // Summary Sheet (use helpers to keep formatting consistent)
         const summaryData = [
             ['Sales Summary', ''],
             ['Period', `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}`],
@@ -131,438 +117,72 @@ export default function AnalyticsPage() {
             ['Cash Payments', String(analytics.summary.cashTransactions)],
             ['Card Payments', String(analytics.summary.nonCashTransactions)],
         ];
-        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary');
 
-        // Top Selling Items Sheet
         const itemsData = [
             ['Item Name', 'Quantity Sold', 'Buy Price', 'Sell Price', 'Profit'],
-            ...analytics.topSellingItems.map(item => [
-                item.itemName,
-                String(item.totalQuantity),
-                asMoney(item.totalBuyPrice),
-                asMoney(item.totalSellPrice),
-                asMoney(item.totalProfit)
-            ])
+            ...analytics.topSellingItems.map(item => [item.itemName, String(item.totalQuantity), asMoney(item.totalBuyPrice), asMoney(item.totalSellPrice), asMoney(item.totalProfit)])
         ];
-        const wsItems = XLSX.utils.aoa_to_sheet(itemsData);
-        XLSX.utils.book_append_sheet(wb, wsItems, 'Top Selling Items');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(itemsData), 'Top Selling Items');
 
-        // Sales by Day Sheet
         const dailyData = [
             ['Date', 'Transactions', 'Items Sold', 'Buy Price', 'Sell Price', 'Profit'],
-            ...analytics.salesByDay.map(day => [
-                new Date(day.date).toLocaleDateString(),
-                String(day.transactionCount),
-                String(day.totalQuantity),
-                asMoney(day.totalBuyPrice),
-                asMoney(day.totalSellPrice),
-                asMoney(day.totalProfit)
-            ])
+            ...analytics.salesByDay.map(day => [new Date(day.date).toLocaleDateString(), String(day.transactionCount), String(day.totalQuantity), asMoney(day.totalBuyPrice), asMoney(day.totalSellPrice), asMoney(day.totalProfit)])
         ];
-        const wsDaily = XLSX.utils.aoa_to_sheet(dailyData);
-        XLSX.utils.book_append_sheet(wb, wsDaily, 'Sales by Day');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dailyData), 'Sales by Day');
 
-        // Detailed Sales by Day (with item breakdown)
-        const detailedDailyData: any[][] = [
-            ['Date', 'Item Name', 'Quantity', 'Buy Price', 'Sell Price', 'Profit']
-        ];
+        const detailedData: any[][] = [['Date', 'Item Name', 'Quantity', 'Buy Price', 'Sell Price', 'Profit']];
         analytics.salesByDay.forEach(day => {
-            if (day.itemBreakdown && day.itemBreakdown.length > 0) {
-                day.itemBreakdown.forEach(item => {
-                    detailedDailyData.push([
-                        new Date(day.date).toLocaleDateString(),
-                        item.itemName,
-                        String(item.quantity),
-                        asMoney(item.buyPrice),
-                        asMoney(item.sellPrice),
-                        asMoney(item.profit)
-                    ]);
-                });
-            }
+            day.itemBreakdown?.forEach(item => {
+                detailedData.push([new Date(day.date).toLocaleDateString(), item.itemName, String(item.quantity), asMoney(item.buyPrice), asMoney(item.sellPrice), asMoney(item.profit)]);
+            });
         });
-        const wsDetailedDaily = XLSX.utils.aoa_to_sheet(detailedDailyData);
-        XLSX.utils.book_append_sheet(wb, wsDetailedDaily, 'Detailed Daily Sales');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailedData), 'Detailed Daily Sales');
 
-        // Payment Methods Sheet
         const paymentData = [
             ['Payment Method', 'Buy Price', 'Sell Price', 'Profit'],
-            ['Cash',
-                asMoney(analytics.paymentMethodBreakdown.cash.buyPrice),
-                asMoney(analytics.paymentMethodBreakdown.cash.sellPrice),
-                asMoney(analytics.paymentMethodBreakdown.cash.profit)
-            ],
-            ['Card',
-                asMoney(analytics.paymentMethodBreakdown.nonCash.buyPrice),
-                asMoney(analytics.paymentMethodBreakdown.nonCash.sellPrice),
-                asMoney(analytics.paymentMethodBreakdown.nonCash.profit)
-            ]
+            ['Cash', asMoney(analytics.paymentMethodBreakdown.cash.buyPrice), asMoney(analytics.paymentMethodBreakdown.cash.sellPrice), asMoney(analytics.paymentMethodBreakdown.cash.profit)],
+            ['Card', asMoney(analytics.paymentMethodBreakdown.nonCash.buyPrice), asMoney(analytics.paymentMethodBreakdown.nonCash.sellPrice), asMoney(analytics.paymentMethodBreakdown.nonCash.profit)],
         ];
-        const wsPayment = XLSX.utils.aoa_to_sheet(paymentData);
-        XLSX.utils.book_append_sheet(wb, wsPayment, 'Payment Methods');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(paymentData), 'Payment Methods');
 
-        // Price Variables Sheet
         if (analytics.priceVariableBreakdown.length > 0) {
-            const priceVarData = [
+            const pvData = [
                 ['Price Variable', 'Count', 'Buy Price', 'Sell Price', 'Profit'],
-                ...analytics.priceVariableBreakdown.map(pv => [
-                    pv.priceVariableName,
-                    String(pv.count),
-                    asMoney(pv.totalBuyPrice),
-                    asMoney(pv.totalSellPrice),
-                    asMoney(pv.totalProfit)
-                ])
+                ...analytics.priceVariableBreakdown.map(pv => [pv.priceVariableName, String(pv.count), asMoney(pv.totalBuyPrice), asMoney(pv.totalSellPrice), asMoney(pv.totalProfit)])
             ];
-            const wsPriceVar = XLSX.utils.aoa_to_sheet(priceVarData);
-            XLSX.utils.book_append_sheet(wb, wsPriceVar, 'Price Variables');
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pvData), 'Price Variables');
         }
 
-        const filename = `Sales_Analytics_${dateRange.start.toISOString().split('T')[0]}_to_${dateRange.end.toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(wb, filename);
+        XLSX.writeFile(wb, `Sales_Analytics_${dateRange.start.toISOString().split('T')[0]}_to_${dateRange.end.toISOString().split('T')[0]}.xlsx`);
     };
 
-    const toggleItemExpansion = (itemId: number) => {
-        setExpandedItems(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(itemId)) newSet.delete(itemId); else newSet.add(itemId);
-            return newSet;
-        });
-    };
-
-    const toggleDayExpansion = (date: string) => {
-        setExpandedDays(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(date)) newSet.delete(date); else newSet.add(date);
-            return newSet;
-        });
-    };
-
-    if (!router.isReady || !id) {
-        return (
-            <>
-                <Header/>
-                <div className="min-h-screen flex items-center justify-center">
-                    <div className="text-lg">Initializing...</div>
-                </div>
-            </>
-        );
-    }
-
-    if (loading) {
-        return (
-            <>
-                <Header/>
-                <div className="min-h-screen flex items-center justify-center">
-                    <div className="text-lg">Loading analytics...</div>
-                </div>
-            </>
-        );
-    }
-
-    if (error) {
-        return (
-            <>
-                <Header/>
-                <div className="min-h-screen flex items-center justify-center">
-                    <div className="text-center">
-                        <div className="text-red-600 text-xl mb-4">Error loading analytics</div>
-                        <div className="text-gray-600 mb-4">{error}</div>
-                        <button
-                            onClick={() => loadAnalytics()}
-                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                        >
-                            Retry
-                        </button>
-                    </div>
-                </div>
-            </>
-        );
-    }
-
-    if (!analytics) {
-        return (
-            <>
-                <Header/>
-                <div className="min-h-screen flex items-center justify-center">
-                    <div className="text-lg">No data available</div>
-                </div>
-            </>
-        );
-    }
+    if (!router.isReady || !id) return (<><Header /><LoadingScreen message="Initializing..." /></>);
+    if (loading) return (<><Header /><LoadingScreen message="Loading analytics..." /></>);
+    if (error) return (<><Header /><ErrorScreen message={error} onRetry={loadAnalytics} /></>);
+    if (!analytics) return (<><Header /><LoadingScreen message="No data available" /></>);
 
     return (
         <>
-            <Header/>
+            <Header />
             <div className="container mx-auto p-6 space-y-6">
-                {/* Header with Date Range */}
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold">Sales Analytics</h1>
-
-                    <div className="flex gap-4 items-center">
-                        <div className="flex gap-2 items-center">
-                            <label className="text-sm font-medium">From:</label>
-                            <input
-                                type="date"
-                                value={dateRange.start.toISOString().split('T')[0]}
-                                onChange={(e) => setDateRange({...dateRange, start: new Date(e.target.value)})}
-                                className="border rounded px-3 py-2"
-                            />
-                            <label className="text-sm font-medium">To:</label>
-                            <input
-                                type="date"
-                                value={dateRange.end.toISOString().split('T')[0]}
-                                onChange={(e) => setDateRange({...dateRange, end: new Date(e.target.value)})}
-                                className="border rounded px-3 py-2"
-                            />
-                        </div>
-
-                        {/* Export Button */}
-                        <button
-                            onClick={exportToExcel}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                        >
-                            <span>📊</span> Export to Excel
-                        </button>
-                    </div>
-                </div>
-
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg shadow border border-green-200">
-                        <p className="text-sm text-gray-600 mb-1">Total Profit</p>
-                        <p className="text-3xl font-bold text-green-700">
-                            €{asMoney(analytics.summary.totalProfit)}
-                        </p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow border">
-                        <p className="text-sm text-gray-500 mb-1">Items Sold</p>
-                        <p className="text-3xl font-bold">{analytics.summary.totalQuantitySold}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow border">
-                        <p className="text-sm text-gray-500 mb-1">Transactions</p>
-                        <p className="text-3xl font-bold">{analytics.summary.totalTransactions}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow border">
-                        <p className="text-sm text-gray-500 mb-1">Cash Payments</p>
-                        <p className="text-3xl font-bold text-green-600">{analytics.summary.cashTransactions}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow border">
-                        <p className="text-sm text-gray-500 mb-1">Card Payments</p>
-                        <p className="text-3xl font-bold text-blue-600">{analytics.summary.nonCashTransactions}</p>
-                    </div>
-                </div>
-
-                {/* Top Selling Items */}
-                <div className="bg-white p-6 rounded-lg shadow border">
-                    <h2 className="text-xl font-bold mb-4">Top Selling Items</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                            <tr className="border-b">
-                                <th className="text-left py-2 px-4 font-semibold w-8"></th>
-                                <th className="text-left py-2 px-4 font-semibold">Item</th>
-                                <th className="text-center py-2 px-4 font-semibold">Qty</th>
-                                <th className="text-right py-2 px-4 font-semibold text-green-700">Profit</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {analytics.topSellingItems.map((item) => {
-                                const isExpanded = expandedItems.has(item.itemId);
-                                return (
-                                    <React.Fragment key={item.itemId}>
-                                        <tr
-                                            className="border-b hover:bg-gray-50 cursor-pointer"
-                                            onClick={() => toggleItemExpansion(item.itemId)}
-                                        >
-                                            <td className="py-3 px-4 text-gray-400">
-                                                {isExpanded ? '▼' : '▶'}
-                                            </td>
-                                            <td className="py-3 px-4 font-medium">{item.itemName}</td>
-                                            <td className="text-center px-4">{item.totalQuantity}</td>
-                                            <td className="text-right px-4">
-                                                <div className="text-green-700 font-bold">€{asMoney(item.totalProfit)}</div>
-                                                <div className="text-xs text-gray-500">
-                                                    €{asMoney(item.totalSellPrice)} - €{asMoney(item.totalBuyPrice)}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {isExpanded && item.priceBreakdown && (
-                                            <tr className="bg-gray-50">
-                                                <td colSpan={4} className="px-4 py-2">
-                                                    <div className="ml-8 space-y-2">
-                                                        <div className="text-sm font-semibold text-gray-700 mb-2">Sales by Price:</div>
-                                                        {item.priceBreakdown.map((priceDetail: any, idx: number) => (
-                                                            <div key={idx} className="flex justify-between items-center p-2 bg-white rounded border text-sm">
-                                                                <div>
-                                                                    <span className="font-medium">{priceDetail.quantity}x</span>
-                                                                    <span className="text-gray-600 ml-2">at €{asMoney(priceDetail.sellPrice)}</span>
-                                                                    {priceDetail.priceVariableName && (
-                                                                        <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                                                                            {priceDetail.priceVariableName}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <div className="font-bold text-green-700">€{asMoney(priceDetail.profit)}</div>
-                                                                    <div className="text-xs text-gray-500">
-                                                                        €{asMoney(priceDetail.totalSell)} - €{asMoney(priceDetail.totalBuy)}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })}
-                            {analytics.topSellingItems.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="text-center py-8 text-gray-500">No items sold yet</td>
-                                </tr>
-                            )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Sales by Day */}
-                <div className="bg-white p-6 rounded-lg shadow border">
-                    <h2 className="text-xl font-bold mb-4">Sales by Day</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                            <tr className="border-b">
-                                <th className="text-left py-2 px-4 font-semibold w-8"></th>
-                                <th className="text-left py-2 px-4 font-semibold">Date</th>
-                                <th className="text-center py-2 px-4 font-semibold">Trans.</th>
-                                <th className="text-center py-2 px-4 font-semibold">Items</th>
-                                <th className="text-right py-2 px-4 font-semibold text-green-700">Profit</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {analytics.salesByDay.map((day) => {
-                                const isExpanded = expandedDays.has(day.date);
-                                return (
-                                    <React.Fragment key={day.date}>
-                                        <tr
-                                            className="border-b hover:bg-gray-50 cursor-pointer"
-                                            onClick={() => toggleDayExpansion(day.date)}
-                                        >
-                                            <td className="py-3 px-4 text-gray-400">
-                                                {isExpanded ? '▼' : '▶'}
-                                            </td>
-                                            <td className="py-3 px-4 font-medium">
-                                                {new Date(day.date).toLocaleDateString()}
-                                            </td>
-                                            <td className="text-center px-4">{day.transactionCount}</td>
-                                            <td className="text-center px-4">{day.totalQuantity}</td>
-                                            <td className="text-right px-4">
-                                                <div className="text-green-700 font-bold">€{asMoney(day.totalProfit)}</div>
-                                                <div className="text-xs text-gray-500">
-                                                    €{asMoney(day.totalSellPrice)} - €{asMoney(day.totalBuyPrice)}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {isExpanded && day.itemBreakdown && (
-                                            <tr className="bg-gray-50">
-                                                <td colSpan={5} className="px-4 py-2">
-                                                    <div className="ml-8 space-y-2">
-                                                        <div className="text-sm font-semibold text-gray-700 mb-2">Items Sold:</div>
-                                                        {day.itemBreakdown.map((itemDetail, idx) => (
-                                                            <div key={idx} className="flex justify-between items-center p-2 bg-white rounded border text-sm">
-                                                                <div>
-                                                                    <span className="font-medium">{itemDetail.itemName}</span>
-                                                                    <span className="text-gray-600 ml-2">× {itemDetail.quantity}</span>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <div className="font-bold text-green-700">€{asMoney(itemDetail.profit)}</div>
-                                                                    <div className="text-xs text-gray-500">
-                                                                        €{asMoney(itemDetail.sellPrice)} - €{asMoney(itemDetail.buyPrice)}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Payment Methods & Price Variables */}
+                <AnalyticsDateBar dateRange={dateRange} onChange={setDateRange} onExport={exportToExcel} />
+                <SummaryCards summary={analytics.summary} />
+                <TopSellingTable items={analytics.topSellingItems} />
+                <SalesByDayTable days={analytics.salesByDay} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Payment Methods */}
-                    <div className="bg-white p-6 rounded-lg shadow border">
-                        <h2 className="text-xl font-bold mb-4">Payment Methods</h2>
-                        <div className="space-y-3">
-                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="font-bold text-lg">💵 Cash</span>
-                                    <span className="text-2xl font-bold text-green-700">
-                                    €{asMoney(analytics.paymentMethodBreakdown.cash.profit)}
-                                </span>
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                    Revenue: €{asMoney(analytics.paymentMethodBreakdown.cash.sellPrice)} •
-                                    Cost: €{asMoney(analytics.paymentMethodBreakdown.cash.buyPrice)}
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="font-bold text-lg">💳 Card</span>
-                                    <span className="text-2xl font-bold text-blue-700">
-                                    €{asMoney(analytics.paymentMethodBreakdown.nonCash.profit)}
-                                </span>
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                    Revenue: €{asMoney(analytics.paymentMethodBreakdown.nonCash.sellPrice)} •
-                                    Cost: €{asMoney(analytics.paymentMethodBreakdown.nonCash.buyPrice)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Price Variables */}
-                    <div className="bg-white p-6 rounded-lg shadow border">
-                        <h2 className="text-xl font-bold mb-4">Price Variables Used</h2>
-                        <div className="space-y-3">
-                            {analytics.priceVariableBreakdown.map((pv) => (
-                                <div key={pv.priceVariableName} className="p-4 bg-gray-50 rounded-lg border">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <div>
-                                            <div className="font-bold">{pv.priceVariableName}</div>
-                                            <div className="text-xs text-gray-500">{pv.count} sales</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-2xl font-bold text-green-700">
-                                                €{asMoney(pv.totalProfit)}
-                                            </div>
-                                            <div className="text-xs text-gray-600">
-                                                €{asMoney(pv.totalSellPrice)} - €{asMoney(pv.totalBuyPrice)}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    <PaymentMethodsCard
+                        cash={analytics.paymentMethodBreakdown.cash}
+                        nonCash={analytics.paymentMethodBreakdown.nonCash}
+                    />
+                    <PriceVariablesCard entries={analytics.priceVariableBreakdown} />
                 </div>
-
-                {/* Back Button */}
                 <div className="flex justify-start">
                     <button
                         onClick={() => router.push(`/Inventory/${inventoryId}`)}
                         className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
                     >
-                        <span>←</span> Back to Inventory
+                        ← Back to Inventory
                     </button>
                 </div>
             </div>
