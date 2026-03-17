@@ -1,0 +1,16 @@
+# Dependencies
+node_modules
+
+# Build output
+.next
+dist
+build
+out
+
+# Generated files
+back-end/repository/prisma/migrations
+back-end/package-lock.json
+front-end/package-lock.json
+
+# K8s yaml (opinionated formatting not desired)
+k8s/
