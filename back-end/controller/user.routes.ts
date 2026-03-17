@@ -30,11 +30,6 @@
  *           format: email
  *           description: User's email address (unique)
  *           example: "user@example.com"
- *         emailVerified:
- *           type: boolean
- *           description: Whether the email has been verified
- *           default: false
- *           example: false
  *         name:
  *           type: string
  *           description: User's display name
@@ -51,16 +46,6 @@
  *           default: 0
  *           description: User's age
  *           example: 25
- *         createdAt:
- *           type: string
- *           format: date-time
- *           description: Account creation timestamp
- *           example: "2024-01-15T10:30:00Z"
- *         updatedAt:
- *           type: string
- *           format: date-time
- *           description: Last update timestamp
- *           example: "2024-01-15T10:30:00Z"
  *
  *     ErrorResponse:
  *       type: object
@@ -82,6 +67,7 @@
  */
 import express, { NextFunction, Request, Response } from 'express';
 import userService from '../service/user.service';
+import { userToDTO, usersToDTO } from '../dto/user.dto';
 
 const userRouter = express.Router();
 
@@ -90,11 +76,6 @@ const userRouter = express.Router();
  * /users:
  *   get:
  *     summary: Get all users or search by email
- *     description: |
- *       Retrieve a list of all users in the system, or search for a specific user by email address.
- *       Returns an empty array if no users are found or if an error occurs.
- *
- *       **Note**: For authentication (login/signup), use Better Auth endpoints at `/api/auth/*`
  *     tags:
  *       - Users
  *     parameters:
@@ -122,10 +103,10 @@ userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
         if (email) {
             const user = await userService.getUserByEmail({ email: String(email) });
-            res.status(200).json([user]);
+            res.status(200).json([userToDTO(user)]);
         } else {
             const users = await userService.getAllUsers();
-            res.status(200).json(users || []);
+            res.status(200).json(usersToDTO(users || []));
         }
     } catch (error) {
         console.error('Error fetching users:', error);
@@ -170,7 +151,7 @@ userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
 userRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user = await userService.getUserByName({ name: req.params.name });
-        res.status(200).json(user);
+        res.status(200).json(userToDTO(user));
     } catch (error) {
         console.error('Error fetching user by name:', error);
         if (error instanceof Error && error.message.includes('does not exist')) {
@@ -214,7 +195,7 @@ userRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunc
 userRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user = await userService.getUserById({ id: req.params.id });
-        res.status(200).json(user);
+        res.status(200).json(userToDTO(user));
     } catch (error) {
         console.error('Error fetching user by ID:', error);
         if (error instanceof Error && error.message.includes('does not exist')) {

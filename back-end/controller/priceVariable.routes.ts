@@ -55,6 +55,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import priceVariableService from '../service/priceVariable.service';
 import { requireAuth } from '../middleware/auth.middleware';
+import { priceVariableToDTO, priceVariablesToDTO } from '../dto/priceVariable.dto';
 
 const priceVariableRouter = express.Router();
 
@@ -85,7 +86,7 @@ priceVariableRouter.use(requireAuth);
 priceVariableRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const priceVariables = await priceVariableService.getAllPriceVariables();
-        res.status(200).json(priceVariables);
+        res.status(200).json(priceVariablesToDTO(priceVariables));
     } catch (error) {
         next(error);
     }
@@ -124,7 +125,7 @@ priceVariableRouter.get('/item/:itemId', async (req: Request, res: Response, nex
         const priceVariables = await priceVariableService.getPriceVariablesByItemId({
             itemId: Number(req.params.itemId)
         });
-        res.status(200).json(priceVariables);
+        res.status(200).json(priceVariablesToDTO(priceVariables));
     } catch (error) {
         next(error);
     }
@@ -160,7 +161,7 @@ priceVariableRouter.get('/item/:itemId', async (req: Request, res: Response, nex
 priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const priceVariable = await priceVariableService.getPriceVariableById({ id: Number(req.params.id) });
-        res.status(200).json(priceVariable);
+        res.status(200).json(priceVariableToDTO(priceVariable));
     } catch (error) {
         next(error);
     }
@@ -196,7 +197,6 @@ priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFu
 priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { name, itemId, value, type, isDefault } = req.body;
-
         const priceVariable = await priceVariableService.createPriceVariable({
             name,
             value: Number(value),
@@ -204,8 +204,7 @@ priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunc
             isDefault: Boolean(isDefault),
             itemId: Number(itemId)
         });
-
-        res.status(201).json(priceVariable);
+        res.status(201).json(priceVariableToDTO(priceVariable));
     } catch (error) {
         next(error);
     }
@@ -260,7 +259,6 @@ priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunc
 priceVariableRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { name, value, type, isDefault } = req.body;
-
         const priceVariable = await priceVariableService.updatePriceVariable({
             id: Number(req.params.id),
             name,
@@ -268,8 +266,7 @@ priceVariableRouter.put('/:id', async (req: Request, res: Response, next: NextFu
             type,
             isDefault: isDefault !== undefined ? Boolean(isDefault) : undefined
         });
-
-        res.status(200).json(priceVariable);
+        res.status(200).json(priceVariableToDTO(priceVariable));
     } catch (error) {
         next(error);
     }
