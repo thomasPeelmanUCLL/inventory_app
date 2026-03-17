@@ -4,7 +4,7 @@ import itemService from './item.service';
 import soldItemDB from '../repository/soldItem.db';
 import itemDB from '../repository/item.db';
 import { Prisma } from '@prisma/client';
-import { getInventoryAnalyticsPrisma } from './analytics.prisma';
+import { getInventoryAnalyticsPrisma } from './analytics.service';
 
 const getAllSoldItems = async (): Promise<SoldItem[]> => {
     return await soldItemDB.getAllSoldItems();
@@ -50,7 +50,6 @@ const createSoldItem = async ({
     quantity: number;
     soldAt?: Date;
 }): Promise<SoldItem> => {
-    // Enhanced validation with Decimal precision
     const sellPriceDecimal = typeof finalSellPrice === 'number'
         ? new Prisma.Decimal(finalSellPrice.toFixed(2))
         : finalSellPrice;
@@ -80,7 +79,6 @@ const createSoldItem = async ({
 
     const createdSoldItem = await soldItemDB.createSoldItem(soldItem);
 
-    // Update item quantity - NOTE: This is not transactional, use soldItemDB.createSoldItemWithStockUpdate instead
     const updatedItem = await itemDB.getItemById({ id: itemId });
     if (updatedItem) {
         const newItem = new Item({
@@ -124,7 +122,6 @@ const updateSoldItem = async ({
         throw new Error(`Item with ID: ${existingSoldItem.getItemId()} does not exist.`);
     }
 
-    // Enhanced validation
     if (finalSellPrice !== undefined) {
         const sellPriceDecimal = typeof finalSellPrice === 'number'
             ? new Prisma.Decimal(finalSellPrice.toFixed(2))
@@ -164,7 +161,6 @@ const updateSoldItem = async ({
         throw new Error(`Failed to update SoldItem with ID: ${id}`);
     }
 
-    // Adjust item quantity if changed - NOTE: This is not transactional
     if (quantityDifference !== 0) {
         const newItem = new Item({
             id: item.getId(),
@@ -193,7 +189,6 @@ const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
 
     await soldItemDB.deleteSoldItem({ id });
 
-    // Restore item quantity - NOTE: This is not transactional
     const newItem = new Item({
         id: item.getId(),
         name: item.getName(),
@@ -216,12 +211,10 @@ const getAnalyticsByInventoryId = async ({
     startDate?: Date;
     endDate?: Date;
 }) => {
-    // Enhanced date validation
     if (startDate && endDate && startDate > endDate) {
         throw new Error('Start date must be before end date');
     }
     
-    // Prevent overly broad scans (more than 2 years)
     if (startDate && endDate) {
         const diffMs = endDate.getTime() - startDate.getTime();
         const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -238,7 +231,7 @@ export default {
     getSoldItemById,
     getSoldItemsByItemId,
     getSoldItemsByInventoryId,
-    getSoldItemsByInventoryIds, // NEW bulk method
+    getSoldItemsByInventoryIds,
     createSoldItem,
     updateSoldItem,
     deleteSoldItem,
