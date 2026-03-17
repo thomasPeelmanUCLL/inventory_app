@@ -166,7 +166,7 @@ const InventoryDetailPage = () => {
 
                 <InventoryHeader
                     inventory={inventory} role={currentUserRole} canEdit={canEdit} isOwner={isOwner}
-                    activeTab="view" onManageUsers={() => setShowManageUsersModal(true)}
+                    activeTab="overview" onManageUsers={() => setShowManageUsersModal(true)}
                 />
 
                 {canEdit && (
