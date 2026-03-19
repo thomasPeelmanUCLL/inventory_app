@@ -4,7 +4,7 @@ function normalizeBaseUrl(rawValue?: string): string {
     const value = (rawValue || '').trim();
     if (!value) return 'http://localhost:3000';
     if (value.startsWith('http://') || value.startsWith('https://')) return value;
-    return `http://${value}`;
+    return `https://${value}`;
 }
 
 const API_BASE_URL =
