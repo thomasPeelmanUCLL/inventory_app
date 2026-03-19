@@ -11,6 +11,8 @@
     "scripts": {
         "test": "jest",
         "start": "nodemon -L app.ts --delay 3 --require tsconfig-paths/register",
+        "build": "tsc",
+        "start:prod": "node dist/app.js",
         "prisma:migrate": "prisma migrate deploy",
         "prisma:generate": "prisma generate",
         "prisma:studio": "prisma studio",
