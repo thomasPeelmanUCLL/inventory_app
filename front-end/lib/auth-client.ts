@@ -9,8 +9,8 @@ function normalizeBaseUrl(rawValue?: string): string {
 
 const API_BASE_URL =
     typeof window !== 'undefined'
-        ? `${window.location.origin}/api/backend`
-        : normalizeBaseUrl(process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL);
+        ? `${window.location.origin}/api/backend/api/auth`
+        : `${normalizeBaseUrl(process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL)}/api/auth`;
 
 export const authClient = createAuthClient({
     baseURL: API_BASE_URL, // Use environment variable
