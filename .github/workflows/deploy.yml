@@ -190,11 +190,7 @@ jobs:
 
       - name: Build encoded DATABASE_URL
         run: |
-          ENCODED_PASSWORD=$(python3 - <<'PY'
-import os, urllib.parse
-print(urllib.parse.quote(os.environ['RAW_PASSWORD'], safe=''))
-PY
-          )
+          ENCODED_PASSWORD=$(python3 -c "import os, urllib.parse; print(urllib.parse.quote(os.environ['RAW_PASSWORD'], safe=''))")
           DATABASE_URL="postgresql://inventory:${ENCODED_PASSWORD}@postgres.inventory.svc.cluster.local:5432/inventory"
           echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
         env:
