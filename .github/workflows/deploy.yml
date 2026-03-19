@@ -243,6 +243,16 @@ jobs:
       - name: Wait for postgres to be ready
         run: kubectl rollout status deployment/postgres -n inventory --timeout=120s
 
+      - name: Sync postgres role password with secret
+        run: |
+          POSTGRES_POD=$(kubectl get pod -n inventory -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n inventory "$POSTGRES_POD" -- \
+            env PGPASSWORD="$POSTGRES_PASSWORD" \
+            psql -U inventory -d inventory -v pw="$POSTGRES_PASSWORD" \
+            -c "ALTER ROLE inventory WITH PASSWORD :'pw';"
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+
       - name: Run Prisma migrations
         run: |
           kubectl delete pod prisma-migrate -n inventory --ignore-not-found=true
