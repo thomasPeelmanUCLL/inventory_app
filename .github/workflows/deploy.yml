@@ -185,6 +185,9 @@ jobs:
           fi
           kubectl cluster-info
 
+      - name: Ensure inventory namespace exists
+        run: kubectl apply -f k8s/namespace.yml
+
       - name: Create / update postgres secret
         run: |
           kubectl create secret generic postgres-secret \
