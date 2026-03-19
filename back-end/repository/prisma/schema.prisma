@@ -135,7 +135,7 @@ model SoldItem {
   quantity            Int
   priceVariableName   String?
   isCustomPrice       Boolean @default(false)
-  paidCash            Boolean @default(false)
+  paidCash            Boolean @default(false) @map("payedCash")
   soldAt              DateTime @default(now())
 
   @@index([itemId], name: "idx_soldItem_itemId")
