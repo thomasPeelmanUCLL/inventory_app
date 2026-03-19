@@ -248,7 +248,7 @@ jobs:
           POSTGRES_POD=$(kubectl get pod -n inventory -l app=postgres -o jsonpath='{.items[0].metadata.name}')
           ESCAPED_PASSWORD=${POSTGRES_PASSWORD//\'/\'\'}
           kubectl exec -n inventory "$POSTGRES_POD" -- \
-            psql -U postgres -d postgres \
+            psql -U inventory -d inventory \
             -c "ALTER ROLE inventory WITH PASSWORD '$ESCAPED_PASSWORD';"
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
