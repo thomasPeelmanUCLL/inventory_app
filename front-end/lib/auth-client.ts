@@ -9,7 +9,7 @@ function normalizeBaseUrl(rawValue?: string): string {
 
 const API_BASE_URL =
     typeof window !== 'undefined'
-        ? '/api/backend'
+        ? `${window.location.origin}/api/backend`
         : normalizeBaseUrl(process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL);
 
 export const authClient = createAuthClient({
