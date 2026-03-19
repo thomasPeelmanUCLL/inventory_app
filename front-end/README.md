@@ -1,56 +1,67 @@
 # Front-end
 
-Next.js (Pages Router) front-end with TypeScript, Tailwind CSS, and Better Auth.
+Next.js (Pages Router) UI with TypeScript, Tailwind CSS, and Better Auth client integration.
 
 ## Prerequisites
 
 - Node.js 20+
-- Back-end running on `http://localhost:3000` (or use Docker Compose from the root)
+- Backend reachable at `http://localhost:3000` for local development
 
-## Setup
+## Local setup
 
 ```bash
 npm install
 ```
 
-Create a `.env.local` file in this folder:
+Create `front-end/.env.local`:
 
 ```env
-# Public URL for Better Auth — browser uses this directly for sign-in/sign-up
+# Public API base/fallback (must be https in production)
 NEXT_PUBLIC_API_URL=http://localhost:3000
 
-# Internal URL for Next.js rewrites — server-side only, never sent to the browser
-# In Kubernetes this is set via frontend-configmap.yml (ClusterIP service DNS)
+# Server-side rewrite target (never exposed to browser directly)
 INTERNAL_API_URL=http://localhost:3000
 ```
 
-Start the development server:
+Start dev server:
 
 ```bash
 npm run dev
 ```
 
-The app runs on `http://localhost:8080`.
+App runs on `http://localhost:8080`.
 
-## How API calls work
+## Request flow
 
-All API calls go through `/api/backend/*` which Next.js rewrites to `INTERNAL_API_URL` (see `next.config.mjs`). This means:
-- In **development**: rewrites to `http://localhost:3000` directly
-- In **production (Kubernetes)**: rewrites to the backend ClusterIP service — pod-to-pod, never public
+- Browser app calls: `/api/backend/*`
+- Next.js rewrite forwards to: `INTERNAL_API_URL` (see `next.config.mjs`)
+- In Kubernetes: `INTERNAL_API_URL` points to `inventory-backend.inventory.svc.cluster.local`
 
-Better Auth (`auth-client.ts`) is the only code that uses `NEXT_PUBLIC_API_URL` and talks directly to the public backend URL. This is required because Better Auth sets HTTP-only cookies that must come from the real origin.
+Auth client (`lib/auth-client.ts`) uses `/api/backend/api/auth` in browser mode, so cookies/session stay same-origin with the frontend domain.
 
 ## Pages
 
-| Route                       | Description |
-|-----------------------------|---|
-| `/`                         | Home |
-| `/login`                    | Sign in |
-| `/Register`                 | Sign up |
-| `/inventory`                | Inventory list |
-| `/inventory/[id]`           | Overview & sell |
-| `/inventory/[id]/manage`    | Edit items & price variables |
-| `/inventory/[id]/history`   | Sales history |
+| Route | Description |
+|---|---|
+| `/` | Home |
+| `/login` | Sign in |
+| `/register` | Sign up |
+| `/inventory` | Inventory list |
+| `/inventory/[id]` | Overview & sell |
+| `/inventory/[id]/manage` | Edit items & price variables |
+| `/inventory/[id]/history` | Sales history |
 | `/inventory/[id]/analytics` | Analytics dashboard |
 
-> For full setup, deployment, and architecture documentation see the [root README](../README.md).
+## Production notes
+
+- `NEXT_PUBLIC_API_URL` is build-time baked into the frontend image.
+- If you change `NEXT_PUBLIC_API_URL`, rebuild/redeploy frontend image.
+- Use `https://...` values in production to avoid mixed-content browser blocking.
+
+## Troubleshooting quick hits
+
+- **Mixed Content blocked**: public URL is `http://...` while site is `https://...`.
+- **Auth `401` on `/api/backend/*`**: verify login/session requests hit `/api/backend/api/auth/*` and backend is healthy.
+- **Chunk `503` during deploy**: often rollout/cache mismatch; hard refresh once after rollout and keep at least 2 frontend replicas.
+
+For full deployment and architecture docs, see [root README](../README.md).
