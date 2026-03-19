@@ -156,6 +156,7 @@ export async function createItem(itemData: {
     quantity: number;
     purchasedAt?: string;
     inventoryId?: number;
+    priceVariables?: Array<{ name: string; value: number; type: string; isDefault?: boolean }>;
 }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/items`, {
         method: 'POST',

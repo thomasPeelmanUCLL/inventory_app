@@ -22,6 +22,16 @@ export const itemInput = z.object({
     quantity: z.coerce.number().int().nonnegative('Quantity must be non-negative'),
     buyedAt: z.coerce.date().optional(),
     inventoryId: z.coerce.number().int().positive().optional(),
+    priceVariables: z
+        .array(
+            z.object({
+                name: z.string().min(1, 'Price variable name is required').max(255),
+                value: z.coerce.number().positive('Price variable value must be positive'),
+                type: z.string().min(1, 'Type is required').max(100),
+                isDefault: z.coerce.boolean().optional().default(false),
+            }),
+        )
+        .optional(),
 });
 
 export const itemUpdateInput = itemInput.partial();

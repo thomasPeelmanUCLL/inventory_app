@@ -33,6 +33,7 @@ const createItem = async ({
     quantity,
     buyedAt,
     inventoryId,
+    priceVariables,
 }: {
     name: string;
     description: string;
@@ -40,6 +41,7 @@ const createItem = async ({
     quantity: number;
     buyedAt?: Date;
     inventoryId?: number;
+    priceVariables?: Array<{ name: string; value: number; type: string; isDefault?: boolean }>;
 }): Promise<Item> => {
     // Enhanced validation for financial precision
     const buyPriceDecimal =
@@ -53,6 +55,21 @@ const createItem = async ({
         throw new Error('Quantity cannot be negative');
     }
 
+    // Validate price variables if provided
+    if (priceVariables) {
+        for (const pv of priceVariables) {
+            if (!pv.name || pv.name.trim() === '') {
+                throw new Error('Price variable name cannot be empty');
+            }
+            if (typeof pv.value !== 'number' || pv.value < 0) {
+                throw new Error('Price variable value must be a positive number');
+            }
+            if (!pv.type || !['PERCENTAGE', 'FIXED'].includes(pv.type)) {
+                throw new Error('Price variable type must be PERCENTAGE or FIXED');
+            }
+        }
+    }
+
     const item = new Item({
         name,
         description,
@@ -61,7 +78,7 @@ const createItem = async ({
         buyedAt,
         inventoryId,
     });
-    return await itemDB.createItem(item);
+    return await itemDB.createItem(item, priceVariables);
 };
 
 const updateItem = async ({

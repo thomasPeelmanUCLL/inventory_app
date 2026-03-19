@@ -63,8 +63,8 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
         });
     }
 
-    async createItem(item: Item): Promise<Item> {
-        const data = {
+    async createItem(item: Item, priceVariables?: any[]): Promise<Item> {
+        const data: any = {
             name: item.getName(),
             description: item.getDescription(),
             buyPrice: item.getBuyPrice(),
@@ -72,6 +72,18 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
             buyedAt: item.getBuyedAt(),
             inventoryId: item.getInventoryId(),
         };
+
+        // Add price variables if provided
+        if (priceVariables && priceVariables.length > 0) {
+            data.priceVariables = {
+                create: priceVariables.map((pv) => ({
+                    name: pv.name,
+                    value: pv.value,
+                    type: pv.type,
+                    isDefault: pv.isDefault ?? false,
+                })),
+            };
+        }
 
         return this.create(data, {
             include: {

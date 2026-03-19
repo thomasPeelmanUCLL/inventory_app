@@ -28,6 +28,7 @@ export function useItems() {
         quantity: number;
         buyedAt?: string;
         inventoryId?: number;
+        priceVariables?: Array<{ name: string; value: number; type: string; isDefault?: boolean }>;
     }) => {
         try {
             const newItem = await createItem(data);
