@@ -57,7 +57,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             finalSellPrice: soldItem.getFinalSellPrice(),
             priceVariableName: soldItem.getPriceVariableName(),
             isCustomPrice: soldItem.getIsCustomPrice(),
-            payedCash: soldItem.isPayedCash(),
+            paidCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
         };
@@ -69,7 +69,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             finalSellPrice: soldItem.getFinalSellPrice(),
             priceVariableName: soldItem.getPriceVariableName(),
             isCustomPrice: soldItem.getIsCustomPrice(),
-            payedCash: soldItem.isPayedCash(),
+            paidCash: soldItem.isPayedCash(),
             quantity: soldItem.getQuantity(),
             soldAt: soldItem.getSoldAt(),
         };
@@ -87,7 +87,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         finalSellPrice: Prisma.Decimal | number;
         priceVariableName?: string | null;
         isCustomPrice?: boolean;
-        payedCash?: boolean;
+        paidCash?: boolean;
         quantity: number;
         soldAt?: Date;
     }): Promise<SoldItemPrisma> {
@@ -112,7 +112,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
                     quantity: input.quantity,
                     priceVariableName: input.priceVariableName ?? null,
                     isCustomPrice: !!input.isCustomPrice,
-                    payedCash: !!input.payedCash,
+                    paidCash: !!input.paidCash,
                     soldAt: input.soldAt ?? new Date(),
                 },
                 include: { item: true },
@@ -127,7 +127,7 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
             finalSellPrice?: number | Prisma.Decimal;
             priceVariableName?: string | null;
             isCustomPrice?: boolean;
-            payedCash?: boolean;
+            paidCash?: boolean;
             quantity?: number;
             soldAt?: Date;
         },
@@ -174,8 +174,8 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
                         typeof patch.isCustomPrice === 'boolean'
                             ? patch.isCustomPrice
                             : existing.isCustomPrice,
-                    payedCash:
-                        typeof patch.payedCash === 'boolean' ? patch.payedCash : existing.payedCash,
+                    paidCash:
+                        typeof patch.paidCash === 'boolean' ? patch.paidCash : existing.paidCash,
                     quantity:
                         typeof patch.quantity === 'number' ? patch.quantity : existing.quantity,
                     soldAt: patch.soldAt ?? existing.soldAt,

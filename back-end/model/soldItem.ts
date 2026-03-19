@@ -7,7 +7,7 @@ export class SoldItem extends BaseModel {
     private finalSellPrice: Prisma.Decimal;
     private priceVariableName?: string;
     private isCustomPrice: boolean;
-    private payedCash: boolean;
+    private paidCash: boolean;
     private soldAt: Date;
     private item?: Item; // ✅ ADD THIS - Optional item property
 
@@ -18,7 +18,7 @@ export class SoldItem extends BaseModel {
         quantity: number;
         priceVariableName?: string;
         isCustomPrice?: boolean;
-        payedCash: boolean;
+        paidCash: boolean;
         soldAt?: Date;
         createdAt?: Date;
         item?: any; // ✅ ADD THIS
@@ -36,7 +36,7 @@ export class SoldItem extends BaseModel {
                 : soldItem.finalSellPrice;
         this.priceVariableName = soldItem.priceVariableName;
         this.isCustomPrice = soldItem.isCustomPrice ?? false;
-        this.payedCash = soldItem.payedCash;
+        this.paidCash = soldItem.paidCash;
         this.soldAt = soldItem.soldAt || new Date();
         this.item = soldItem.item;
     }
@@ -67,7 +67,7 @@ export class SoldItem extends BaseModel {
     }
 
     isPayedCash(): boolean {
-        return this.payedCash;
+        return this.paidCash;
     }
 
     getSoldAt(): Date {
@@ -78,7 +78,7 @@ export class SoldItem extends BaseModel {
         id?: number;
         itemId: number;
         finalSellPrice: Prisma.Decimal | number;
-        payedCash: boolean;
+        paidCash: boolean;
         quantity: number;
         soldAt?: Date;
         createdAt?: Date;
@@ -106,8 +106,8 @@ export class SoldItem extends BaseModel {
             throw new Error(`Invalid finalSellPrice: must be a positive number`);
         }
 
-        if (soldItem.payedCash === undefined || soldItem.payedCash === null) {
-            throw new Error('Payed cash status is required');
+        if (soldItem.paidCash === undefined || soldItem.paidCash === null) {
+            throw new Error('Paid cash status is required');
         }
 
         if (soldItem.quantity <= 0) {
@@ -123,7 +123,7 @@ export class SoldItem extends BaseModel {
             quantity: soldItemPrisma.quantity,
             priceVariableName: soldItemPrisma.priceVariableName || undefined,
             isCustomPrice: soldItemPrisma.isCustomPrice,
-            payedCash: soldItemPrisma.payedCash,
+            paidCash: soldItemPrisma.paidCash,
             soldAt: soldItemPrisma.soldAt,
             createdAt: soldItemPrisma.soldAt, // Using soldAt as createdAt for SoldItem
             item: soldItemPrisma.item,

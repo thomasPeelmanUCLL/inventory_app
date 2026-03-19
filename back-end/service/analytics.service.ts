@@ -33,7 +33,7 @@ export async function getInventoryAnalyticsPrisma({
         select: {
             finalSellPrice: true,
             quantity: true,
-            payedCash: true,
+            paidCash: true,
             priceVariableName: true,
             item: { select: { id: true, name: true, buyPrice: true } },
             soldAt: true,
@@ -62,7 +62,7 @@ export async function getInventoryAnalyticsPrisma({
         totalSellPrice += sell;
         totalProfit += profit;
 
-        if (s.payedCash) cashTransactions++;
+        if (s.paidCash) cashTransactions++;
         else nonCashTransactions++;
 
         // by item
@@ -156,19 +156,19 @@ export async function getInventoryAnalyticsPrisma({
             cash: {
                 buyPrice: Number(
                     Array.from(lines)
-                        .filter((l) => l.payedCash)
+                        .filter((l) => l.paidCash)
                         .reduce((acc, s) => acc + Number(s.item.buyPrice) * Number(s.quantity), 0)
                         .toFixed(2),
                 ),
                 sellPrice: Number(
                     Array.from(lines)
-                        .filter((l) => l.payedCash)
+                        .filter((l) => l.paidCash)
                         .reduce((acc, s) => acc + Number(s.finalSellPrice) * Number(s.quantity), 0)
                         .toFixed(2),
                 ),
                 profit: Number(
                     Array.from(lines)
-                        .filter((l) => l.payedCash)
+                        .filter((l) => l.paidCash)
                         .reduce(
                             (acc, s) =>
                                 acc +
@@ -178,24 +178,24 @@ export async function getInventoryAnalyticsPrisma({
                         )
                         .toFixed(2),
                 ),
-                transactionCount: lines.filter((l) => l.payedCash).length,
+                transactionCount: lines.filter((l) => l.paidCash).length,
             },
             nonCash: {
                 buyPrice: Number(
                     Array.from(lines)
-                        .filter((l) => !l.payedCash)
+                        .filter((l) => !l.paidCash)
                         .reduce((acc, s) => acc + Number(s.item.buyPrice) * Number(s.quantity), 0)
                         .toFixed(2),
                 ),
                 sellPrice: Number(
                     Array.from(lines)
-                        .filter((l) => !l.payedCash)
+                        .filter((l) => !l.paidCash)
                         .reduce((acc, s) => acc + Number(s.finalSellPrice) * Number(s.quantity), 0)
                         .toFixed(2),
                 ),
                 profit: Number(
                     Array.from(lines)
-                        .filter((l) => !l.payedCash)
+                        .filter((l) => !l.paidCash)
                         .reduce(
                             (acc, s) =>
                                 acc +
@@ -205,7 +205,7 @@ export async function getInventoryAnalyticsPrisma({
                         )
                         .toFixed(2),
                 ),
-                transactionCount: lines.filter((l) => !l.payedCash).length,
+                transactionCount: lines.filter((l) => !l.paidCash).length,
             },
         },
         priceVariableBreakdown: Array.from(byPriceVar.values()),

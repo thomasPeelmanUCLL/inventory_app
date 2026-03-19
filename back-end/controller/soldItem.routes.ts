@@ -132,7 +132,7 @@ soldItemRouter.post(
             quantity: data.quantity,
             priceVariableName: data.priceVariableName,
             isCustomPrice: data.isCustomPrice,
-            payedCash: data.payedCash,
+            paidCash: data.paidCash,
             soldAt: data.soldAt ? new Date(data.soldAt) : undefined,
         });
 
@@ -162,7 +162,7 @@ soldItemRouter.put(
             quantity: data.quantity,
             priceVariableName: data.priceVariableName,
             isCustomPrice: data.isCustomPrice,
-            payedCash: data.payedCash,
+            paidCash: data.paidCash,
             soldAt: data.soldAt ? new Date(data.soldAt) : undefined,
         });
 

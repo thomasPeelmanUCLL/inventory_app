@@ -46,7 +46,7 @@ const createSoldItem = async ({
     finalSellPrice,
     priceVariableName,
     isCustomPrice,
-    payedCash = false,
+    paidCash = false,
     quantity,
     soldAt,
 }: {
@@ -54,7 +54,7 @@ const createSoldItem = async ({
     finalSellPrice: number | Prisma.Decimal;
     priceVariableName?: string;
     isCustomPrice?: boolean;
-    payedCash?: boolean;
+    paidCash?: boolean;
     quantity: number;
     soldAt?: Date;
 }): Promise<SoldItem> => {
@@ -83,7 +83,7 @@ const createSoldItem = async ({
         finalSellPrice: sellPriceDecimal,
         priceVariableName,
         isCustomPrice,
-        payedCash,
+        paidCash,
         quantity,
         soldAt: soldAt || new Date(),
     });
@@ -114,7 +114,7 @@ const updateSoldItem = async ({
     finalSellPrice,
     priceVariableName,
     isCustomPrice,
-    payedCash,
+    paidCash,
     quantity,
     soldAt,
 }: {
@@ -122,7 +122,7 @@ const updateSoldItem = async ({
     finalSellPrice?: number | Prisma.Decimal;
     priceVariableName?: string;
     isCustomPrice?: boolean;
-    payedCash?: boolean;
+    paidCash?: boolean;
     quantity?: number;
     soldAt?: Date;
 }): Promise<SoldItem> => {
@@ -169,7 +169,7 @@ const updateSoldItem = async ({
                 : existingSoldItem.getPriceVariableName(),
         isCustomPrice:
             isCustomPrice !== undefined ? isCustomPrice : existingSoldItem.getIsCustomPrice(),
-        payedCash: payedCash !== undefined ? payedCash : existingSoldItem.isPayedCash(),
+        paidCash: paidCash !== undefined ? paidCash : existingSoldItem.isPayedCash(),
         quantity: quantity !== undefined ? quantity : existingSoldItem.getQuantity(),
         soldAt: soldAt !== undefined ? soldAt : existingSoldItem.getSoldAt(),
         createdAt: existingSoldItem.getCreatedAt(),
