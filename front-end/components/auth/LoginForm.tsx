@@ -11,7 +11,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ className }) => {
     const [emailError, setEmailError] = useState('');
     const [password, setPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
-    const [statusMessage, setStatusMessage] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+    const [statusMessage, setStatusMessage] = useState<{
+        message: string;
+        type: 'error' | 'success';
+    } | null>(null);
     const router = useRouter();
 
     const clearErrors = () => {
@@ -52,22 +55,34 @@ const LoginForm: React.FC<LoginFormProps> = ({ className }) => {
         try {
             const result = await signIn.email({ email: loginEmail, password: loginPassword });
             if (result.error) {
-                setStatusMessage({ message: result.error.message || 'Login failed. Please check your credentials.', type: 'error' });
+                setStatusMessage({
+                    message: result.error.message || 'Login failed. Please check your credentials.',
+                    type: 'error',
+                });
                 return;
             }
             setStatusMessage({ message: 'Login successful! Redirecting...', type: 'success' });
-            setTimeout(() => { router.push('/'); }, 1500);
+            setTimeout(() => {
+                router.push('/');
+            }, 1500);
         } catch (error: any) {
-            setStatusMessage({ message: error.message || 'An error occurred during login.', type: 'error' });
+            setStatusMessage({
+                message: error.message || 'An error occurred during login.',
+                type: 'error',
+            });
         }
     };
 
     return (
         <form onSubmit={handleSubmit} className={`space-y-4 ${className}`}>
             {statusMessage && (
-                <div className={`p-3 rounded ${
-                    statusMessage.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                }`}>
+                <div
+                    className={`p-3 rounded ${
+                        statusMessage.type === 'error'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-green-100 text-green-700'
+                    }`}
+                >
                     {statusMessage.message}
                 </div>
             )}

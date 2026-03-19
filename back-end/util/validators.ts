@@ -3,15 +3,15 @@ import { Request, Response, NextFunction } from 'express';
 
 // Parameter validators
 export const idParam = z.object({
-    id: z.coerce.number().int().positive('ID must be a positive integer')
+    id: z.coerce.number().int().positive('ID must be a positive integer'),
 });
 
 export const inventoryIdParam = z.object({
-    inventoryId: z.coerce.number().int().positive('Inventory ID must be a positive integer')
+    inventoryId: z.coerce.number().int().positive('Inventory ID must be a positive integer'),
 });
 
 export const itemIdParam = z.object({
-    itemId: z.coerce.number().int().positive('Item ID must be a positive integer')
+    itemId: z.coerce.number().int().positive('Item ID must be a positive integer'),
 });
 
 // Item validators
@@ -66,22 +66,27 @@ export const inventoryUpdateInput = inventoryInput.partial();
 export const addUserToInventoryInput = z.object({
     userId: z.string().uuid('Invalid user ID format'),
     role: z.enum(['owner', 'admin', 'editor', 'viewer'], {
-        errorMap: () => ({ message: 'Role must be one of: owner, admin, editor, viewer' })
+        errorMap: () => ({ message: 'Role must be one of: owner, admin, editor, viewer' }),
     }),
 });
 
 // Analytics query validators
-export const analyticsQuery = z.object({
-    startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional(),
-}).refine(data => {
-    if (data.startDate && data.endDate) {
-        return data.startDate <= data.endDate;
-    }
-    return true;
-}, {
-    message: 'Start date must be before end date',
-});
+export const analyticsQuery = z
+    .object({
+        startDate: z.coerce.date().optional(),
+        endDate: z.coerce.date().optional(),
+    })
+    .refine(
+        (data) => {
+            if (data.startDate && data.endDate) {
+                return data.startDate <= data.endDate;
+            }
+            return true;
+        },
+        {
+            message: 'Start date must be before end date',
+        },
+    );
 
 // Pagination validators
 export const paginationQuery = z.object({
@@ -91,11 +96,11 @@ export const paginationQuery = z.object({
 
 // Generic error handler for Zod validation
 export const handleZodError = (error: z.ZodError) => {
-    const errors = error.errors.map(err => ({
+    const errors = error.errors.map((err) => ({
         field: err.path.join('.'),
         message: err.message,
     }));
-    
+
     return {
         error: 'Validation failed',
         details: errors,
@@ -146,7 +151,9 @@ export const validateQuery = (schema: z.ZodSchema) => {
 };
 
 // Async error wrapper to catch async route handler errors
-export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => {
+export const asyncHandler = (
+    fn: (req: Request, res: Response, next: NextFunction) => Promise<any>,
+) => {
     return (req: Request, res: Response, next: NextFunction) => {
         Promise.resolve(fn(req, res, next)).catch(next);
     };

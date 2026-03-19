@@ -15,7 +15,11 @@ const getPriceVariableById = async ({ id }: { id: number }): Promise<PriceVariab
     return priceVariablePrisma ? PriceVariable.from(priceVariablePrisma) : null;
 };
 
-const getPriceVariablesByItemId = async ({ itemId }: { itemId: number }): Promise<PriceVariable[]> => {
+const getPriceVariablesByItemId = async ({
+    itemId,
+}: {
+    itemId: number;
+}): Promise<PriceVariable[]> => {
     const priceVariables = await prisma.priceVariable.findMany({
         where: { itemId },
     });
@@ -23,18 +27,18 @@ const getPriceVariablesByItemId = async ({ itemId }: { itemId: number }): Promis
 };
 
 const getPriceVariableByName = async ({
-                                          name,
-                                          itemId
-                                      }: {
+    name,
+    itemId,
+}: {
     name: string;
-    itemId: number
+    itemId: number;
 }): Promise<PriceVariable | null> => {
     const priceVariablePrisma = await prisma.priceVariable.findUnique({
         where: {
             name_itemId: {
                 name,
-                itemId
-            }
+                itemId,
+            },
         },
     });
     return priceVariablePrisma ? PriceVariable.from(priceVariablePrisma) : null;
@@ -44,9 +48,9 @@ const createPriceVariable = async (priceVariable: PriceVariable): Promise<PriceV
     const priceVariablePrisma = await prisma.priceVariable.create({
         data: {
             name: priceVariable.getName(),
-            value: priceVariable.getValue(),           // ← ADD THIS
-            type: priceVariable.getType(),             // ← ADD THIS
-            isDefault: priceVariable.getIsDefault(),   // ← ADD THIS
+            value: priceVariable.getValue(), // ← ADD THIS
+            type: priceVariable.getType(), // ← ADD THIS
+            isDefault: priceVariable.getIsDefault(), // ← ADD THIS
             itemId: priceVariable.getItemId(),
         },
     });
@@ -54,30 +58,29 @@ const createPriceVariable = async (priceVariable: PriceVariable): Promise<PriceV
 };
 
 const updatePriceVariable = async ({
-                                       id,
-                                       name,
-                                       value,       // ← ADD THIS
-                                       type,        // ← ADD THIS
-                                       isDefault,   // ← ADD THIS
-                                   }: {
+    id,
+    name,
+    value, // ← ADD THIS
+    type, // ← ADD THIS
+    isDefault, // ← ADD THIS
+}: {
     id: number;
-    name?: string;            // ← Make optional
-    value?: number;           // ← ADD THIS
-    type?: string;            // ← ADD THIS
-    isDefault?: boolean;      // ← ADD THIS
+    name?: string; // ← Make optional
+    value?: number; // ← ADD THIS
+    type?: string; // ← ADD THIS
+    isDefault?: boolean; // ← ADD THIS
 }): Promise<PriceVariable> => {
     const priceVariablePrisma = await prisma.priceVariable.update({
         where: { id },
         data: {
-            ...(name !== undefined && { name }),           // Only update if provided
-            ...(value !== undefined && { value }),         // ← ADD THIS
-            ...(type !== undefined && { type }),           // ← ADD THIS
+            ...(name !== undefined && { name }), // Only update if provided
+            ...(value !== undefined && { value }), // ← ADD THIS
+            ...(type !== undefined && { type }), // ← ADD THIS
             ...(isDefault !== undefined && { isDefault }), // ← ADD THIS
         },
     });
     return PriceVariable.from(priceVariablePrisma);
 };
-
 
 const deletePriceVariable = async ({ id }: { id: number }): Promise<void> => {
     await prisma.priceVariable.delete({

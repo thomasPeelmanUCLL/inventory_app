@@ -1,4 +1,4 @@
-import {Inventory as InventoryPrisma} from '@prisma/client';
+import { Inventory as InventoryPrisma } from '@prisma/client';
 import { Item } from './item';
 
 export class Inventory {

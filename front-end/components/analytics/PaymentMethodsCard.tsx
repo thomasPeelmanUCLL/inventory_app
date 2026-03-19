@@ -19,7 +19,9 @@ export default function PaymentMethodsCard({ cash, nonCash }: PaymentMethodsCard
                 <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                     <div className="flex justify-between items-center mb-2">
                         <span className="font-bold text-lg">💵 Cash</span>
-                        <span className="text-2xl font-bold text-green-700">€{asMoney(cash.profit)}</span>
+                        <span className="text-2xl font-bold text-green-700">
+                            €{asMoney(cash.profit)}
+                        </span>
                     </div>
                     <div className="text-xs text-gray-600">
                         Revenue: €{asMoney(cash.sellPrice)} • Cost: €{asMoney(cash.buyPrice)}
@@ -28,7 +30,9 @@ export default function PaymentMethodsCard({ cash, nonCash }: PaymentMethodsCard
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex justify-between items-center mb-2">
                         <span className="font-bold text-lg">💳 Card</span>
-                        <span className="text-2xl font-bold text-blue-700">€{asMoney(nonCash.profit)}</span>
+                        <span className="text-2xl font-bold text-blue-700">
+                            €{asMoney(nonCash.profit)}
+                        </span>
                     </div>
                     <div className="text-xs text-gray-600">
                         Revenue: €{asMoney(nonCash.sellPrice)} • Cost: €{asMoney(nonCash.buyPrice)}

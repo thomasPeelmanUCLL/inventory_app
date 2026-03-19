@@ -20,8 +20,8 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
     async getAllItems(): Promise<Item[]> {
         return this.findMany({
             include: {
-                priceVariables: true
-            }
+                priceVariables: true,
+            },
         });
     }
 
@@ -29,8 +29,8 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
         return this.findUnique({
             where: { id },
             include: {
-                priceVariables: true
-            }
+                priceVariables: true,
+            },
         });
     }
 
@@ -38,31 +38,28 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
         return this.findMany({
             where: { inventoryId },
             include: {
-                priceVariables: true
+                priceVariables: true,
             },
             orderBy: {
-                name: 'asc'
-            }
+                name: 'asc',
+            },
         });
     }
 
     // NEW: Bulk query to prevent N+1 queries when fetching items from multiple inventories
     async getItemsByInventoryIds({ inventoryIds }: { inventoryIds: number[] }): Promise<Item[]> {
         if (inventoryIds.length === 0) return [];
-        
+
         return this.findMany({
             where: {
                 inventoryId: {
-                    in: inventoryIds
-                }
+                    in: inventoryIds,
+                },
             },
             include: {
-                priceVariables: true
+                priceVariables: true,
             },
-            orderBy: [
-                { inventoryId: 'asc' },
-                { name: 'asc' }
-            ]
+            orderBy: [{ inventoryId: 'asc' }, { name: 'asc' }],
         });
     }
 
@@ -78,8 +75,8 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
 
         return this.create(data, {
             include: {
-                priceVariables: true
-            }
+                priceVariables: true,
+            },
         });
     }
 
@@ -95,8 +92,8 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
 
         const result = await this.update(item, data, {
             include: {
-                priceVariables: true
-            }
+                priceVariables: true,
+            },
         });
 
         if (!result) {

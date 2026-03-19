@@ -1,8 +1,11 @@
 // All non-auth API calls go through Next.js rewrite -> pod-to-pod to backend
 // Auth calls (better-auth) still use NEXT_PUBLIC_API_URL directly from the browser
-const API_BASE_URL = typeof window !== 'undefined'
-    ? '/api/backend'  // browser: routed through Next.js rewrite -> internal backend
-    : (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'); // SSR: direct
+const API_BASE_URL =
+    typeof window !== 'undefined'
+        ? '/api/backend' // browser: routed through Next.js rewrite -> internal backend
+        : process.env.INTERNAL_API_URL ||
+          process.env.NEXT_PUBLIC_API_URL ||
+          'http://localhost:3000'; // SSR: direct
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
     try {
@@ -40,7 +43,12 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
                 case 400:
                     if (validationDetails) {
                         const fieldErrors = Array.isArray(validationDetails)
-                            ? validationDetails.map((fieldError: any) => `${fieldError.field}: ${fieldError.message}`).join(', ')
+                            ? validationDetails
+                                  .map(
+                                      (fieldError: any) =>
+                                          `${fieldError.field}: ${fieldError.message}`,
+                                  )
+                                  .join(', ')
                             : errorMessage;
                         throw new Error(`Validation failed: ${fieldErrors}`);
                     }
@@ -81,7 +89,10 @@ export async function createInventory(inventoryData: { name: string; description
     return response.json();
 }
 
-export async function updateInventory(inventoryId: number, inventoryData: { name?: string; description?: string }) {
+export async function updateInventory(
+    inventoryId: number,
+    inventoryData: { name?: string; description?: string },
+) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}`, {
         method: 'PUT',
         body: JSON.stringify(inventoryData),
@@ -102,7 +113,10 @@ export async function getInventoryUsers(inventoryId: number) {
     return response.json();
 }
 
-export async function addUserToInventory(inventoryId: number, userInviteData: { email: string; role: string }) {
+export async function addUserToInventory(
+    inventoryId: number,
+    userInviteData: { email: string; role: string },
+) {
     const response = await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users`, {
         method: 'POST',
         body: JSON.stringify(userInviteData),
@@ -111,7 +125,9 @@ export async function addUserToInventory(inventoryId: number, userInviteData: { 
 }
 
 export async function removeUserFromInventory(inventoryId: number, userId: string) {
-    await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users/${userId}`, { method: 'DELETE' });
+    await fetchWithAuth(`${API_BASE_URL}/inventorys/${inventoryId}/users/${userId}`, {
+        method: 'DELETE',
+    });
 }
 
 // ========================================
@@ -148,14 +164,17 @@ export async function createItem(itemData: {
     return response.json();
 }
 
-export async function updateItem(itemId: number, itemData: {
-    name?: string;
-    description?: string;
-    buyPrice?: number;
-    quantity?: number;
-    purchasedAt?: string;
-    inventoryId?: number;
-}) {
+export async function updateItem(
+    itemId: number,
+    itemData: {
+        name?: string;
+        description?: string;
+        buyPrice?: number;
+        quantity?: number;
+        purchasedAt?: string;
+        inventoryId?: number;
+    },
+) {
     const response = await fetchWithAuth(`${API_BASE_URL}/items/${itemId}`, {
         method: 'PUT',
         body: JSON.stringify(itemData),
@@ -207,14 +226,17 @@ export async function createSoldItem(saleData: {
     return response.json();
 }
 
-export async function updateSoldItem(soldItemId: number, saleData: {
-    finalSellPrice?: number;
-    quantity?: number;
-    priceVariableName?: string;
-    isCustomPrice?: boolean;
-    paidWithCash?: boolean;
-    soldAt?: string;
-}) {
+export async function updateSoldItem(
+    soldItemId: number,
+    saleData: {
+        finalSellPrice?: number;
+        quantity?: number;
+        priceVariableName?: string;
+        isCustomPrice?: boolean;
+        paidWithCash?: boolean;
+        soldAt?: string;
+    },
+) {
     const response = await fetchWithAuth(`${API_BASE_URL}/soldItems/${soldItemId}`, {
         method: 'PUT',
         body: JSON.stringify(saleData),
@@ -259,12 +281,15 @@ export async function getPriceVariablesByItemId(itemId: number) {
     return response.json();
 }
 
-export async function createPriceVariable(itemId: number, priceVariableData: {
-    name: string;
-    value: number;
-    type: 'PERCENTAGE' | 'FIXED';
-    isDefault: boolean;
-}) {
+export async function createPriceVariable(
+    itemId: number,
+    priceVariableData: {
+        name: string;
+        value: number;
+        type: 'PERCENTAGE' | 'FIXED';
+        isDefault: boolean;
+    },
+) {
     const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables`, {
         method: 'POST',
         body: JSON.stringify({ ...priceVariableData, itemId }),
@@ -272,12 +297,15 @@ export async function createPriceVariable(itemId: number, priceVariableData: {
     return response.json();
 }
 
-export async function updatePriceVariable(priceVariableId: number, priceVariableData: {
-    name?: string;
-    value?: number;
-    type?: 'PERCENTAGE' | 'FIXED';
-    isDefault?: boolean;
-}) {
+export async function updatePriceVariable(
+    priceVariableId: number,
+    priceVariableData: {
+        name?: string;
+        value?: number;
+        type?: 'PERCENTAGE' | 'FIXED';
+        isDefault?: boolean;
+    },
+) {
     const response = await fetchWithAuth(`${API_BASE_URL}/priceVariables/${priceVariableId}`, {
         method: 'PUT',
         body: JSON.stringify(priceVariableData),
@@ -294,7 +322,9 @@ export async function deletePriceVariable(priceVariableId: number) {
 // ========================================
 
 export async function searchUsersByEmail(email: string) {
-    const response = await fetchWithAuth(`${API_BASE_URL}/users?email=${encodeURIComponent(email)}`);
+    const response = await fetchWithAuth(
+        `${API_BASE_URL}/users?email=${encodeURIComponent(email)}`,
+    );
     return response.json();
 }
 

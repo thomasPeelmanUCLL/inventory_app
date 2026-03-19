@@ -10,13 +10,13 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     try {
         // Use Better Auth's getSession method with proper headers
         const session = await auth.api.getSession({
-            headers: fromNodeHeaders(req.headers)
+            headers: fromNodeHeaders(req.headers),
         });
 
         if (!session?.user) {
             return res.status(401).json({
                 error: 'Unauthorized',
-                message: 'Valid session required'
+                message: 'Valid session required',
             });
         }
 
@@ -30,7 +30,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         console.error('Auth middleware error:', error);
         return res.status(401).json({
             error: 'Unauthorized',
-            message: 'Invalid or expired session'
+            message: 'Invalid or expired session',
         });
     }
 };
@@ -41,7 +41,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const session = await auth.api.getSession({
-            headers: fromNodeHeaders(req.headers)
+            headers: fromNodeHeaders(req.headers),
         });
 
         if (session?.user) {

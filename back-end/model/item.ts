@@ -24,14 +24,13 @@ export class Item extends BaseModel {
         super({
             id: item.id,
             quantity: item.quantity,
-            createdAt: item.createdAt
+            createdAt: item.createdAt,
         });
         this.validate(item);
         this.name = item.name;
         this.description = item.description;
-        this.buyPrice = typeof item.buyPrice === 'number'
-            ? new Prisma.Decimal(item.buyPrice)
-            : item.buyPrice;
+        this.buyPrice =
+            typeof item.buyPrice === 'number' ? new Prisma.Decimal(item.buyPrice) : item.buyPrice;
         this.buyedAt = item.buyedAt;
         this.inventoryId = item.inventoryId;
         this.priceVariables = item.priceVariables; // ADD THIS
@@ -87,17 +86,13 @@ export class Item extends BaseModel {
         if (item.buyPrice === undefined || item.buyPrice === null) {
             throw new Error('Buy price is required');
         }
-        const price = typeof item.buyPrice === 'number'
-            ? item.buyPrice
-            : item.buyPrice.toNumber();
+        const price = typeof item.buyPrice === 'number' ? item.buyPrice : item.buyPrice.toNumber();
         if (price < 0) {
             throw new Error('Buy price must be a positive number');
         }
     }
 
-    static from(
-        itemPrisma: ItemPrisma & { priceVariables?: PriceVariablePrisma[] }
-    ): Item {
+    static from(itemPrisma: ItemPrisma & { priceVariables?: PriceVariablePrisma[] }): Item {
         return new Item({
             id: itemPrisma.id,
             name: itemPrisma.name,
@@ -107,7 +102,7 @@ export class Item extends BaseModel {
             buyedAt: itemPrisma.buyedAt || undefined,
             createdAt: itemPrisma.createdAt,
             inventoryId: itemPrisma.inventoryId || undefined,
-            priceVariables: itemPrisma.priceVariables?.map(pv => PriceVariable.from(pv)),
+            priceVariables: itemPrisma.priceVariables?.map((pv) => PriceVariable.from(pv)),
         });
     }
 }

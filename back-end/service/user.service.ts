@@ -29,7 +29,7 @@ const getUserByEmail = async ({ email }: { email: string }): Promise<User> => {
 
 export default {
     getAllUsers,
-    getUserById,  // ADDED
+    getUserById, // ADDED
     getUserByName,
-    getUserByEmail
+    getUserByEmail,
 };

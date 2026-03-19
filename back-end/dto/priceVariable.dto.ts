@@ -18,4 +18,5 @@ export const priceVariableToDTO = (pv: PriceVariable): PriceVariableDTO => ({
     itemId: pv.getItemId(),
 });
 
-export const priceVariablesToDTO = (pvs: PriceVariable[]): PriceVariableDTO[] => pvs.map(priceVariableToDTO);
+export const priceVariablesToDTO = (pvs: PriceVariable[]): PriceVariableDTO[] =>
+    pvs.map(priceVariableToDTO);

@@ -12,18 +12,11 @@ type UserInput = {
     role: Role;
 };
 
-
-
-
 type InventoryInput = {
     id?: number; // Make id optional
     name: string;
     description: string;
-
-}
-
-
-
+};
 
 type AuthRequest = ExpressRequest & {
     auth: {
@@ -32,15 +25,7 @@ type AuthRequest = ExpressRequest & {
     };
 };
 
-
-
-export {
-    AuthRequest,
-    Role,
-    UserInput,
-
-
-};
+export { AuthRequest, Role, UserInput };
 
 // testing phaze
 
@@ -51,11 +36,9 @@ type AuthenticationResponse = {
     username: string;
 };
 
-
-
 type LoginInput = {
     email: string;
     password: string;
 };
 
-export { AuthenticationResponse, LoginInput , InventoryInput};
+export { AuthenticationResponse, LoginInput, InventoryInput };

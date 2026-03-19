@@ -120,16 +120,19 @@ priceVariableRouter.get('/', async (req: Request, res: Response, next: NextFunct
  *       401:
  *         description: User not authenticated
  */
-priceVariableRouter.get('/item/:itemId', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const priceVariables = await priceVariableService.getPriceVariablesByItemId({
-            itemId: Number(req.params.itemId)
-        });
-        res.status(200).json(priceVariablesToDTO(priceVariables));
-    } catch (error) {
-        next(error);
-    }
-});
+priceVariableRouter.get(
+    '/item/:itemId',
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const priceVariables = await priceVariableService.getPriceVariablesByItemId({
+                itemId: Number(req.params.itemId),
+            });
+            res.status(200).json(priceVariablesToDTO(priceVariables));
+        } catch (error) {
+            next(error);
+        }
+    },
+);
 
 /**
  * @swagger
@@ -160,7 +163,9 @@ priceVariableRouter.get('/item/:itemId', async (req: Request, res: Response, nex
  */
 priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const priceVariable = await priceVariableService.getPriceVariableById({ id: Number(req.params.id) });
+        const priceVariable = await priceVariableService.getPriceVariableById({
+            id: Number(req.params.id),
+        });
         res.status(200).json(priceVariableToDTO(priceVariable));
     } catch (error) {
         next(error);
@@ -202,7 +207,7 @@ priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunc
             value: Number(value),
             type,
             isDefault: Boolean(isDefault),
-            itemId: Number(itemId)
+            itemId: Number(itemId),
         });
         res.status(201).json(priceVariableToDTO(priceVariable));
     } catch (error) {
@@ -264,7 +269,7 @@ priceVariableRouter.put('/:id', async (req: Request, res: Response, next: NextFu
             name,
             value: value !== undefined ? Number(value) : undefined,
             type,
-            isDefault: isDefault !== undefined ? Boolean(isDefault) : undefined
+            isDefault: isDefault !== undefined ? Boolean(isDefault) : undefined,
         });
         res.status(200).json(priceVariableToDTO(priceVariable));
     } catch (error) {

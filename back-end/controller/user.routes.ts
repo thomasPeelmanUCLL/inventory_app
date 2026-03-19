@@ -113,12 +113,12 @@ userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
         if (error instanceof Error && error.message.includes('does not exist')) {
             res.status(404).json({
                 error: error.message,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         } else {
             res.status(500).json({
                 error: 'Internal server error',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         }
     }
@@ -157,12 +157,12 @@ userRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunc
         if (error instanceof Error && error.message.includes('does not exist')) {
             res.status(404).json({
                 error: error.message,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         } else {
             res.status(500).json({
                 error: 'Internal server error',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         }
     }
@@ -201,12 +201,12 @@ userRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) =
         if (error instanceof Error && error.message.includes('does not exist')) {
             res.status(404).json({
                 error: error.message,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         } else {
             res.status(500).json({
                 error: 'Internal server error',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         }
     }

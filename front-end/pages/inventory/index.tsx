@@ -16,7 +16,10 @@ export default function InventoryListPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
 
     useEffect(() => {
-        if (!isPending && !session) { router.push('/login'); return; }
+        if (!isPending && !session) {
+            router.push('/login');
+            return;
+        }
         if (session) void loadInventories();
     }, [session, isPending]);
 
@@ -33,7 +36,10 @@ export default function InventoryListPage() {
         }
     };
 
-    const handleCreateInventory = async (newInventoryData: { name: string; description: string }) => {
+    const handleCreateInventory = async (newInventoryData: {
+        name: string;
+        description: string;
+    }) => {
         await createInventory(newInventoryData);
         setShowCreateModal(false);
         await loadInventories();
@@ -48,23 +54,25 @@ export default function InventoryListPage() {
         }
     };
 
-    if (isPending || isLoading) return (
-        <>
-            <Header />
-            <div className="container mx-auto px-4 py-8">
-                <div className="text-center">Loading...</div>
-            </div>
-        </>
-    );
+    if (isPending || isLoading)
+        return (
+            <>
+                <Header />
+                <div className="container mx-auto px-4 py-8">
+                    <div className="text-center">Loading...</div>
+                </div>
+            </>
+        );
 
-    if (fetchError) return (
-        <>
-            <Header />
-            <div className="container mx-auto px-4 py-8">
-                <div className="text-red-600">{fetchError}</div>
-            </div>
-        </>
-    );
+    if (fetchError)
+        return (
+            <>
+                <Header />
+                <div className="container mx-auto px-4 py-8">
+                    <div className="text-red-600">{fetchError}</div>
+                </div>
+            </>
+        );
 
     return (
         <>

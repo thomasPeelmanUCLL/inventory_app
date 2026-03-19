@@ -8,13 +8,7 @@ export class User {
     private role?: Role;
     private age?: number;
 
-    constructor(user: {
-        id?: string;
-        email: string;
-        name: string;
-        age?: number;
-        role?: Role;
-    }) {
+    constructor(user: { id?: string; email: string; name: string; age?: number; role?: Role }) {
         this.validate(user);
         this.id = user.id;
         this.name = user.name;
@@ -46,13 +40,7 @@ export class User {
         return this.role;
     }
 
-    validate(user: {
-        id?: string;
-        name: string;
-        email: string;
-        role?: Role;
-        age?: number;
-    }) {
+    validate(user: { id?: string; name: string; email: string; role?: Role; age?: number }) {
         if (!user.name?.trim()) {
             throw new Error('Username is required');
         }

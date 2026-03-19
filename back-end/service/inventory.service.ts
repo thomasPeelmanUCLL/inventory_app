@@ -37,11 +37,11 @@ const addUserToInventory = async (
     userId: string,
     inventoryId: number,
     role: string,
-    requestingUserId: string
+    requestingUserId: string,
 ): Promise<void> => {
     const requestingUserRole = await inventoryDb.checkUserAccess({
         userId: requestingUserId,
-        inventoryId
+        inventoryId,
     });
     if (requestingUserRole !== 'owner') {
         throw new Error('Only owners can add users');
@@ -52,11 +52,11 @@ const addUserToInventory = async (
 const removeUserFromInventory = async (
     userId: string,
     inventoryId: number,
-    requestingUserId: string
+    requestingUserId: string,
 ): Promise<void> => {
     const requestingUserRole = await inventoryDb.checkUserAccess({
         userId: requestingUserId,
-        inventoryId
+        inventoryId,
     });
     if (requestingUserRole !== 'owner') {
         throw new Error('Only owners can remove users');
@@ -70,7 +70,7 @@ const removeUserFromInventory = async (
 const getInventoryUsers = async (inventoryId: number, requestingUserId: string) => {
     const role = await inventoryDb.checkUserAccess({
         userId: requestingUserId,
-        inventoryId
+        inventoryId,
     });
     if (!role) {
         throw new Error('Access denied');
@@ -81,11 +81,11 @@ const getInventoryUsers = async (inventoryId: number, requestingUserId: string) 
 const updateInventory = async (
     id: number,
     data: { name: string; description: string },
-    requestingUserId: string
+    requestingUserId: string,
 ): Promise<Inventory> => {
     const role = await inventoryDb.checkUserAccess({
         userId: requestingUserId,
-        inventoryId: id
+        inventoryId: id,
     });
     if (role !== 'owner' && role !== 'editor') {
         throw new Error('Only owners and editors can update inventories');
@@ -93,7 +93,7 @@ const updateInventory = async (
     return await inventoryDb.updateInventory({
         id,
         name: data.name,
-        description: data.description
+        description: data.description,
     });
 };
 

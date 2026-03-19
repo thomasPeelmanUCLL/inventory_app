@@ -29,9 +29,13 @@ const InventoryDetailPage = () => {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [showCart, setShowCart] = useState(false);
     const [showManageUsersModal, setShowManageUsersModal] = useState(false);
-    const [checkoutConfirmData, setCheckoutConfirmData] = useState<{ paidWithCash: boolean } | null>(null);
+    const [checkoutConfirmData, setCheckoutConfirmData] = useState<{
+        paidWithCash: boolean;
+    } | null>(null);
 
-    useEffect(() => { if (inventoryIdParam) void fetchInventory(); }, [inventoryIdParam]);
+    useEffect(() => {
+        if (inventoryIdParam) void fetchInventory();
+    }, [inventoryIdParam]);
 
     const fetchInventory = async () => {
         try {
@@ -48,14 +52,16 @@ const InventoryDetailPage = () => {
 
     const handleSellItem = (item: Item) => {
         const priceVariables = item.priceVariables || [];
-        const defaultPriceVariable = priceVariables.find(priceVariable => priceVariable.isDefault);
+        const defaultPriceVariable = priceVariables.find(
+            (priceVariable) => priceVariable.isDefault,
+        );
         setSellModal({
             item,
             quantity: 1,
             finalSellPrice: defaultPriceVariable
-                ? (defaultPriceVariable.type === 'PERCENTAGE'
+                ? defaultPriceVariable.type === 'PERCENTAGE'
                     ? item.buyPrice * (1 + defaultPriceVariable.value / 100)
-                    : defaultPriceVariable.value)
+                    : defaultPriceVariable.value
                 : item.buyPrice,
             priceVariableName: defaultPriceVariable?.name,
             isCustomPrice: false,
@@ -65,26 +71,33 @@ const InventoryDetailPage = () => {
 
     const handleAddToCart = () => {
         if (!sellModal) return;
-        setCart(prevCart => {
+        setCart((prevCart) => {
             const existingCartEntry = prevCart.find(
-                cartEntry => cartEntry.item.id === sellModal.item.id &&
-                cartEntry.priceVariableName === sellModal.priceVariableName
+                (cartEntry) =>
+                    cartEntry.item.id === sellModal.item.id &&
+                    cartEntry.priceVariableName === sellModal.priceVariableName,
             );
             if (existingCartEntry) {
-                return prevCart.map(cartEntry =>
+                return prevCart.map((cartEntry) =>
                     cartEntry.item.id === sellModal.item.id &&
                     cartEntry.priceVariableName === sellModal.priceVariableName
-                        ? { ...cartEntry, quantityToSell: cartEntry.quantityToSell + sellModal.quantity }
-                        : cartEntry
+                        ? {
+                              ...cartEntry,
+                              quantityToSell: cartEntry.quantityToSell + sellModal.quantity,
+                          }
+                        : cartEntry,
                 );
             }
-            return [...prevCart, {
-                item: sellModal.item,
-                quantityToSell: sellModal.quantity,
-                finalSellPrice: sellModal.finalSellPrice,
-                priceVariableName: sellModal.priceVariableName,
-                isCustomPrice: sellModal.isCustomPrice,
-            }];
+            return [
+                ...prevCart,
+                {
+                    item: sellModal.item,
+                    quantityToSell: sellModal.quantity,
+                    finalSellPrice: sellModal.finalSellPrice,
+                    priceVariableName: sellModal.priceVariableName,
+                    isCustomPrice: sellModal.isCustomPrice,
+                },
+            ];
         });
         setSellModal(null);
         showToast('Added to cart');
@@ -133,12 +146,32 @@ const InventoryDetailPage = () => {
 
     const getCurrentUserRole = () => {
         if (!inventory || !session?.user) return 'viewer';
-        return inventory.users?.find(member => member.user.id === session.user.id)?.role || 'viewer';
+        return (
+            inventory.users?.find((member) => member.user.id === session.user.id)?.role || 'viewer'
+        );
     };
 
-    if (isLoading) return (<><Header /><LoadingScreen /></>);
-    if (fetchError) return (<><Header /><ErrorScreen message={fetchError} onRetry={fetchInventory} /></>);
-    if (!inventory) return (<><Header /><ErrorScreen message="Inventory not found" /></>);
+    if (isLoading)
+        return (
+            <>
+                <Header />
+                <LoadingScreen />
+            </>
+        );
+    if (fetchError)
+        return (
+            <>
+                <Header />
+                <ErrorScreen message={fetchError} onRetry={fetchInventory} />
+            </>
+        );
+    if (!inventory)
+        return (
+            <>
+                <Header />
+                <ErrorScreen message="Inventory not found" />
+            </>
+        );
 
     const currentUserRole = getCurrentUserRole();
     const canEdit = currentUserRole === 'owner' || currentUserRole === 'editor';
@@ -160,13 +193,20 @@ const InventoryDetailPage = () => {
             )}
 
             <div className="container mx-auto px-4 py-8">
-                <Link href="/inventory" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">
+                <Link
+                    href="/inventory"
+                    className="text-blue-600 hover:text-blue-800 mb-4 inline-block"
+                >
                     ← Back to Inventories
                 </Link>
 
                 <InventoryHeader
-                    inventory={inventory} role={currentUserRole} canEdit={canEdit} isOwner={isOwner}
-                    activeTab="overview" onManageUsers={() => setShowManageUsersModal(true)}
+                    inventory={inventory}
+                    role={currentUserRole}
+                    canEdit={canEdit}
+                    isOwner={isOwner}
+                    activeTab="overview"
+                    onManageUsers={() => setShowManageUsersModal(true)}
                 />
 
                 {canEdit && (
@@ -175,7 +215,12 @@ const InventoryDetailPage = () => {
                             onClick={() => setShowCart(true)}
                             className="relative px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                         >
-                            🛒 Cart {cart.length > 0 && <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-2">{cart.length}</span>}
+                            🛒 Cart{' '}
+                            {cart.length > 0 && (
+                                <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-2">
+                                    {cart.length}
+                                </span>
+                            )}
                         </button>
                     </div>
                 )}
@@ -202,16 +247,32 @@ const InventoryDetailPage = () => {
                 <CartSidebar
                     cart={cart}
                     onClose={() => setShowCart(false)}
-                    onRemoveItem={(itemId) => setCart(prevCart => prevCart.filter(cartEntry => cartEntry.item.id !== itemId))}
-                    onUpdateQuantity={(itemId, newQuantity) => setCart(prevCart => prevCart.map(cartEntry => cartEntry.item.id === itemId ? { ...cartEntry, quantityToSell: newQuantity } : cartEntry))}
+                    onRemoveItem={(itemId) =>
+                        setCart((prevCart) =>
+                            prevCart.filter((cartEntry) => cartEntry.item.id !== itemId),
+                        )
+                    }
+                    onUpdateQuantity={(itemId, newQuantity) =>
+                        setCart((prevCart) =>
+                            prevCart.map((cartEntry) =>
+                                cartEntry.item.id === itemId
+                                    ? { ...cartEntry, quantityToSell: newQuantity }
+                                    : cartEntry,
+                            ),
+                        )
+                    }
                     onCheckout={(paidWithCash) => setCheckoutConfirmData({ paidWithCash })}
                 />
             )}
 
             {showManageUsersModal && (
                 <ManageUsersModal
-                    inventoryId={Number(inventoryIdParam)} isOwner={isOwner}
-                    onClose={() => { setShowManageUsersModal(false); void fetchInventory(); }}
+                    inventoryId={Number(inventoryIdParam)}
+                    isOwner={isOwner}
+                    onClose={() => {
+                        setShowManageUsersModal(false);
+                        void fetchInventory();
+                    }}
                 />
             )}
         </>

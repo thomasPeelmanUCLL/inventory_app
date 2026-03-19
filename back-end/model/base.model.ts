@@ -3,11 +3,7 @@ export abstract class BaseModel {
     protected quantity: number;
     protected createdAt: Date;
 
-    constructor(entity: {
-        id?: number;
-        quantity: number;
-        createdAt?: Date;
-    }) {
+    constructor(entity: { id?: number; quantity: number; createdAt?: Date }) {
         this.id = entity.id || 0;
         this.quantity = entity.quantity;
         this.createdAt = entity.createdAt || new Date();

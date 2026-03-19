@@ -92,7 +92,11 @@ export default function AnalyticsPage() {
         try {
             setIsLoading(true);
             setLoadError(null);
-            const fetchedAnalytics = await getInventoryAnalytics(inventoryId, selectedDateRange.start, selectedDateRange.end);
+            const fetchedAnalytics = await getInventoryAnalytics(
+                inventoryId,
+                selectedDateRange.start,
+                selectedDateRange.end,
+            );
             setAnalyticsData(fetchedAnalytics);
         } catch (err: any) {
             setLoadError(err.message || 'Failed to load analytics');
@@ -107,7 +111,10 @@ export default function AnalyticsPage() {
 
         const summaryRows = [
             ['Sales Summary', ''],
-            ['Period', `${selectedDateRange.start.toLocaleDateString()} - ${selectedDateRange.end.toLocaleDateString()}`],
+            [
+                'Period',
+                `${selectedDateRange.start.toLocaleDateString()} - ${selectedDateRange.end.toLocaleDateString()}`,
+            ],
             ['', ''],
             ['Total Profit', `€${asMoney(analyticsData.summary.totalProfit)}`],
             ['Total Revenue', `€${asMoney(analyticsData.summary.totalSellPrice)}`],
@@ -121,32 +128,42 @@ export default function AnalyticsPage() {
 
         const topItemsRows = [
             ['Item Name', 'Quantity Sold', 'Buy Price', 'Sell Price', 'Profit'],
-            ...analyticsData.topSellingItems.map(topItem => [
+            ...analyticsData.topSellingItems.map((topItem) => [
                 topItem.itemName,
                 String(topItem.totalQuantity),
                 asMoney(topItem.totalBuyPrice),
                 asMoney(topItem.totalSellPrice),
                 asMoney(topItem.totalProfit),
-            ])
+            ]),
         ];
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(topItemsRows), 'Top Selling Items');
+        XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.aoa_to_sheet(topItemsRows),
+            'Top Selling Items',
+        );
 
         const dailySalesRows = [
             ['Date', 'Transactions', 'Items Sold', 'Buy Price', 'Sell Price', 'Profit'],
-            ...analyticsData.salesByDay.map(dayEntry => [
+            ...analyticsData.salesByDay.map((dayEntry) => [
                 new Date(dayEntry.date).toLocaleDateString(),
                 String(dayEntry.transactionCount),
                 String(dayEntry.totalQuantity),
                 asMoney(dayEntry.totalBuyPrice),
                 asMoney(dayEntry.totalSellPrice),
                 asMoney(dayEntry.totalProfit),
-            ])
+            ]),
         ];
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(dailySalesRows), 'Sales by Day');
+        XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.aoa_to_sheet(dailySalesRows),
+            'Sales by Day',
+        );
 
-        const detailedSalesRows: any[][] = [['Date', 'Item Name', 'Quantity', 'Buy Price', 'Sell Price', 'Profit']];
-        analyticsData.salesByDay.forEach(dayEntry => {
-            dayEntry.itemBreakdown?.forEach(soldItem => {
+        const detailedSalesRows: any[][] = [
+            ['Date', 'Item Name', 'Quantity', 'Buy Price', 'Sell Price', 'Profit'],
+        ];
+        analyticsData.salesByDay.forEach((dayEntry) => {
+            dayEntry.itemBreakdown?.forEach((soldItem) => {
                 detailedSalesRows.push([
                     new Date(dayEntry.date).toLocaleDateString(),
                     soldItem.itemName,
@@ -157,42 +174,95 @@ export default function AnalyticsPage() {
                 ]);
             });
         });
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(detailedSalesRows), 'Detailed Daily Sales');
+        XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.aoa_to_sheet(detailedSalesRows),
+            'Detailed Daily Sales',
+        );
 
         const paymentMethodRows = [
             ['Payment Method', 'Buy Price', 'Sell Price', 'Profit'],
-            ['Cash', asMoney(analyticsData.paymentMethodBreakdown.cash.buyPrice), asMoney(analyticsData.paymentMethodBreakdown.cash.sellPrice), asMoney(analyticsData.paymentMethodBreakdown.cash.profit)],
-            ['Card', asMoney(analyticsData.paymentMethodBreakdown.nonCash.buyPrice), asMoney(analyticsData.paymentMethodBreakdown.nonCash.sellPrice), asMoney(analyticsData.paymentMethodBreakdown.nonCash.profit)],
+            [
+                'Cash',
+                asMoney(analyticsData.paymentMethodBreakdown.cash.buyPrice),
+                asMoney(analyticsData.paymentMethodBreakdown.cash.sellPrice),
+                asMoney(analyticsData.paymentMethodBreakdown.cash.profit),
+            ],
+            [
+                'Card',
+                asMoney(analyticsData.paymentMethodBreakdown.nonCash.buyPrice),
+                asMoney(analyticsData.paymentMethodBreakdown.nonCash.sellPrice),
+                asMoney(analyticsData.paymentMethodBreakdown.nonCash.profit),
+            ],
         ];
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(paymentMethodRows), 'Payment Methods');
+        XLSX.utils.book_append_sheet(
+            workbook,
+            XLSX.utils.aoa_to_sheet(paymentMethodRows),
+            'Payment Methods',
+        );
 
         if (analyticsData.priceVariableBreakdown.length > 0) {
             const priceVariableRows = [
                 ['Price Variable', 'Count', 'Buy Price', 'Sell Price', 'Profit'],
-                ...analyticsData.priceVariableBreakdown.map(priceVariableEntry => [
+                ...analyticsData.priceVariableBreakdown.map((priceVariableEntry) => [
                     priceVariableEntry.priceVariableName,
                     String(priceVariableEntry.count),
                     asMoney(priceVariableEntry.totalBuyPrice),
                     asMoney(priceVariableEntry.totalSellPrice),
                     asMoney(priceVariableEntry.totalProfit),
-                ])
+                ]),
             ];
-            XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(priceVariableRows), 'Price Variables');
+            XLSX.utils.book_append_sheet(
+                workbook,
+                XLSX.utils.aoa_to_sheet(priceVariableRows),
+                'Price Variables',
+            );
         }
 
-        XLSX.writeFile(workbook, `Sales_Analytics_${selectedDateRange.start.toISOString().split('T')[0]}_to_${selectedDateRange.end.toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(
+            workbook,
+            `Sales_Analytics_${selectedDateRange.start.toISOString().split('T')[0]}_to_${selectedDateRange.end.toISOString().split('T')[0]}.xlsx`,
+        );
     };
 
-    if (!router.isReady || !inventoryIdParam) return (<><Header /><LoadingScreen message="Initializing..." /></>);
-    if (isLoading) return (<><Header /><LoadingScreen message="Loading analytics..." /></>);
-    if (loadError) return (<><Header /><ErrorScreen message={loadError} onRetry={loadAnalyticsData} /></>);
-    if (!analyticsData) return (<><Header /><LoadingScreen message="No data available" /></>);
+    if (!router.isReady || !inventoryIdParam)
+        return (
+            <>
+                <Header />
+                <LoadingScreen message="Initializing..." />
+            </>
+        );
+    if (isLoading)
+        return (
+            <>
+                <Header />
+                <LoadingScreen message="Loading analytics..." />
+            </>
+        );
+    if (loadError)
+        return (
+            <>
+                <Header />
+                <ErrorScreen message={loadError} onRetry={loadAnalyticsData} />
+            </>
+        );
+    if (!analyticsData)
+        return (
+            <>
+                <Header />
+                <LoadingScreen message="No data available" />
+            </>
+        );
 
     return (
         <>
             <Header />
             <div className="container mx-auto p-6 space-y-6">
-                <AnalyticsDateBar dateRange={selectedDateRange} onChange={setSelectedDateRange} onExport={exportToExcel} />
+                <AnalyticsDateBar
+                    dateRange={selectedDateRange}
+                    onChange={setSelectedDateRange}
+                    onExport={exportToExcel}
+                />
                 <SummaryCards summary={analyticsData.summary} />
                 <TopSellingTable items={analyticsData.topSellingItems} />
                 <SalesByDayTable days={analyticsData.salesByDay} />

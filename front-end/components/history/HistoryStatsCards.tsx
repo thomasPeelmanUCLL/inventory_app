@@ -4,7 +4,11 @@ type HistoryStatsCardsProps = {
     totalTransactions: number;
 };
 
-export default function HistoryStatsCards({ totalRevenue, totalItems, totalTransactions }: HistoryStatsCardsProps) {
+export default function HistoryStatsCards({
+    totalRevenue,
+    totalItems,
+    totalTransactions,
+}: HistoryStatsCardsProps) {
     return (
         <div className="grid md:grid-cols-3 gap-6 mb-6">
             <div className="bg-white rounded-lg shadow p-6">

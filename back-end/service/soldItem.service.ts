@@ -22,26 +22,34 @@ const getSoldItemsByItemId = async ({ itemId }: { itemId: number }): Promise<Sol
     return await soldItemDB.getSoldItemsByItemId({ itemId });
 };
 
-const getSoldItemsByInventoryId = async ({ inventoryId }: { inventoryId: number }): Promise<SoldItem[]> => {
+const getSoldItemsByInventoryId = async ({
+    inventoryId,
+}: {
+    inventoryId: number;
+}): Promise<SoldItem[]> => {
     return await soldItemDB.getSoldItemsByInventoryId({ inventoryId });
 };
 
 // NEW: Bulk query method to prevent N+1 queries
-const getSoldItemsByInventoryIds = async ({ inventoryIds }: { inventoryIds: number[] }): Promise<SoldItem[]> => {
+const getSoldItemsByInventoryIds = async ({
+    inventoryIds,
+}: {
+    inventoryIds: number[];
+}): Promise<SoldItem[]> => {
     if (inventoryIds.length === 0) return [];
     return await soldItemDB.getSoldItemsByInventoryIds({ inventoryIds });
 };
 
 // DEPRECATED: Use transactional methods in soldItemDB instead
 const createSoldItem = async ({
-                                  itemId,
-                                  finalSellPrice,
-                                  priceVariableName,
-                                  isCustomPrice,
-                                  payedCash = false,
-                                  quantity,
-                                  soldAt
-                              }: {
+    itemId,
+    finalSellPrice,
+    priceVariableName,
+    isCustomPrice,
+    payedCash = false,
+    quantity,
+    soldAt,
+}: {
     itemId: number;
     finalSellPrice: number | Prisma.Decimal;
     priceVariableName?: string;
@@ -50,21 +58,24 @@ const createSoldItem = async ({
     quantity: number;
     soldAt?: Date;
 }): Promise<SoldItem> => {
-    const sellPriceDecimal = typeof finalSellPrice === 'number'
-        ? new Prisma.Decimal(finalSellPrice.toFixed(2))
-        : finalSellPrice;
-        
+    const sellPriceDecimal =
+        typeof finalSellPrice === 'number'
+            ? new Prisma.Decimal(finalSellPrice.toFixed(2))
+            : finalSellPrice;
+
     if (sellPriceDecimal.lessThanOrEqualTo(0)) {
         throw new Error('Final sell price must be positive');
     }
-    
+
     if (quantity <= 0) {
         throw new Error('Quantity must be positive');
     }
 
     const item = await itemService.getItemById({ id: itemId });
     if (item.getQuantity() < quantity) {
-        throw new Error(`Not enough quantity available for item with ID: ${itemId}. Available: ${item.getQuantity()}, Requested: ${quantity}`);
+        throw new Error(
+            `Not enough quantity available for item with ID: ${itemId}. Available: ${item.getQuantity()}, Requested: ${quantity}`,
+        );
     }
 
     const soldItem = new SoldItem({
@@ -74,7 +85,7 @@ const createSoldItem = async ({
         isCustomPrice,
         payedCash,
         quantity,
-        soldAt: soldAt || new Date()
+        soldAt: soldAt || new Date(),
     });
 
     const createdSoldItem = await soldItemDB.createSoldItem(soldItem);
@@ -89,7 +100,7 @@ const createSoldItem = async ({
             quantity: updatedItem.getQuantity() - quantity,
             inventoryId: updatedItem.getInventoryId(),
             buyedAt: updatedItem.getBuyedAt(),
-            createdAt: updatedItem.getCreatedAt()
+            createdAt: updatedItem.getCreatedAt(),
         });
         await itemDB.updateItem(newItem);
     }
@@ -99,14 +110,14 @@ const createSoldItem = async ({
 
 // DEPRECATED: Use transactional methods in soldItemDB instead
 const updateSoldItem = async ({
-                                  id,
-                                  finalSellPrice,
-                                  priceVariableName,
-                                  isCustomPrice,
-                                  payedCash,
-                                  quantity,
-                                  soldAt
-                              }: {
+    id,
+    finalSellPrice,
+    priceVariableName,
+    isCustomPrice,
+    payedCash,
+    quantity,
+    soldAt,
+}: {
     id: number;
     finalSellPrice?: number | Prisma.Decimal;
     priceVariableName?: string;
@@ -123,10 +134,11 @@ const updateSoldItem = async ({
     }
 
     if (finalSellPrice !== undefined) {
-        const sellPriceDecimal = typeof finalSellPrice === 'number'
-            ? new Prisma.Decimal(finalSellPrice.toFixed(2))
-            : finalSellPrice;
-            
+        const sellPriceDecimal =
+            typeof finalSellPrice === 'number'
+                ? new Prisma.Decimal(finalSellPrice.toFixed(2))
+                : finalSellPrice;
+
         if (sellPriceDecimal.lessThanOrEqualTo(0)) {
             throw new Error('Final sell price must be positive');
         }
@@ -137,23 +149,30 @@ const updateSoldItem = async ({
         if (quantity <= 0) {
             throw new Error('Quantity must be positive');
         }
-        
+
         quantityDifference = existingSoldItem.getQuantity() - quantity;
         if (quantityDifference < 0 && item.getQuantity() < Math.abs(quantityDifference)) {
-            throw new Error(`Not enough quantity available for item with ID: ${existingSoldItem.getItemId()}. Available: ${item.getQuantity()}, Additional needed: ${Math.abs(quantityDifference)}`);
+            throw new Error(
+                `Not enough quantity available for item with ID: ${existingSoldItem.getItemId()}. Available: ${item.getQuantity()}, Additional needed: ${Math.abs(quantityDifference)}`,
+            );
         }
     }
 
     const updatedSoldItem = new SoldItem({
         id: existingSoldItem.getId(),
         itemId: existingSoldItem.getItemId(),
-        finalSellPrice: finalSellPrice !== undefined ? finalSellPrice : existingSoldItem.getFinalSellPrice(),
-        priceVariableName: priceVariableName !== undefined ? priceVariableName : existingSoldItem.getPriceVariableName(),
-        isCustomPrice: isCustomPrice !== undefined ? isCustomPrice : existingSoldItem.getIsCustomPrice(),
+        finalSellPrice:
+            finalSellPrice !== undefined ? finalSellPrice : existingSoldItem.getFinalSellPrice(),
+        priceVariableName:
+            priceVariableName !== undefined
+                ? priceVariableName
+                : existingSoldItem.getPriceVariableName(),
+        isCustomPrice:
+            isCustomPrice !== undefined ? isCustomPrice : existingSoldItem.getIsCustomPrice(),
         payedCash: payedCash !== undefined ? payedCash : existingSoldItem.isPayedCash(),
         quantity: quantity !== undefined ? quantity : existingSoldItem.getQuantity(),
         soldAt: soldAt !== undefined ? soldAt : existingSoldItem.getSoldAt(),
-        createdAt: existingSoldItem.getCreatedAt()
+        createdAt: existingSoldItem.getCreatedAt(),
     });
 
     const result = await soldItemDB.updateSoldItem(updatedSoldItem);
@@ -170,7 +189,7 @@ const updateSoldItem = async ({
             quantity: item.getQuantity() + quantityDifference,
             inventoryId: item.getInventoryId(),
             buyedAt: item.getBuyedAt(),
-            createdAt: item.getCreatedAt()
+            createdAt: item.getCreatedAt(),
         });
         await itemDB.updateItem(newItem);
     }
@@ -197,16 +216,16 @@ const deleteSoldItem = async ({ id }: { id: number }): Promise<void> => {
         quantity: item.getQuantity() + soldItem.getQuantity(),
         inventoryId: item.getInventoryId(),
         buyedAt: item.getBuyedAt(),
-        createdAt: item.getCreatedAt()
+        createdAt: item.getCreatedAt(),
     });
     await itemDB.updateItem(newItem);
 };
 
 const getAnalyticsByInventoryId = async ({
-                                             inventoryId,
-                                             startDate,
-                                             endDate
-                                         }: {
+    inventoryId,
+    startDate,
+    endDate,
+}: {
     inventoryId: number;
     startDate?: Date;
     endDate?: Date;
@@ -214,7 +233,7 @@ const getAnalyticsByInventoryId = async ({
     if (startDate && endDate && startDate > endDate) {
         throw new Error('Start date must be before end date');
     }
-    
+
     if (startDate && endDate) {
         const diffMs = endDate.getTime() - startDate.getTime();
         const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -222,7 +241,7 @@ const getAnalyticsByInventoryId = async ({
             throw new Error('Date range cannot exceed 2 years');
         }
     }
-    
+
     return await getInventoryAnalyticsPrisma({ inventoryId, startDate, endDate });
 };
 
@@ -235,5 +254,5 @@ export default {
     createSoldItem,
     updateSoldItem,
     deleteSoldItem,
-    getAnalyticsByInventoryId
+    getAnalyticsByInventoryId,
 };

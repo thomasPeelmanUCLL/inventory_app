@@ -14,7 +14,7 @@ export class AppError extends Error {
         this.statusCode = statusCode;
         this.isOperational = isOperational;
         this.details = details;
-        
+
         Error.captureStackTrace(this, this.constructor);
     }
 }
@@ -50,11 +50,11 @@ export const errorHandler = (err: any, req: Request, res: Response, next: NextFu
 
     // Handle Zod validation errors
     if (err instanceof ZodError) {
-        const errors = err.errors.map(error => ({
+        const errors = err.errors.map((error) => ({
             field: error.path.join('.'),
             message: error.message,
         }));
-        
+
         return res.status(400).json({
             error: 'Validation failed',
             details: errors,
@@ -77,7 +77,7 @@ export const errorHandler = (err: any, req: Request, res: Response, next: NextFu
         if (err.code.startsWith('P')) {
             const statusCode = getPrismaErrorStatusCode(err.code);
             const message = getPrismaErrorMessage(err.code);
-            
+
             return res.status(statusCode).json({
                 error: message,
                 timestamp: new Date().toISOString(),
@@ -110,7 +110,7 @@ export const errorHandler = (err: any, req: Request, res: Response, next: NextFu
 
     // Default: Don't leak internal error details
     const isDevelopment = process.env.NODE_ENV === 'development';
-    
+
     return res.status(500).json({
         error: 'Internal server error',
         ...(isDevelopment && { details: err.message }), // Only in development

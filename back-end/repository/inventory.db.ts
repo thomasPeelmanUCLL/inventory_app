@@ -80,7 +80,13 @@ const deleteInventory = async ({ id }: { id: number }): Promise<void> => {
 };
 
 // Check if user has access to inventory
-const checkUserAccess = async ({ userId, inventoryId }: { userId: string; inventoryId: number }): Promise<string | null> => {
+const checkUserAccess = async ({
+    userId,
+    inventoryId,
+}: {
+    userId: string;
+    inventoryId: number;
+}): Promise<string | null> => {
     const access = await prisma.inventoryUser.findUnique({
         where: {
             userId_inventoryId: {
@@ -94,13 +100,13 @@ const checkUserAccess = async ({ userId, inventoryId }: { userId: string; invent
 
 // Add user to inventory
 const addUserToInventory = async ({
-                                      userId,
-                                      inventoryId,
-                                      role
-                                  }: {
+    userId,
+    inventoryId,
+    role,
+}: {
     userId: string;
     inventoryId: number;
-    role: string
+    role: string;
 }): Promise<void> => {
     await prisma.inventoryUser.create({
         data: {
@@ -113,11 +119,11 @@ const addUserToInventory = async ({
 
 // Remove user from inventory
 const removeUserFromInventory = async ({
-                                           userId,
-                                           inventoryId
-                                       }: {
+    userId,
+    inventoryId,
+}: {
     userId: string;
-    inventoryId: number
+    inventoryId: number;
 }): Promise<void> => {
     await prisma.inventoryUser.delete({
         where: {
@@ -130,13 +136,13 @@ const removeUserFromInventory = async ({
 };
 
 const updateInventory = async ({
-                                   id,
-                                   name,
-                                   description
-                               }: {
+    id,
+    name,
+    description,
+}: {
     id: number;
     name: string;
-    description: string
+    description: string;
 }): Promise<Inventory> => {
     const inventoryPrisma = await prisma.inventory.update({
         where: { id },
@@ -167,7 +173,13 @@ const getInventoryUsers = async ({ inventoryId }: { inventoryId: number }) => {
 };
 
 // Authorization helper functions
-const userHasAccess = async ({ userId, inventoryId }: { userId: string; inventoryId: number }): Promise<boolean> => {
+const userHasAccess = async ({
+    userId,
+    inventoryId,
+}: {
+    userId: string;
+    inventoryId: number;
+}): Promise<boolean> => {
     const access = await prisma.inventoryUser.findUnique({
         where: {
             userId_inventoryId: {
@@ -179,16 +191,22 @@ const userHasAccess = async ({ userId, inventoryId }: { userId: string; inventor
     return !!access;
 };
 
-const userHasAccessViaItem = async ({ userId, itemId }: { userId: string; itemId: number }): Promise<boolean> => {
+const userHasAccessViaItem = async ({
+    userId,
+    itemId,
+}: {
+    userId: string;
+    itemId: number;
+}): Promise<boolean> => {
     const item = await prisma.item.findUnique({
         where: { id: itemId },
         select: { inventoryId: true },
     });
-    
+
     if (!item?.inventoryId) {
         return false;
     }
-    
+
     return userHasAccess({ userId, inventoryId: item.inventoryId });
 };
 

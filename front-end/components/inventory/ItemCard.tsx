@@ -15,9 +15,7 @@ const ItemCard = ({ item, canEdit, onSell }: Props) => {
                 <span className="text-green-600 font-bold text-xl">
                     ${Number(item.buyPrice).toFixed(2)}
                 </span>
-                <span className="text-gray-500 text-sm">
-                    Qty: {item.quantity}
-                </span>
+                <span className="text-gray-500 text-sm">Qty: {item.quantity}</span>
             </div>
             {canEdit && (
                 <button

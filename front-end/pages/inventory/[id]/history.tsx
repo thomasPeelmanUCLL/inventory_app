@@ -30,7 +30,10 @@ const HistoryPage = () => {
     const [revertConfirmSaleId, setRevertConfirmSaleId] = useState<number | null>(null);
 
     useEffect(() => {
-        if (inventoryIdParam) { void fetchInventory(); void fetchSalesHistory(); }
+        if (inventoryIdParam) {
+            void fetchInventory();
+            void fetchSalesHistory();
+        }
     }, [inventoryIdParam]);
 
     const fetchInventory = async () => {
@@ -72,18 +75,44 @@ const HistoryPage = () => {
 
     const getCurrentUserRole = () => {
         if (!inventory || !session?.user) return 'viewer';
-        return inventory.users?.find(member => member.user.id === session.user.id)?.role || 'viewer';
+        return (
+            inventory.users?.find((member) => member.user.id === session.user.id)?.role || 'viewer'
+        );
     };
 
-    if (isLoading) return (<><Header /><LoadingScreen /></>);
-    if (loadError) return (<><Header /><ErrorScreen message={loadError} onRetry={fetchInventory} /></>);
-    if (!inventory) return (<><Header /><ErrorScreen message="Inventory not found" /></>);
+    if (isLoading)
+        return (
+            <>
+                <Header />
+                <LoadingScreen />
+            </>
+        );
+    if (loadError)
+        return (
+            <>
+                <Header />
+                <ErrorScreen message={loadError} onRetry={fetchInventory} />
+            </>
+        );
+    if (!inventory)
+        return (
+            <>
+                <Header />
+                <ErrorScreen message="Inventory not found" />
+            </>
+        );
 
     const currentUserRole = getCurrentUserRole();
     const canEdit = currentUserRole === 'owner' || currentUserRole === 'editor';
     const isOwner = currentUserRole === 'owner';
-    const totalRevenueFromSales = salesHistory.reduce((runningTotal, sale) => runningTotal + sale.finalSellPrice * sale.quantity, 0);
-    const totalItemsSold = salesHistory.reduce((runningTotal, sale) => runningTotal + sale.quantity, 0);
+    const totalRevenueFromSales = salesHistory.reduce(
+        (runningTotal, sale) => runningTotal + sale.finalSellPrice * sale.quantity,
+        0,
+    );
+    const totalItemsSold = salesHistory.reduce(
+        (runningTotal, sale) => runningTotal + sale.quantity,
+        0,
+    );
 
     return (
         <>
@@ -101,31 +130,45 @@ const HistoryPage = () => {
             )}
 
             <div className="container mx-auto px-4 py-8">
-                <Link href="/inventory" className="text-blue-500 hover:text-blue-700 mb-4 inline-block">
+                <Link
+                    href="/inventory"
+                    className="text-blue-500 hover:text-blue-700 mb-4 inline-block"
+                >
                     ← Back to Inventories
                 </Link>
 
                 <InventoryHeader
-                    inventory={inventory} role={currentUserRole} canEdit={canEdit} isOwner={isOwner}
-                    activeTab="history" onManageUsers={() => setShowManageUsersModal(true)}
+                    inventory={inventory}
+                    role={currentUserRole}
+                    canEdit={canEdit}
+                    isOwner={isOwner}
+                    activeTab="history"
+                    onManageUsers={() => setShowManageUsersModal(true)}
                 />
 
                 <div className="mt-8">
                     <HistoryStatsCards
-                        totalRevenue={totalRevenueFromSales} totalItems={totalItemsSold}
+                        totalRevenue={totalRevenueFromSales}
+                        totalItems={totalItemsSold}
                         totalTransactions={salesHistory.length}
                     />
                 </div>
 
                 <SalesHistoryTable
-                    sales={salesHistory} canEdit={canEdit} revertingId={revertingInProgressId}
+                    sales={salesHistory}
+                    canEdit={canEdit}
+                    revertingId={revertingInProgressId}
                     onRevert={(saleId) => setRevertConfirmSaleId(saleId)}
                 />
 
                 {showManageUsersModal && (
                     <ManageUsersModal
-                        inventoryId={Number(inventoryIdParam)} isOwner={isOwner}
-                        onClose={() => { setShowManageUsersModal(false); void fetchInventory(); }}
+                        inventoryId={Number(inventoryIdParam)}
+                        isOwner={isOwner}
+                        onClose={() => {
+                            setShowManageUsersModal(false);
+                            void fetchInventory();
+                        }}
                     />
                 )}
             </div>

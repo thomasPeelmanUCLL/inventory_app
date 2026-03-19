@@ -41,7 +41,7 @@ export abstract class BaseRepository<T, U> {
             const updateOptions = {
                 where: { id: this.getEntityId(entity) },
                 data,
-                ...options
+                ...options,
             };
             const prismaEntity = await (database as any)[this.entityName].update(updateOptions);
             return this.fromPrisma(prismaEntity);

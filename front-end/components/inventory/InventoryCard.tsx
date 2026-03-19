@@ -9,7 +9,8 @@ type InventoryCardProps = {
 
 export default function InventoryCard({ inventory, currentUserId, onDelete }: InventoryCardProps) {
     const router = useRouter();
-    const currentUserRole = inventory.users?.find(member => member.user.id === currentUserId)?.role || 'viewer';
+    const currentUserRole =
+        inventory.users?.find((member) => member.user.id === currentUserId)?.role || 'viewer';
     const isOwner = currentUserRole === 'owner';
 
     return (
@@ -18,18 +19,22 @@ export default function InventoryCard({ inventory, currentUserId, onDelete }: In
                 <div className="flex-1">
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">{inventory.name}</h3>
                     <p className="text-gray-600 text-sm mb-3">{inventory.description}</p>
-                    <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
-                        currentUserRole === 'owner' ? 'bg-purple-100 text-purple-800' :
-                        currentUserRole === 'editor' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span
+                        className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
+                            currentUserRole === 'owner'
+                                ? 'bg-purple-100 text-purple-800'
+                                : currentUserRole === 'editor'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-gray-100 text-gray-800'
+                        }`}
+                    >
                         {currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)}
                     </span>
                 </div>
             </div>
             <div className="flex gap-2">
                 <button
-                    onClick={() => router.push(`/Inventory/${inventory.id}`)}
+                    onClick={() => router.push(`/inventory/${inventory.id}`)}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                     View

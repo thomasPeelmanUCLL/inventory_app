@@ -28,7 +28,9 @@ const ManageItemsPage = () => {
     const [expandedPricesItemId, setExpandedPricesItemId] = useState<number | null>(null);
     const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<number | null>(null);
 
-    useEffect(() => { if (inventoryIdParam) void fetchInventory(); }, [inventoryIdParam]);
+    useEffect(() => {
+        if (inventoryIdParam) void fetchInventory();
+    }, [inventoryIdParam]);
 
     const fetchInventory = async () => {
         try {
@@ -74,12 +76,32 @@ const ManageItemsPage = () => {
 
     const getCurrentUserRole = () => {
         if (!inventory || !session?.user) return 'viewer';
-        return inventory.users?.find(member => member.user.id === session.user.id)?.role || 'viewer';
+        return (
+            inventory.users?.find((member) => member.user.id === session.user.id)?.role || 'viewer'
+        );
     };
 
-    if (isLoading) return (<><Header /><LoadingScreen /></>);
-    if (loadError) return (<><Header /><ErrorScreen message={loadError} onRetry={fetchInventory} /></>);
-    if (!inventory) return (<><Header /><ErrorScreen message="Inventory not found" /></>);
+    if (isLoading)
+        return (
+            <>
+                <Header />
+                <LoadingScreen />
+            </>
+        );
+    if (loadError)
+        return (
+            <>
+                <Header />
+                <ErrorScreen message={loadError} onRetry={fetchInventory} />
+            </>
+        );
+    if (!inventory)
+        return (
+            <>
+                <Header />
+                <ErrorScreen message="Inventory not found" />
+            </>
+        );
 
     const currentUserRole = getCurrentUserRole();
     const canEdit = currentUserRole === 'owner' || currentUserRole === 'editor';
@@ -101,13 +123,20 @@ const ManageItemsPage = () => {
             )}
 
             <div className="container mx-auto px-4 py-8">
-                <Link href="/inventory" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">
+                <Link
+                    href="/inventory"
+                    className="text-blue-600 hover:text-blue-800 mb-4 inline-block"
+                >
                     ← Back to Inventories
                 </Link>
 
                 <InventoryHeader
-                    inventory={inventory} role={currentUserRole} canEdit={canEdit} isOwner={isOwner}
-                    activeTab="manage" onManageUsers={() => setShowManageUsersModal(true)}
+                    inventory={inventory}
+                    role={currentUserRole}
+                    canEdit={canEdit}
+                    isOwner={isOwner}
+                    activeTab="manage"
+                    onManageUsers={() => setShowManageUsersModal(true)}
                 />
 
                 <div className="bg-white rounded-lg shadow-md p-6">
@@ -118,60 +147,161 @@ const ManageItemsPage = () => {
                     {inventory.items && inventory.items.length > 0 ? (
                         <div className="space-y-4">
                             {inventory.items.map((item) => (
-                                <div key={item.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                <div
+                                    key={item.id}
+                                    className="border border-gray-200 rounded-lg overflow-hidden"
+                                >
                                     <div className="bg-gray-50 p-4">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1 grid grid-cols-4 gap-4">
                                                 <div>
-                                                    <div className="text-xs text-gray-500 mb-1">Name</div>
+                                                    <div className="text-xs text-gray-500 mb-1">
+                                                        Name
+                                                    </div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="text" value={itemBeingEdited!.name ?? ''}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, name: e.target.value })}
-                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
-                                                    ) : <div className="font-medium">{item.name}</div>}
+                                                        <input
+                                                            type="text"
+                                                            value={itemBeingEdited!.name ?? ''}
+                                                            onChange={(e) =>
+                                                                setItemBeingEdited({
+                                                                    ...itemBeingEdited!,
+                                                                    name: e.target.value,
+                                                                })
+                                                            }
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded"
+                                                        />
+                                                    ) : (
+                                                        <div className="font-medium">
+                                                            {item.name}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <div className="text-xs text-gray-500 mb-1">Description</div>
+                                                    <div className="text-xs text-gray-500 mb-1">
+                                                        Description
+                                                    </div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="text" value={itemBeingEdited!.description ?? ''}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, description: e.target.value })}
-                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
-                                                    ) : <div className="text-sm">{item.description}</div>}
+                                                        <input
+                                                            type="text"
+                                                            value={
+                                                                itemBeingEdited!.description ?? ''
+                                                            }
+                                                            onChange={(e) =>
+                                                                setItemBeingEdited({
+                                                                    ...itemBeingEdited!,
+                                                                    description: e.target.value,
+                                                                })
+                                                            }
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded"
+                                                        />
+                                                    ) : (
+                                                        <div className="text-sm">
+                                                            {item.description}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <div className="text-xs text-gray-500 mb-1">Buy Price</div>
+                                                    <div className="text-xs text-gray-500 mb-1">
+                                                        Buy Price
+                                                    </div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="number" step="0.01" value={itemBeingEdited!.buyPrice ?? 0}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, buyPrice: parseFloat(e.target.value) })}
-                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
-                                                    ) : <div className="text-green-600 font-medium">€{Number(item.buyPrice || 0).toFixed(2)}</div>}
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={itemBeingEdited!.buyPrice ?? 0}
+                                                            onChange={(e) =>
+                                                                setItemBeingEdited({
+                                                                    ...itemBeingEdited!,
+                                                                    buyPrice: parseFloat(
+                                                                        e.target.value,
+                                                                    ),
+                                                                })
+                                                            }
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded"
+                                                        />
+                                                    ) : (
+                                                        <div className="text-green-600 font-medium">
+                                                            €{Number(item.buyPrice || 0).toFixed(2)}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div>
-                                                    <div className="text-xs text-gray-500 mb-1">Quantity</div>
+                                                    <div className="text-xs text-gray-500 mb-1">
+                                                        Quantity
+                                                    </div>
                                                     {itemBeingEdited?.id === item.id ? (
-                                                        <input type="number" value={itemBeingEdited!.quantity ?? 0}
-                                                            onChange={(e) => setItemBeingEdited({ ...itemBeingEdited!, quantity: parseInt(e.target.value) })}
-                                                            className="w-full px-2 py-1 border border-gray-300 rounded" />
-                                                    ) : <div>{item.quantity}</div>}
+                                                        <input
+                                                            type="number"
+                                                            value={itemBeingEdited!.quantity ?? 0}
+                                                            onChange={(e) =>
+                                                                setItemBeingEdited({
+                                                                    ...itemBeingEdited!,
+                                                                    quantity: parseInt(
+                                                                        e.target.value,
+                                                                    ),
+                                                                })
+                                                            }
+                                                            className="w-full px-2 py-1 border border-gray-300 rounded"
+                                                        />
+                                                    ) : (
+                                                        <div>{item.quantity}</div>
+                                                    )}
                                                 </div>
                                             </div>
                                             {canEdit && (
                                                 <div className="ml-4 flex gap-2">
                                                     {itemBeingEdited?.id === item.id ? (
                                                         <>
-                                                            <button onClick={handleSaveItem} className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
-                                                            <button onClick={() => setItemBeingEdited(null)} className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600">Cancel</button>
+                                                            <button
+                                                                onClick={handleSaveItem}
+                                                                className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                                                            >
+                                                                Save
+                                                            </button>
+                                                            <button
+                                                                onClick={() =>
+                                                                    setItemBeingEdited(null)
+                                                                }
+                                                                className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                                            >
+                                                                Cancel
+                                                            </button>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <button onClick={() => setItemBeingEdited({ ...item })} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Edit</button>
                                                             <button
-                                                                onClick={() => setExpandedPricesItemId(expandedPricesItemId === item.id ? null : (item.id ?? null))}
+                                                                onClick={() =>
+                                                                    setItemBeingEdited({ ...item })
+                                                                }
+                                                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                onClick={() =>
+                                                                    setExpandedPricesItemId(
+                                                                        expandedPricesItemId ===
+                                                                            item.id
+                                                                            ? null
+                                                                            : (item.id ?? null),
+                                                                    )
+                                                                }
                                                                 className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
                                                             >
-                                                                {expandedPricesItemId === item.id ? '▼' : '▶'} Prices
+                                                                {expandedPricesItemId === item.id
+                                                                    ? '▼'
+                                                                    : '▶'}{' '}
+                                                                Prices
                                                             </button>
-                                                            <button onClick={() => item.id && setDeleteConfirmItemId(item.id)} className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                                                            <button
+                                                                onClick={() =>
+                                                                    item.id &&
+                                                                    setDeleteConfirmItemId(item.id)
+                                                                }
+                                                                className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                                                            >
+                                                                Delete
+                                                            </button>
                                                         </>
                                                     )}
                                                 </div>
@@ -185,14 +315,20 @@ const ManageItemsPage = () => {
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center text-gray-500 py-8">No items in this inventory.</div>
+                        <div className="text-center text-gray-500 py-8">
+                            No items in this inventory.
+                        </div>
                     )}
                 </div>
 
                 {showManageUsersModal && (
                     <ManageUsersModal
-                        inventoryId={Number(inventoryIdParam)} isOwner={isOwner}
-                        onClose={() => { setShowManageUsersModal(false); void fetchInventory(); }}
+                        inventoryId={Number(inventoryIdParam)}
+                        isOwner={isOwner}
+                        onClose={() => {
+                            setShowManageUsersModal(false);
+                            void fetchInventory();
+                        }}
                     />
                 )}
             </div>

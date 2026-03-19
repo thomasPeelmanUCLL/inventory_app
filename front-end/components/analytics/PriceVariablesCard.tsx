@@ -21,8 +21,12 @@ export default function PriceVariablesCard({ entries }: { entries: PVEntry[] }) 
                                 <div className="text-xs text-gray-500">{pv.count} sales</div>
                             </div>
                             <div className="text-right">
-                                <div className="text-2xl font-bold text-green-700">€{asMoney(pv.totalProfit)}</div>
-                                <div className="text-xs text-gray-600">€{asMoney(pv.totalSellPrice)} - €{asMoney(pv.totalBuyPrice)}</div>
+                                <div className="text-2xl font-bold text-green-700">
+                                    €{asMoney(pv.totalProfit)}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                    €{asMoney(pv.totalSellPrice)} - €{asMoney(pv.totalBuyPrice)}
+                                </div>
                             </div>
                         </div>
                     </div>

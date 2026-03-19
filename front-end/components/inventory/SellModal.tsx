@@ -10,12 +10,21 @@ type Props = {
     onChange: (updatedSaleData: SellModalData) => void;
 };
 
-const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, onChange }: Props) => {
+const SellModal = ({
+    sellModal,
+    priceVariables,
+    onClose,
+    onAddToCart,
+    onBuyNow,
+    onChange,
+}: Props) => {
     const [selectedPriceVariableName, setSelectedPriceVariableName] = useState('');
     const [customPriceInput, setCustomPriceInput] = useState('');
 
     useEffect(() => {
-        const defaultPriceVariable = priceVariables.find(priceVariable => priceVariable.isDefault);
+        const defaultPriceVariable = priceVariables.find(
+            (priceVariable) => priceVariable.isDefault,
+        );
         if (defaultPriceVariable && !selectedPriceVariableName && !customPriceInput) {
             handlePriceVariableChange(defaultPriceVariable.name);
         }
@@ -37,12 +46,15 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                 isCustomPrice: false,
             });
         } else {
-            const matchedPriceVariable = priceVariables.find(priceVariable => priceVariable.name === variableName);
+            const matchedPriceVariable = priceVariables.find(
+                (priceVariable) => priceVariable.name === variableName,
+            );
             let calculatedPrice = sellModal.item.buyPrice;
 
             if (matchedPriceVariable) {
                 if (matchedPriceVariable.type === 'PERCENTAGE') {
-                    calculatedPrice = sellModal.item.buyPrice * (1 + matchedPriceVariable.value / 100);
+                    calculatedPrice =
+                        sellModal.item.buyPrice * (1 + matchedPriceVariable.value / 100);
                 } else if (matchedPriceVariable.type === 'FIXED') {
                     calculatedPrice = matchedPriceVariable.value;
                 }
@@ -82,20 +94,30 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-bold">{sellModal.item.name}</h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                        ✕
+                    </button>
                 </div>
 
                 <div className="space-y-4">
                     <div>
                         <p className="text-gray-600">{sellModal.item.description}</p>
-                        <p className="text-sm text-gray-500">Available: {sellModal.item.quantity}</p>
-                        <p className="text-sm text-gray-500">Base Price: €{Number(sellModal.item.buyPrice).toFixed(2)}</p>
+                        <p className="text-sm text-gray-500">
+                            Available: {sellModal.item.quantity}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                            Base Price: €{Number(sellModal.item.buyPrice).toFixed(2)}
+                        </p>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Quantity
+                        </label>
                         <input
-                            type="number" min="1" max={sellModal.item.quantity}
+                            type="number"
+                            min="1"
+                            max={sellModal.item.quantity}
                             value={sellModal.quantity}
                             onChange={(e) => handleQuantityChange(parseInt(e.target.value))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -104,15 +126,23 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
 
                     {priceVariables.length > 0 && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Price Variable</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Price Variable
+                            </label>
                             <select
-                                value={selectedPriceVariableName === 'Custom' ? '' : selectedPriceVariableName}
+                                value={
+                                    selectedPriceVariableName === 'Custom'
+                                        ? ''
+                                        : selectedPriceVariableName
+                                }
                                 onChange={(e) => handlePriceVariableChange(e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="">Base Price</option>
                                 {priceVariables.map((priceVariable) => (
-                                    <option key={priceVariable.id} value={priceVariable.name}>{priceVariable.name}</option>
+                                    <option key={priceVariable.id} value={priceVariable.name}>
+                                        {priceVariable.name}
+                                    </option>
                                 ))}
                                 <option value="Custom">Custom</option>
                             </select>
@@ -121,11 +151,15 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
 
                     {selectedPriceVariableName === 'Custom' && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Custom Sell Price</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Custom Sell Price
+                            </label>
                             <div className="relative">
                                 <span className="absolute left-3 top-2 text-gray-500">€</span>
                                 <input
-                                    type="number" step="0.01" min="0"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
                                     value={customPriceInput}
                                     onChange={(e) => handleCustomPriceChange(e.target.value)}
                                     placeholder={Number(sellModal.item.buyPrice).toFixed(2)}
@@ -136,7 +170,9 @@ const SellModal = ({ sellModal, priceVariables, onClose, onAddToCart, onBuyNow, 
                     )}
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Payment Method
+                        </label>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => handlePaymentMethodChange('card')}

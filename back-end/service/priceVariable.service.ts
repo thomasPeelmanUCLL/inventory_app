@@ -13,17 +13,21 @@ const getPriceVariableById = async ({ id }: { id: number }): Promise<PriceVariab
     return priceVariable;
 };
 
-const getPriceVariablesByItemId = async ({ itemId }: { itemId: number }): Promise<PriceVariable[]> => {
+const getPriceVariablesByItemId = async ({
+    itemId,
+}: {
+    itemId: number;
+}): Promise<PriceVariable[]> => {
     return await priceVariableDB.getPriceVariablesByItemId({ itemId });
 };
 
 const createPriceVariable = async ({
-                                       name,
-                                       value,
-                                       type,
-                                       isDefault,
-                                       itemId
-                                   }: {
+    name,
+    value,
+    type,
+    isDefault,
+    itemId,
+}: {
     name: string;
     value: number;
     type: string;
@@ -40,12 +44,12 @@ const createPriceVariable = async ({
 };
 
 const updatePriceVariable = async ({
-                                       id,
-                                       name,
-                                       value,
-                                       type,
-                                       isDefault
-                                   }: {
+    id,
+    name,
+    value,
+    type,
+    isDefault,
+}: {
     id: number;
     name?: string;
     value?: number;

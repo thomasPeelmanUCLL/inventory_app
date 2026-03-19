@@ -16,7 +16,9 @@ export default function AnalyticsDateBar({ dateRange, onChange, onExport }: Anal
                     <input
                         type="date"
                         value={dateRange.start.toISOString().split('T')[0]}
-                        onChange={(e) => onChange({ ...dateRange, start: new Date(e.target.value) })}
+                        onChange={(e) =>
+                            onChange({ ...dateRange, start: new Date(e.target.value) })
+                        }
                         className="border rounded px-3 py-2"
                     />
                     <label className="text-sm font-medium">To:</label>

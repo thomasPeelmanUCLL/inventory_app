@@ -23,7 +23,7 @@ export async function checkDatabase(): Promise<{ ok: boolean; error?: string; la
         await db.$queryRaw`SELECT 1`;
         const end = process.hrtime.bigint();
         const latencyMs = Number(end - start) / 1_000_000;
-        
+
         return { ok: true, latency: Math.round(latencyMs * 100) / 100 };
     } catch (e: any) {
         return { ok: false, error: e?.message || 'Unknown DB error' };
@@ -41,7 +41,7 @@ export async function checkReadiness(): Promise<{
         ready: true,
         database: { ok: false },
         environment: { ok: true, errors: [] as string[] },
-        services: { ok: true, errors: [] as string[] }
+        services: { ok: true, errors: [] as string[] },
     };
 
     // Check database
@@ -68,13 +68,13 @@ export async function checkReadiness(): Promise<{
     // Check basic services (lightweight queries)
     try {
         const db = (await import('../repository/database')).default;
-        
+
         // Quick count queries to verify tables exist and are accessible
         const [userCount, inventoryCount] = await Promise.all([
             db.user.count({ take: 1 }),
-            db.inventory.count({ take: 1 })
+            db.inventory.count({ take: 1 }),
         ]);
-        
+
         if (typeof userCount !== 'number' || typeof inventoryCount !== 'number') {
             results.services.ok = false;
             results.services.errors.push('Invalid table structure');
@@ -83,7 +83,7 @@ export async function checkReadiness(): Promise<{
         results.services.ok = false;
         results.services.errors.push(`Service check failed: ${e.message}`);
     }
-    
+
     if (!results.services.ok) results.ready = false;
 
     return results;
@@ -101,11 +101,11 @@ export function addRequestId(req: Request, res: Response, next: NextFunction) {
 export function logRequest(req: Request, res: Response, next: NextFunction) {
     const start = process.hrtime.bigint();
     const requestId = (req as any).requestId || 'unknown';
-    
+
     res.on('finish', () => {
         const end = process.hrtime.bigint();
         const durationMs = Number(end - start) / 1_000_000;
-        
+
         const logData = {
             requestId,
             method: req.method,
@@ -116,7 +116,7 @@ export function logRequest(req: Request, res: Response, next: NextFunction) {
             userAgent: req.get('User-Agent')?.substring(0, 50) || 'unknown',
             timestamp: new Date().toISOString(),
         };
-        
+
         // Log level based on status and duration
         if (res.statusCode >= 500) {
             console.error('[ERROR]', JSON.stringify(logData));
@@ -128,6 +128,6 @@ export function logRequest(req: Request, res: Response, next: NextFunction) {
             console.log('[REQ]', JSON.stringify(logData));
         }
     });
-    
+
     next();
 }

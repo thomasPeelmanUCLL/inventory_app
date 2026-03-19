@@ -1,7 +1,7 @@
 import { SoldItem } from '../model/soldItem';
 import { SoldItem as SoldItemPrisma, Prisma } from '@prisma/client';
 import { BaseRepository } from './base.repository';
-import database from "./database";
+import database from './database';
 
 class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
     protected entityName = 'soldItem';
@@ -23,19 +23,31 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
     }
 
     async getSoldItemsByItemId({ itemId }: { itemId: number }): Promise<SoldItem[]> {
-        return this.findMany({ where: { itemId }, include: { item: true }, orderBy: { soldAt: 'desc' } });
+        return this.findMany({
+            where: { itemId },
+            include: { item: true },
+            orderBy: { soldAt: 'desc' },
+        });
     }
 
     async getSoldItemsByInventoryId({ inventoryId }: { inventoryId: number }): Promise<SoldItem[]> {
-        return this.findMany({ where: { item: { inventoryId } }, include: { item: true }, orderBy: { soldAt: 'desc' } });
+        return this.findMany({
+            where: { item: { inventoryId } },
+            include: { item: true },
+            orderBy: { soldAt: 'desc' },
+        });
     }
 
-    async getSoldItemsByInventoryIds({ inventoryIds }: { inventoryIds: number[] }): Promise<SoldItem[]> {
+    async getSoldItemsByInventoryIds({
+        inventoryIds,
+    }: {
+        inventoryIds: number[];
+    }): Promise<SoldItem[]> {
         if (!inventoryIds.length) return [];
         return this.findMany({
             where: { item: { inventoryId: { in: inventoryIds } } },
             include: { item: true },
-            orderBy: [ { item: { inventoryId: 'asc' } }, { soldAt: 'desc' } ]
+            orderBy: [{ item: { inventoryId: 'asc' } }, { soldAt: 'desc' }],
         });
     }
 
@@ -80,10 +92,19 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         soldAt?: Date;
     }): Promise<SoldItemPrisma> {
         return await database.$transaction(async (tx) => {
-            const item = await tx.item.findUnique({ where: { id: input.itemId }, select: { id: true, quantity: true, name: true } });
+            const item = await tx.item.findUnique({
+                where: { id: input.itemId },
+                select: { id: true, quantity: true, name: true },
+            });
             if (!item) throw new Error('Item not found');
-            if (item.quantity < input.quantity) throw new Error(`Not enough stock available for ${item.name}. Available: ${item.quantity}, Requested: ${input.quantity}`);
-            await tx.item.update({ where: { id: item.id }, data: { quantity: { decrement: input.quantity } } });
+            if (item.quantity < input.quantity)
+                throw new Error(
+                    `Not enough stock available for ${item.name}. Available: ${item.quantity}, Requested: ${input.quantity}`,
+                );
+            await tx.item.update({
+                where: { id: item.id },
+                data: { quantity: { decrement: input.quantity } },
+            });
             const created = await tx.soldItem.create({
                 data: {
                     itemId: input.itemId,
@@ -100,38 +121,63 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
         });
     }
 
-    async updateSoldItemWithStockAdjustment(id: number, patch: {
-        finalSellPrice?: number | Prisma.Decimal;
-        priceVariableName?: string | null;
-        isCustomPrice?: boolean;
-        payedCash?: boolean;
-        quantity?: number;
-        soldAt?: Date;
-    }): Promise<SoldItemPrisma> {
+    async updateSoldItemWithStockAdjustment(
+        id: number,
+        patch: {
+            finalSellPrice?: number | Prisma.Decimal;
+            priceVariableName?: string | null;
+            isCustomPrice?: boolean;
+            payedCash?: boolean;
+            quantity?: number;
+            soldAt?: Date;
+        },
+    ): Promise<SoldItemPrisma> {
         return await database.$transaction(async (tx) => {
-            const existing = await tx.soldItem.findUnique({ where: { id }, include: { item: true } });
+            const existing = await tx.soldItem.findUnique({
+                where: { id },
+                include: { item: true },
+            });
             if (!existing) throw new Error('Sold item not found');
             let delta = 0;
             if (typeof patch.quantity === 'number' && patch.quantity !== existing.quantity) {
                 if (patch.quantity <= 0) throw new Error('Quantity must be positive');
                 delta = existing.quantity - patch.quantity;
                 if (delta < 0) {
-                    const it = await tx.item.findUnique({ where: { id: existing.itemId }, select: { quantity: true, name: true } });
-                    if (!it || it.quantity < Math.abs(delta)) throw new Error(`Not enough stock available for ${it?.name || 'item'}. Available: ${it?.quantity || 0}, Additional needed: ${Math.abs(delta)}`);
+                    const it = await tx.item.findUnique({
+                        where: { id: existing.itemId },
+                        select: { quantity: true, name: true },
+                    });
+                    if (!it || it.quantity < Math.abs(delta))
+                        throw new Error(
+                            `Not enough stock available for ${it?.name || 'item'}. Available: ${it?.quantity || 0}, Additional needed: ${Math.abs(delta)}`,
+                        );
                 }
             }
             if (delta !== 0) {
-                if (delta > 0) await tx.item.update({ where: { id: existing.itemId }, data: { quantity: { increment: delta } } });
-                else await tx.item.update({ where: { id: existing.itemId }, data: { quantity: { decrement: Math.abs(delta) } } });
+                if (delta > 0)
+                    await tx.item.update({
+                        where: { id: existing.itemId },
+                        data: { quantity: { increment: delta } },
+                    });
+                else
+                    await tx.item.update({
+                        where: { id: existing.itemId },
+                        data: { quantity: { decrement: Math.abs(delta) } },
+                    });
             }
             const updated = await tx.soldItem.update({
                 where: { id },
                 data: {
                     finalSellPrice: patch.finalSellPrice ?? existing.finalSellPrice,
                     priceVariableName: patch.priceVariableName ?? existing.priceVariableName,
-                    isCustomPrice: typeof patch.isCustomPrice === 'boolean' ? patch.isCustomPrice : existing.isCustomPrice,
-                    payedCash: typeof patch.payedCash === 'boolean' ? patch.payedCash : existing.payedCash,
-                    quantity: typeof patch.quantity === 'number' ? patch.quantity : existing.quantity,
+                    isCustomPrice:
+                        typeof patch.isCustomPrice === 'boolean'
+                            ? patch.isCustomPrice
+                            : existing.isCustomPrice,
+                    payedCash:
+                        typeof patch.payedCash === 'boolean' ? patch.payedCash : existing.payedCash,
+                    quantity:
+                        typeof patch.quantity === 'number' ? patch.quantity : existing.quantity,
                     soldAt: patch.soldAt ?? existing.soldAt,
                 },
                 include: { item: true },
@@ -142,19 +188,35 @@ class SoldItemRepository extends BaseRepository<SoldItem, SoldItemPrisma> {
 
     async deleteSoldItemWithStockRestore(id: number): Promise<void> {
         await database.$transaction(async (tx) => {
-            const existing = await tx.soldItem.findUnique({ where: { id }, select: { itemId: true, quantity: true } });
+            const existing = await tx.soldItem.findUnique({
+                where: { id },
+                select: { itemId: true, quantity: true },
+            });
             if (!existing) return;
             await tx.soldItem.delete({ where: { id } });
-            await tx.item.update({ where: { id: existing.itemId }, data: { quantity: { increment: existing.quantity } } });
+            await tx.item.update({
+                where: { id: existing.itemId },
+                data: { quantity: { increment: existing.quantity } },
+            });
         });
     }
 
     // Analytics passthrough (service uses repository client directly previously)
-    async getAnalyticsByInventoryId({ inventoryId, startDate, endDate }: { inventoryId: number; startDate?: Date; endDate?: Date; }) {
+    async getAnalyticsByInventoryId({
+        inventoryId,
+        startDate,
+        endDate,
+    }: {
+        inventoryId: number;
+        startDate?: Date;
+        endDate?: Date;
+    }) {
         const repo = (await import('../repository/soldItem.db')).default; // avoid circular, placeholder if needed
         // If you already had a direct prisma-based analytics earlier, move it here
         // For now, throw if not implemented in this layer
-        throw new Error('getAnalyticsByInventoryId should be implemented in service using prisma directly.');
+        throw new Error(
+            'getAnalyticsByInventoryId should be implemented in service using prisma directly.',
+        );
     }
 }
 
@@ -163,12 +225,17 @@ export default {
     getAllSoldItems: soldItemRepository.getAllSoldItems.bind(soldItemRepository),
     getSoldItemById: soldItemRepository.getSoldItemById.bind(soldItemRepository),
     getSoldItemsByItemId: soldItemRepository.getSoldItemsByItemId.bind(soldItemRepository),
-    getSoldItemsByInventoryId: soldItemRepository.getSoldItemsByInventoryId.bind(soldItemRepository),
-    getSoldItemsByInventoryIds: soldItemRepository.getSoldItemsByInventoryIds.bind(soldItemRepository),
+    getSoldItemsByInventoryId:
+        soldItemRepository.getSoldItemsByInventoryId.bind(soldItemRepository),
+    getSoldItemsByInventoryIds:
+        soldItemRepository.getSoldItemsByInventoryIds.bind(soldItemRepository),
     createSoldItem: soldItemRepository.createSoldItem.bind(soldItemRepository),
     updateSoldItem: soldItemRepository.updateSoldItem.bind(soldItemRepository),
     deleteSoldItem: soldItemRepository.deleteSoldItem.bind(soldItemRepository),
-    createSoldItemWithStockUpdate: soldItemRepository.createSoldItemWithStockUpdate.bind(soldItemRepository),
-    updateSoldItemWithStockAdjustment: soldItemRepository.updateSoldItemWithStockAdjustment.bind(soldItemRepository),
-    deleteSoldItemWithStockRestore: soldItemRepository.deleteSoldItemWithStockRestore.bind(soldItemRepository),
-}
+    createSoldItemWithStockUpdate:
+        soldItemRepository.createSoldItemWithStockUpdate.bind(soldItemRepository),
+    updateSoldItemWithStockAdjustment:
+        soldItemRepository.updateSoldItemWithStockAdjustment.bind(soldItemRepository),
+    deleteSoldItemWithStockRestore:
+        soldItemRepository.deleteSoldItemWithStockRestore.bind(soldItemRepository),
+};

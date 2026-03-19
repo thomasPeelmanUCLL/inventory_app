@@ -5,7 +5,8 @@ import inventoryDB from '../repository/inventory.db';
  * Middleware to ensure authenticated user has access to a specific inventory
  * Checks the InventoryUser relationship table
  */
-export const requireInventoryAccess = (paramName: 'inventoryId' | 'id' = 'inventoryId') =>
+export const requireInventoryAccess =
+    (paramName: 'inventoryId' | 'id' = 'inventoryId') =>
     async (req: Request, res: Response, next: NextFunction) => {
         try {
             const user = (req as any).user;
@@ -16,7 +17,7 @@ export const requireInventoryAccess = (paramName: 'inventoryId' | 'id' = 'invent
             // Get inventoryId from params, body, or query
             const raw = req.params[paramName] ?? req.body[paramName] ?? req.query[paramName];
             const inventoryId = Number(raw);
-            
+
             if (!Number.isInteger(inventoryId) || inventoryId <= 0) {
                 return res.status(400).json({ error: 'Invalid inventoryId' });
             }
@@ -26,7 +27,7 @@ export const requireInventoryAccess = (paramName: 'inventoryId' | 'id' = 'invent
                 userId: user.id,
                 inventoryId,
             });
-            
+
             if (!hasAccess) {
                 return res.status(403).json({ error: 'Access denied to this inventory' });
             }
@@ -44,7 +45,11 @@ export const requireInventoryAccess = (paramName: 'inventoryId' | 'id' = 'invent
  * Middleware to check inventory access via item ownership
  * For routes that work with itemId but need to verify inventory access
  */
-export const requireInventoryAccessViaItem = async (req: Request, res: Response, next: NextFunction) => {
+export const requireInventoryAccessViaItem = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+) => {
     try {
         const user = (req as any).user;
         if (!user?.id) {
@@ -61,9 +66,9 @@ export const requireInventoryAccessViaItem = async (req: Request, res: Response,
             userId: user.id,
             itemId,
         });
-        
+
         if (!hasAccess) {
-            return res.status(403).json({ error: 'Access denied to this item\'s inventory' });
+            return res.status(403).json({ error: "Access denied to this item's inventory" });
         }
 
         next();
