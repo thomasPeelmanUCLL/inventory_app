@@ -37,7 +37,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
             switch (response.status) {
                 case 401:
-                    if (typeof window !== 'undefined') window.location.href = '/Login';
+                    if (typeof window !== 'undefined') window.location.href = '/login';
                     throw new Error('Authentication required');
                 case 403:
                     throw new Error(`Access denied: ${errorMessage}`);

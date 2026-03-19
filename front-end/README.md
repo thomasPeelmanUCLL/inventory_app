@@ -45,7 +45,7 @@ Better Auth (`auth-client.ts`) is the only code that uses `NEXT_PUBLIC_API_URL` 
 | Route                       | Description |
 |-----------------------------|---|
 | `/`                         | Home |
-| `/Login`                    | Sign in |
+| `/login`                    | Sign in |
 | `/Register`                 | Sign up |
 | `/inventory`                | Inventory list |
 | `/inventory/[id]`           | Overview & sell |
