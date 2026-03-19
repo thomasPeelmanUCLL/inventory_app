@@ -113,7 +113,9 @@ export function soldItemToDTO(soldItem: SoldItem, includeItem = false): SoldItem
         try {
             const asNum = typeof sellPrice === 'number' ? sellPrice : Number(sellPrice);
             dto.totalSellValue = (asNum * dto.quantity).toFixed(2);
-        } catch {}
+        } catch {
+            // Silently ignore conversion errors, leave totalSellValue undefined
+        }
     }
 
     if (includeItem && (soldItem as any).getItem) {
@@ -135,7 +137,9 @@ export function soldItemToDTO(soldItem: SoldItem, includeItem = false): SoldItem
                 const sellNum = typeof sellPrice === 'number' ? sellPrice : Number(sellPrice);
                 dto.totalBuyValue = (buyNum * dto.quantity).toFixed(2);
                 dto.profit = (sellNum * dto.quantity - buyNum * dto.quantity).toFixed(2);
-            } catch {}
+            } catch {
+                // Silently ignore conversion errors, leave values undefined
+            }
         }
     }
 

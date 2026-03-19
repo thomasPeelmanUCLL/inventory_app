@@ -16,13 +16,9 @@ export async function safeGetItemById(id: number) {
 }
 
 export async function safeGetSoldItemById(id: number) {
-    try {
-        const s = await soldItemDB.getSoldItemById({ id });
-        if (!s) throw createError.notFound('Sold item not found');
-        return s;
-    } catch (e: any) {
-        throw e;
-    }
+    const s = await soldItemDB.getSoldItemById({ id });
+    if (!s) throw createError.notFound('Sold item not found');
+    return s;
 }
 
 export async function ensureInventoryAccess(userId: string, inventoryId: number) {
