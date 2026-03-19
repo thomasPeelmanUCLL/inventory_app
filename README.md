@@ -37,19 +37,19 @@ A full-stack inventory management system for tracking items, recording sales, an
 
 ## Network Architecture
 
-All inter-service communication in production happens **pod-to-pod over the Kubernetes cluster network** — nothing crosses the public internet between services.
+All app API traffic in production is routed through the frontend domain and proxied server-side to backend ClusterIP.
+Inter-service communication stays **pod-to-pod over the Kubernetes network**.
 
 ```
 Browser
   │
-  ├─► api.domain.com/api/auth/*  (public, HTTPS, Traefik)
-  │      └─► inventory-backend ClusterIP   ← Better Auth only
-  │            └─► postgres ClusterIP         ← pod-to-pod, no ingress
-  │
   └─► inventory.domain.com  (public, HTTPS, Traefik)
          └─► frontend pod
                └─► /api/backend/* rewrite ─► inventory-backend ClusterIP
-                                                  └─► postgres ClusterIP
+                                                └─► postgres ClusterIP
+
+Optional direct backend exposure (if needed):
+api.domain.com/api/auth/* → inventory-backend ClusterIP
 ```
 
 ### Public exposure
@@ -57,7 +57,7 @@ Browser
 | Route | Public? | Why |
 |---|---|---|
 | `inventory.domain.com/*` | ✅ Yes | Frontend app |
-| `api.domain.com/api/auth/*` | ✅ Yes | Better Auth needs direct browser access for cookie flows |
+| `api.domain.com/api/auth/*` | ✅ Optional | Can be exposed, but browser auth calls are routed via frontend rewrite |
 | `api.domain.com/*` (everything else) | ❌ No | Blocked at Traefik — never reaches the pod |
 | Backend REST API (`/inventorys`, `/items`, …) | ❌ No | Pod-to-pod via Next.js rewrite only |
 | PostgreSQL | ❌ No | ClusterIP, no ingress at all |
@@ -76,7 +76,7 @@ Browser
 
 | Variable | Where set | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | Baked into Docker image at build time | Browser → Better Auth public URL |
+| `NEXT_PUBLIC_API_URL` | Baked into Docker image at build time | Public API base/fallback (must be `https://...` in production) |
 | `INTERNAL_API_URL` | `k8s/frontend-configmap.yml` (runtime) | Next.js server → backend ClusterIP (pod-to-pod) |
 | `DATABASE_URL` | K8s secret (runtime) | Backend → PostgreSQL ClusterIP (pod-to-pod) |
 
@@ -97,7 +97,7 @@ inventory_app/
 │   │   └── layout/          # Header
 │   ├── lib/
 │   │   ├── api.ts           # All API calls (routed via /api/backend/* in production)
-│   │   └── auth-client.ts   # Better Auth client (talks directly to public /api/auth/*)
+│   │   └── auth-client.ts   # Better Auth client (browser uses /api/backend/api/auth)
 │   ├── next.config.mjs  # Rewrites: /api/backend/* → INTERNAL_API_URL (pod-to-pod)
 │   ├── pages/
 │   │   ├── index.tsx
@@ -155,7 +155,7 @@ This starts the front-end, back-end, and a PostgreSQL database together.
 cd back-end
 npm install
 npx prisma migrate dev
-npm run dev
+npm run start
 ```
 
 **Front-end**
@@ -189,7 +189,9 @@ FRONTEND_URL=http://localhost:8080
 BACKEND_URL=http://localhost:3000
 ```
 
-> In production, `INTERNAL_API_URL` is set in `k8s/frontend-configmap.yml` and points to the backend ClusterIP service — the browser never sees this value. `NEXT_PUBLIC_API_URL` is baked into the Docker image at build time and is the only backend URL the browser ever uses (for auth only).
+> In production, `INTERNAL_API_URL` is set in `k8s/frontend-configmap.yml` and points to the backend ClusterIP service (server-side only). `NEXT_PUBLIC_API_URL` is baked into the frontend build and must be a valid `https://...` URL for public API fallback scenarios.
+
+> Browser-side auth and data calls use same-origin rewrite endpoints under `/api/backend/*`.
 
 > `DATABASE_URL` is constructed automatically by the deploy workflow as
 > `postgresql://inventory:<POSTGRES_PASSWORD>@postgres.inventory.svc.cluster.local:5432/inventory`.
@@ -233,3 +235,24 @@ Before the first deploy to a fresh cluster, complete the following steps:
 - [ ] Ensure your kubeconfig points to the real cluster API server (not localhost)
 - [ ] Push to `main` — the workflow will create all secrets, apply manifests, run migrations, and roll out both deployments automatically
 - [ ] Remove `.idea/` from git tracking: `git rm -r --cached .idea && git commit -m "chore: untrack .idea"`
+
+---
+
+## Common Production Issues
+
+### Mixed Content errors (`https` page calling `http` API)
+
+- Ensure `NEXT_PUBLIC_API_URL`, `FRONTEND_URL`, and `BACKEND_URL` are full `https://...` URLs.
+- Rebuild and redeploy frontend after changing `NEXT_PUBLIC_API_URL` (it is build-time baked).
+
+### `Prisma P1000` / DB auth failures
+
+- If Postgres PVC already existed, credentials can drift from new secret values.
+- Keep `POSTGRES_PASSWORD` stable, or rotate using SQL (`ALTER ROLE inventory WITH PASSWORD ...`) before migrations.
+- `DATABASE_URL` password must be URL-encoded when special characters are present.
+
+### SoldItems 500 due to `paidCash` / `payedCash`
+
+- DB column may still be legacy `payedCash` while app uses `paidCash`.
+- Prisma schema maps this via `@map("payedCash")` on `SoldItem.paidCash`.
+
