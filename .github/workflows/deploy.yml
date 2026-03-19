@@ -246,10 +246,10 @@ jobs:
       - name: Sync postgres role password with secret
         run: |
           POSTGRES_POD=$(kubectl get pod -n inventory -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+          ESCAPED_PASSWORD=${POSTGRES_PASSWORD//\'/\'\'}
           kubectl exec -n inventory "$POSTGRES_POD" -- \
-            env PGPASSWORD="$POSTGRES_PASSWORD" \
-            psql -U inventory -d inventory -v pw="$POSTGRES_PASSWORD" \
-            -c "ALTER ROLE inventory WITH PASSWORD :'pw';"
+            psql -U postgres -d postgres \
+            -c "ALTER ROLE inventory WITH PASSWORD '$ESCAPED_PASSWORD';"
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
