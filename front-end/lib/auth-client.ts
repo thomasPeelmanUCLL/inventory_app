@@ -1,6 +1,13 @@
 import { createAuthClient } from 'better-auth/react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+function normalizeBaseUrl(rawValue?: string): string {
+    const value = (rawValue || '').trim();
+    if (!value) return 'http://localhost:3000';
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    return `http://${value}`;
+}
+
+const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 export const authClient = createAuthClient({
     baseURL: API_BASE_URL, // Use environment variable

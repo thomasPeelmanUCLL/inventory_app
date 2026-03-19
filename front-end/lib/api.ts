@@ -1,11 +1,16 @@
 // All non-auth API calls go through Next.js rewrite -> pod-to-pod to backend
 // Auth calls (better-auth) still use NEXT_PUBLIC_API_URL directly from the browser
+function normalizeBaseUrl(rawValue?: string): string {
+    const value = (rawValue || '').trim();
+    if (!value) return 'http://localhost:3000';
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    return `http://${value}`;
+}
+
 const API_BASE_URL =
     typeof window !== 'undefined'
         ? '/api/backend' // browser: routed through Next.js rewrite -> internal backend
-        : process.env.INTERNAL_API_URL ||
-          process.env.NEXT_PUBLIC_API_URL ||
-          'http://localhost:3000'; // SSR: direct
+        : normalizeBaseUrl(process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL); // SSR: direct
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
     try {
@@ -344,7 +349,7 @@ export async function getAllUsers() {
 // ========================================
 
 export async function getCurrentSession() {
-    const authUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const authUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
     try {
         const response = await fetchWithAuth(`${authUrl}/api/auth/get-session`);
         return response.json();
@@ -354,7 +359,7 @@ export async function getCurrentSession() {
 }
 
 export async function signIn(email: string, password: string) {
-    const authUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const authUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
     const response = await fetchWithAuth(`${authUrl}/api/auth/sign-in/email`, {
         method: 'POST',
         body: JSON.stringify({ email, password }),
@@ -363,13 +368,13 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    const authUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const authUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
     const response = await fetchWithAuth(`${authUrl}/api/auth/sign-out`, { method: 'POST' });
     return response.json();
 }
 
 export async function signUp(email: string, password: string, name: string) {
-    const authUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const authUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
     const response = await fetchWithAuth(`${authUrl}/api/auth/sign-up/email`, {
         method: 'POST',
         body: JSON.stringify({ email, password, name }),
