@@ -188,6 +188,7 @@ jobs:
       - name: Ensure inventory namespace exists
         run: kubectl apply -f k8s/namespace.yml
 
+
       - name: Create / update postgres secret
         run: |
           kubectl create secret generic postgres-secret \
@@ -197,12 +198,32 @@ jobs:
 
       - name: Create / update backend secret
         run: |
+          FRONTEND_URL_RAW="${{ secrets.FRONTEND_URL }}"
+          BACKEND_URL_RAW="${{ secrets.BACKEND_URL }}"
+
+          normalize_url() {
+            local value="$1"
+            if [[ -z "$value" ]]; then
+              echo ""
+              return
+            fi
+            if [[ "$value" =~ ^https?:// ]]; then
+              echo "$value"
+            else
+              # Default to https in production when protocol is omitted.
+              echo "https://$value"
+            fi
+          }
+
+          FRONTEND_URL_NORM="$(normalize_url "$FRONTEND_URL_RAW")"
+          BACKEND_URL_NORM="$(normalize_url "$BACKEND_URL_RAW")"
+
           kubectl create secret generic inventory-backend-secret \
             --namespace inventory \
             --from-literal=DATABASE_URL=postgresql://inventory:${{ secrets.POSTGRES_PASSWORD }}@postgres.inventory.svc.cluster.local:5432/inventory \
             --from-literal=BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }} \
-            --from-literal=FRONTEND_URL=${{ secrets.FRONTEND_URL }} \
-            --from-literal=BACKEND_URL=${{ secrets.BACKEND_URL }} \
+            --from-literal=FRONTEND_URL="$FRONTEND_URL_NORM" \
+            --from-literal=BACKEND_URL="$BACKEND_URL_NORM" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       # INTERNAL_API_URL is not a secret — it lives in frontend-configmap.yml
@@ -225,10 +246,16 @@ jobs:
             --env="DATABASE_URL=postgresql://inventory:${{ secrets.POSTGRES_PASSWORD }}@postgres.inventory.svc.cluster.local:5432/inventory" \
             --command -- npx prisma migrate deploy
 
-          kubectl wait pod/prisma-migrate \
+          if ! kubectl wait pod/prisma-migrate \
             --for=jsonpath='{.status.phase}'=Succeeded \
             -n inventory \
-            --timeout=120s
+            --timeout=180s; then
+            echo "::error::Prisma migration pod did not succeed in time"
+            kubectl get pod prisma-migrate -n inventory -o wide || true
+            kubectl describe pod prisma-migrate -n inventory || true
+            kubectl logs prisma-migrate -n inventory --all-containers=true || true
+            exit 1
+          fi
 
           kubectl logs prisma-migrate -n inventory
           kubectl delete pod prisma-migrate -n inventory --ignore-not-found=true

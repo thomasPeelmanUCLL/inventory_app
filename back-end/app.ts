@@ -17,6 +17,16 @@ import { requestTimer, checkDatabase, checkReadiness, addRequestId, logRequest }
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+function isValidHttpUrl(value?: string): boolean {
+    if (!value) return false;
+    try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
 // Production environment validation
 if (process.env.NODE_ENV === 'production') {
     const required: Record<string, string | undefined> = {
@@ -32,6 +42,17 @@ if (process.env.NODE_ENV === 'production') {
         console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
         process.exit(1);
     }
+
+    const invalidUrls: string[] = [];
+    if (!isValidHttpUrl(process.env.FRONTEND_URL)) invalidUrls.push('FRONTEND_URL');
+    if (!isValidHttpUrl(process.env.BACKEND_URL)) invalidUrls.push('BACKEND_URL');
+    if (invalidUrls.length > 0) {
+        console.error(
+            `❌ Invalid URL format for: ${invalidUrls.join(', ')}. Use fully-qualified URLs like https://example.com`,
+        );
+        process.exit(1);
+    }
+
     console.log('✅ Production environment validated');
 }
 
