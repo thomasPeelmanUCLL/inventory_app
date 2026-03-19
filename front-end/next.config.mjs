@@ -15,7 +15,7 @@ const nextConfig = {
   output: 'standalone',
   async rewrites() {
     const internalApi = normalizeRewriteDestination(
-      process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+      process.env.INTERNAL_API_URL || 'http://localhost:3000'
     );
     return [
       // Auth stays public (better-auth needs direct browser access for cookie handling)

@@ -17,6 +17,10 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# INTERNAL_API_URL is used by Next.js rewrites at build time.
+ARG INTERNAL_API_URL
+ENV INTERNAL_API_URL=$INTERNAL_API_URL
+
 RUN npm run build
 
 # ── Stage 3: Production image ─────────────────────────────────
