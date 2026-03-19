@@ -13,7 +13,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`api.thomaspeelman.be`) && PathPrefix(`/api/auth`)
+    - match: Host(`api.euroclasstravel.com`) && PathPrefix(`/api/auth`)
       kind: Rule
       services:
         - name: inventory-backend
@@ -33,7 +33,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`inventory.thomaspeelman.be`)   # ← update to match your FRONTEND_URL domain
+    - match: Host(`inventory.euroclasstravel.com`)   # ← update to match your FRONTEND_URL domain
       kind: Rule
       services:
         - name: inventory-frontend

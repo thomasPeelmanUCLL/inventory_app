@@ -7,7 +7,7 @@ data:
   # ⚠️  NEXT_PUBLIC_* vars are baked into the Docker image at BUILD TIME.
   # This value is NOT read at runtime — it is here for documentation only.
   # The real value comes from the NEXT_PUBLIC_API_URL GitHub Actions secret.
-  NEXT_PUBLIC_API_URL: "https://api.inventory.example.com"
+  NEXT_PUBLIC_API_URL: "https://api.inventory.euroclasstravel.com"
 
   # In-cluster Service DNS — used ONLY by Next.js server-side code (SSR).
   # Requests stay inside the cluster: no internet roundtrip, no TLS overhead.
