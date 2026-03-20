@@ -14,7 +14,11 @@ const getInventoriesByUserId = async ({ userId }: { userId: string }): Promise<I
             },
         },
         include: {
-            items: true,
+            items: {
+                include: {
+                    priceVariables: true,
+                },
+            },
             users: {
                 include: {
                     user: true,
@@ -28,7 +32,11 @@ const getInventoriesByUserId = async ({ userId }: { userId: string }): Promise<I
 const getAllInventorys = async (): Promise<Inventory[]> => {
     const inventorys = await prisma.inventory.findMany({
         include: {
-            items: true,
+            items: {
+                include: {
+                    priceVariables: true,
+                },
+            },
         },
     });
     return inventorys.map((inventory) => Inventory.from(inventory));
@@ -38,7 +46,11 @@ const getInventoryById = async ({ id }: { id: number }): Promise<Inventory | nul
     const inventoryPrisma = await prisma.inventory.findUnique({
         where: { id },
         include: {
-            items: true,
+            items: {
+                include: {
+                    priceVariables: true,
+                },
+            },
             users: {
                 include: {
                     user: true,
@@ -62,7 +74,11 @@ const createInventory = async (inventory: Inventory, ownerId: string): Promise<I
             },
         },
         include: {
-            items: true,
+            items: {
+                include: {
+                    priceVariables: true,
+                },
+            },
             users: {
                 include: {
                     user: true,
@@ -151,7 +167,11 @@ const updateInventory = async ({
             description,
         },
         include: {
-            items: true,
+            items: {
+                include: {
+                    priceVariables: true,
+                },
+            },
             users: {
                 include: {
                     user: true,
