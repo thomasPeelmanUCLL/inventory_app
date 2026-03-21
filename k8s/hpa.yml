@@ -10,20 +10,20 @@ spec:
     kind: Deployment
     name: inventory-backend
   minReplicas: 1
-  maxReplicas: 4
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 70
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 75
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 120
@@ -35,7 +35,7 @@ spec:
       stabilizationWindowSeconds: 0
       policies:
         - type: Pods
-          value: 2
+          value: 1
           periodSeconds: 30
 
 ---
@@ -51,17 +51,30 @@ spec:
     kind: Deployment
     name: inventory-frontend
   minReplicas: 1
-  maxReplicas: 4
+  maxReplicas: 2
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 80
+          averageUtilization: 85
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 85
+          averageUtilization: 90
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 30

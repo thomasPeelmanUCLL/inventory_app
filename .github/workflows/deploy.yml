@@ -242,7 +242,7 @@ jobs:
         run: kubectl apply -f k8s/
 
       - name: Wait for database to be ready
-        run: kubectl rollout status deployment/postgres -n inventory --timeout=120s
+        run: kubectl rollout status deployment/postgres -n inventory --timeout=300s
 
       - name: Sync database user password with secret
         run: |

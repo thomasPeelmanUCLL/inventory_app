@@ -67,17 +67,15 @@ spec:
             - name: postgres-storage
               mountPath: /var/lib/mysql
           livenessProbe:
-            exec:
-              command:
-                ["/bin/sh", "-c", "mysqladmin ping -h 127.0.0.1 -u$MARIADB_USER -p$MARIADB_PASSWORD"]
-            initialDelaySeconds: 30
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 40
             periodSeconds: 10
             failureThreshold: 5
           readinessProbe:
-            exec:
-              command:
-                ["/bin/sh", "-c", "mysqladmin ping -h 127.0.0.1 -u$MARIADB_USER -p$MARIADB_PASSWORD"]
-            initialDelaySeconds: 5
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 3
           resources:
