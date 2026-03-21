@@ -131,7 +131,7 @@ inventory_app/
     ├── backend-deployment.yml
     ├── backend-configmap.yml
     ├── backend-service.yml      # ClusterIP only — no public ingress
-    ├── postgres.yml             # MariaDB ClusterIP only — no public ingress
+    ├── mariadb.yml              # MariaDB ClusterIP only — no public ingress
     ├── ingress.yml              # Frontend (all) + backend (/api/auth/* only)
     └── hpa.yml
 ```
