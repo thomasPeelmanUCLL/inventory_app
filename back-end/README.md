@@ -5,7 +5,7 @@ Node.js/Express API with Prisma ORM and Better Auth.
 ## Prerequisites
 
 - Node.js 20+
-- PostgreSQL (or run from root with Docker Compose)
+- MariaDB (or run from root with Docker Compose)
 
 ## Local setup
 
@@ -16,7 +16,7 @@ npm install
 Create `back-end/.env`:
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/inventory
+DATABASE_URL=mysql://user:password@localhost:3306/inventory
 BETTER_AUTH_SECRET=your-secret-here
 FRONTEND_URL=http://localhost:8080
 BACKEND_URL=http://localhost:3000
@@ -51,7 +51,7 @@ In production, app routes are typically reached through frontend rewrite (`/api/
 
 - `FRONTEND_URL` and `BACKEND_URL` must be valid absolute URLs (`http://...` or `https://...`).
 - `DATABASE_URL` password must be URL-encoded when it contains special characters.
-- If using persistent Postgres storage, database credentials can drift from updated secrets; rotate the DB role password before migrations when needed.
+- If using persistent DB storage, database credentials can drift from updated secrets; rotate the DB user password before migrations when needed.
 
 ## Testing
 
@@ -59,11 +59,11 @@ In production, app routes are typically reached through frontend rewrite (`/api/
 npm test
 ```
 
-Tests require a reachable PostgreSQL instance via `DATABASE_URL`.
+Tests require a reachable MariaDB instance via `DATABASE_URL`.
 
 ## Troubleshooting quick hits
 
-- **`Prisma P1000` auth error**: verify `DATABASE_URL` credentials and Postgres role password match.
+- **`Prisma P1000` auth error**: verify `DATABASE_URL` credentials and MariaDB user password match.
 - **`Prisma P1001` host parse issues**: confirm special characters in DB password are URL-encoded.
 - **SoldItems 500 around cash field**: app uses `paidCash`, DB legacy column is mapped from `payedCash` via Prisma schema.
 

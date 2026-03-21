@@ -192,7 +192,7 @@ jobs:
       - name: Build encoded DATABASE_URL
         run: |
           ENCODED_PASSWORD=$(python3 -c "import os, urllib.parse; print(urllib.parse.quote(os.environ['RAW_PASSWORD'], safe=''))")
-          DATABASE_URL="postgresql://inventory:${ENCODED_PASSWORD}@postgres.inventory.svc.cluster.local:5432/inventory"
+          DATABASE_URL="mysql://inventory:${ENCODED_PASSWORD}@postgres.inventory.svc.cluster.local:3306/inventory"
           echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
         env:
           RAW_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -241,16 +241,14 @@ jobs:
       - name: Apply manifest changes
         run: kubectl apply -f k8s/
 
-      - name: Wait for postgres to be ready
+      - name: Wait for database to be ready
         run: kubectl rollout status deployment/postgres -n inventory --timeout=120s
 
-      - name: Sync postgres role password with secret
+      - name: Sync database user password with secret
         run: |
-          POSTGRES_POD=$(kubectl get pod -n inventory -l app=postgres -o jsonpath='{.items[0].metadata.name}')
-          ESCAPED_PASSWORD=${POSTGRES_PASSWORD//\'/\'\'}
-          kubectl exec -n inventory "$POSTGRES_POD" -- \
-            psql -U inventory -d inventory \
-            -c "ALTER ROLE inventory WITH PASSWORD '$ESCAPED_PASSWORD';"
+          DB_POD=$(kubectl get pod -n inventory -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+          SQL_PASSWORD=$(python3 -c "import os; print(\"'\" + os.environ['POSTGRES_PASSWORD'].replace(\"'\", \"''\") + \"'\")")
+          kubectl exec -n inventory "$DB_POD" -- sh -lc "mariadb -uroot -p\"$POSTGRES_PASSWORD\" -e \"CREATE USER IF NOT EXISTS 'inventory'@'%' IDENTIFIED BY ${SQL_PASSWORD}; ALTER USER 'inventory'@'%' IDENTIFIED BY ${SQL_PASSWORD}; GRANT ALL PRIVILEGES ON inventory.* TO 'inventory'@'%'; FLUSH PRIVILEGES;\""
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 

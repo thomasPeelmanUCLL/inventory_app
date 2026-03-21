@@ -2,7 +2,7 @@
 
 # Inventory Management App
 
-A full-stack inventory management system for tracking items, recording sales, and analysing revenue. Built with Next.js on the front-end and a Node.js/Express back-end, backed by a PostgreSQL database.
+A full-stack inventory management system for tracking items, recording sales, and analysing revenue. Built with Next.js on the front-end and a Node.js/Express back-end, backed by a MariaDB database.
 
 ### Thomas Peelman
 
@@ -27,7 +27,7 @@ A full-stack inventory management system for tracking items, recording sales, an
 |---|---|
 | Front-end | Next.js (Pages Router), TypeScript, Tailwind CSS |
 | Back-end | Node.js, Express, Prisma ORM |
-| Database | PostgreSQL |
+| Database | MariaDB |
 | Auth | Better Auth |
 | Export | SheetJS (xlsx) |
 | Containerisation | Docker / Docker Compose |
@@ -46,7 +46,7 @@ Browser
   └─► inventory.domain.com  (public, HTTPS, Traefik)
          └─► frontend pod
                └─► /api/backend/* rewrite ─► inventory-backend ClusterIP
-                                                └─► postgres ClusterIP
+                                                └─► postgres ClusterIP (MariaDB)
 
 Optional direct backend exposure (if needed):
 api.domain.com/api/auth/* → inventory-backend ClusterIP
@@ -60,7 +60,7 @@ api.domain.com/api/auth/* → inventory-backend ClusterIP
 | `api.domain.com/api/auth/*` | ✅ Optional | Can be exposed, but browser auth calls are routed via frontend rewrite |
 | `api.domain.com/*` (everything else) | ❌ No | Blocked at Traefik — never reaches the pod |
 | Backend REST API (`/inventorys`, `/items`, …) | ❌ No | Pod-to-pod via Next.js rewrite only |
-| PostgreSQL | ❌ No | ClusterIP, no ingress at all |
+| MariaDB | ❌ No | ClusterIP, no ingress at all |
 
 ### Security layers
 
@@ -78,7 +78,7 @@ api.domain.com/api/auth/* → inventory-backend ClusterIP
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | Baked into Docker image at build time | Public API base/fallback (must be `https://...` in production) |
 | `INTERNAL_API_URL` | `k8s/frontend-configmap.yml` (runtime) | Next.js server → backend ClusterIP (pod-to-pod) |
-| `DATABASE_URL` | K8s secret (runtime) | Backend → PostgreSQL ClusterIP (pod-to-pod) |
+| `DATABASE_URL` | K8s secret (runtime) | Backend → MariaDB ClusterIP (pod-to-pod) |
 
 ---
 
@@ -131,7 +131,7 @@ inventory_app/
     ├── backend-deployment.yml
     ├── backend-configmap.yml
     ├── backend-service.yml      # ClusterIP only — no public ingress
-    ├── postgres.yml             # ClusterIP only — no public ingress
+    ├── postgres.yml             # MariaDB ClusterIP only — no public ingress
     ├── ingress.yml              # Frontend (all) + backend (/api/auth/* only)
     └── hpa.yml
 ```
@@ -146,7 +146,7 @@ inventory_app/
 docker compose up --build
 ```
 
-This starts the front-end, back-end, and a PostgreSQL database together.
+This starts the front-end, back-end, and a MariaDB database together.
 
 ### Without Docker
 
@@ -183,7 +183,7 @@ INTERNAL_API_URL=http://localhost:3000
 
 **`back-end/.env`**
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/inventory
+DATABASE_URL=mysql://user:password@localhost:3306/inventory
 BETTER_AUTH_SECRET=your-secret-here
 FRONTEND_URL=http://localhost:8080
 BACKEND_URL=http://localhost:3000
@@ -194,7 +194,7 @@ BACKEND_URL=http://localhost:3000
 > Browser-side auth and data calls use same-origin rewrite endpoints under `/api/backend/*`.
 
 > `DATABASE_URL` is constructed automatically by the deploy workflow as
-> `postgresql://inventory:<POSTGRES_PASSWORD>@postgres.inventory.svc.cluster.local:5432/inventory`.
+> `mysql://inventory:<POSTGRES_PASSWORD>@postgres.inventory.svc.cluster.local:3306/inventory`.
 
 ---
 
@@ -204,7 +204,7 @@ Two GitHub Actions workflows run on every push to `main`:
 
 | Workflow | What it does |
 |---|---|
-| `ci.yml` | Type-check, lint, build (frontend + backend); runs Prisma migrations against a test Postgres container |
+| `ci.yml` | Type-check, lint, build (frontend + backend); runs Prisma migrations against a test MariaDB container |
 | `deploy.yml` | Repeats CI checks, builds and pushes Docker images to GHCR, then deploys to Kubernetes |
 
 The deploy workflow handles full cluster bootstrapping on every run — it creates/updates all Kubernetes secrets before applying manifests, so no manual `kubectl` setup is needed on a fresh cluster.
@@ -213,7 +213,7 @@ The deploy workflow handles full cluster bootstrapping on every run — it creat
 
 | Secret | Description |
 |---|---|
-| `POSTGRES_PASSWORD` | Password for the in-cluster PostgreSQL database |
+| `POSTGRES_PASSWORD` | Password for the in-cluster MariaDB database |
 | `BETTER_AUTH_SECRET` | Secret key for Better Auth session signing |
 | `FRONTEND_URL` | Production front-end URL (e.g. `https://inventory.thomaspeelman.be`) |
 | `BACKEND_URL` | Production back-end URL (e.g. `https://api.thomaspeelman.be`) |
@@ -247,12 +247,11 @@ Before the first deploy to a fresh cluster, complete the following steps:
 
 ### `Prisma P1000` / DB auth failures
 
-- If Postgres PVC already existed, credentials can drift from new secret values.
-- Keep `POSTGRES_PASSWORD` stable, or rotate using SQL (`ALTER ROLE inventory WITH PASSWORD ...`) before migrations.
+- If DB PVC already existed, credentials can drift from new secret values.
+- Keep `POSTGRES_PASSWORD` stable, or rotate the `inventory` user password in MariaDB before migrations.
 - `DATABASE_URL` password must be URL-encoded when special characters are present.
 
 ### SoldItems 500 due to `paidCash` / `payedCash`
 
 - DB column may still be legacy `payedCash` while app uses `paidCash`.
 - Prisma schema maps this via `@map("payedCash")` on `SoldItem.paidCash`.
-

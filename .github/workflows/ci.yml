@@ -78,22 +78,23 @@ jobs:
         working-directory: back-end
 
     services:
-      postgres:
-        image: postgres:16
+      mariadb:
+        image: mariadb:11
         env:
-          POSTGRES_USER: inventory
-          POSTGRES_PASSWORD: inventory
-          POSTGRES_DB: inventory_test
+          MARIADB_USER: inventory
+          MARIADB_PASSWORD: inventory
+          MARIADB_DATABASE: inventory_test
+          MARIADB_ROOT_PASSWORD: root
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd pg_isready
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
 
     env:
-      DATABASE_URL: postgresql://inventory:inventory@localhost:5432/inventory_test
+      DATABASE_URL: mysql://inventory:inventory@localhost:3306/inventory_test
       NODE_ENV: test
 
     steps:

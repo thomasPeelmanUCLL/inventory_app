@@ -1,4 +1,4 @@
-# ── PostgreSQL — in-cluster database for the inventory backend ─────────────────
+# ── MariaDB — in-cluster database for the inventory backend ────────────────────
 #
 # The postgres-secret (POSTGRES_PASSWORD) is created automatically by the
 # GitHub Actions deploy workflow from the POSTGRES_PASSWORD Actions secret.
@@ -44,34 +44,39 @@ spec:
         app: postgres
     spec:
       containers:
-        - name: postgres
-          image: postgres:16-alpine
+        - name: mariadb
+          image: mariadb:11
           ports:
-            - containerPort: 5432
+            - containerPort: 3306
           env:
-            - name: POSTGRES_USER
+            - name: MARIADB_USER
               value: inventory
-            - name: POSTGRES_DB
+            - name: MARIADB_DATABASE
               value: inventory
-            - name: POSTGRES_PASSWORD
+            - name: MARIADB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: postgres-storage
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/mysql
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "inventory"]
+              command:
+                ["/bin/sh", "-c", "mysqladmin ping -h 127.0.0.1 -u$MARIADB_USER -p$MARIADB_PASSWORD"]
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 5
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "inventory"]
+              command:
+                ["/bin/sh", "-c", "mysqladmin ping -h 127.0.0.1 -u$MARIADB_USER -p$MARIADB_PASSWORD"]
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 3
@@ -97,6 +102,6 @@ spec:
   selector:
     app: postgres
   ports:
-    - port: 5432
-      targetPort: 5432
+    - port: 3306
+      targetPort: 3306
   type: ClusterIP
