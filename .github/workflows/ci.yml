@@ -79,19 +79,20 @@ jobs:
 
     services:
       mariadb:
-        image: mariadb:11
+        image: mariadb:11.4
         env:
-          MARIADB_USER: inventory
-          MARIADB_PASSWORD: inventory
-          MARIADB_DATABASE: inventory_test
-          MARIADB_ROOT_PASSWORD: root
+          MYSQL_USER: inventory
+          MYSQL_PASSWORD: inventory
+          MYSQL_DATABASE: inventory_test
+          MYSQL_ROOT_PASSWORD: root
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -proot || exit 1"
+          --health-start-period 30s
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 20
 
     env:
       DATABASE_URL: mysql://inventory:inventory@localhost:3306/inventory_test
