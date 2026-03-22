@@ -109,8 +109,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run database migrations
-        run: npx prisma migrate deploy
+      - name: Sync Prisma schema for MariaDB
+        run: npx prisma db push --accept-data-loss --skip-generate
 
       - name: Generate Prisma client
         run: npx prisma generate

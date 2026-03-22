@@ -252,34 +252,34 @@ jobs:
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
-      - name: Run Prisma migrations
+      - name: Sync Prisma schema (MariaDB)
         run: |
-          kubectl delete pod prisma-migrate -n inventory --ignore-not-found=true
+          kubectl delete pod prisma-sync -n inventory --ignore-not-found=true
 
-          kubectl run prisma-migrate \
+          kubectl run prisma-sync \
             --image=${{ needs.docker-backend.outputs.sha_tag }} \
             --restart=Never \
             --namespace=inventory \
             --env="DATABASE_URL=$DATABASE_URL" \
-            --command -- npx prisma migrate deploy
+            --command -- npx prisma db push --accept-data-loss --skip-generate
 
-          if ! kubectl wait pod/prisma-migrate \
+          if ! kubectl wait pod/prisma-sync \
             --for=jsonpath='{.status.phase}'=Succeeded \
             -n inventory \
             --timeout=180s; then
-            echo "::error::Prisma migration pod did not succeed in time"
-            kubectl get pod prisma-migrate -n inventory -o wide || true
-            kubectl describe pod prisma-migrate -n inventory || true
-            kubectl logs prisma-migrate -n inventory --all-containers=true || true
+            echo "::error::Prisma schema sync pod did not succeed in time"
+            kubectl get pod prisma-sync -n inventory -o wide || true
+            kubectl describe pod prisma-sync -n inventory || true
+            kubectl logs prisma-sync -n inventory --all-containers=true || true
             exit 1
           fi
 
-          kubectl logs prisma-migrate -n inventory
-          kubectl delete pod prisma-migrate -n inventory --ignore-not-found=true
+          kubectl logs prisma-sync -n inventory
+          kubectl delete pod prisma-sync -n inventory --ignore-not-found=true
 
-      - name: Run Prisma migrations — cleanup on failure
+      - name: Prisma schema sync — cleanup on failure
         if: failure()
-        run: kubectl delete pod prisma-migrate -n inventory --ignore-not-found=true
+        run: kubectl delete pod prisma-sync -n inventory --ignore-not-found=true
 
       - name: Update backend image
         run: |
