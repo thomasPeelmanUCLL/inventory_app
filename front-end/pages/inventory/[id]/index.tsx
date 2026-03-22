@@ -12,6 +12,7 @@ import ErrorScreen from '../../../components/common/ErrorScreen';
 import Toast from '../../../components/common/Toast';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
 import { getInventoryById, createSoldItem } from '../../../lib/api';
+import { getDefaultSellPriceForItem } from '../../../lib/pricing';
 import { useSession } from '../../../lib/auth-client';
 import { useToast } from '../../../hooks/useToast';
 import { Inventory, Item, SellModalData, CartItem } from '@types';
@@ -51,19 +52,13 @@ const InventoryDetailPage = () => {
     };
 
     const handleSellItem = (item: Item) => {
-        const priceVariables = item.priceVariables || [];
-        const defaultPriceVariable = priceVariables.find(
-            (priceVariable) => priceVariable.isDefault,
-        );
+        const { finalSellPrice, priceVariableName } = getDefaultSellPriceForItem(item);
+
         setSellModal({
             item,
             quantity: 1,
-            finalSellPrice: defaultPriceVariable
-                ? defaultPriceVariable.type === 'PERCENTAGE'
-                    ? item.buyPrice * (1 + defaultPriceVariable.value / 100)
-                    : defaultPriceVariable.value
-                : item.buyPrice,
-            priceVariableName: defaultPriceVariable?.name,
+            finalSellPrice,
+            priceVariableName,
             isCustomPrice: false,
             paymentMethod: 'cash',
         });
