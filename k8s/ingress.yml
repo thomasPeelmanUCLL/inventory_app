@@ -1,42 +1,25 @@
-# ── Backend IngressRoute ───────────────────────────────────────
-# Only /api/auth/* is exposed publicly — required by Better Auth for
-# browser-side cookie flows (sign-in, sign-up, session management).
-# All other API routes (/inventorys, /items, etc.) are internal only,
-# reached via the Next.js rewrite proxy pod-to-pod.
-# Domain must match the BACKEND_URL GitHub Actions secret (without https://).
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: backend-ingress
+  name: inventory-ingress
   namespace: inventory
 spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`api.euroclasstravel.com`) && PathPrefix(`/api/auth`)
-      kind: Rule
-      services:
-        - name: inventory-backend
-          port: 80
-  tls:
-    certResolver: cloudflare
-
----
-# ── Frontend IngressRoute ──────────────────────────────────────
-# Domain must match the FRONTEND_URL GitHub Actions secret (without https://).
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: frontend-ingress
-  namespace: inventory
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`inventory.euroclasstravel.com`)   # ← update to match your FRONTEND_URL domain
-      kind: Rule
-      services:
-        - name: inventory-frontend
-          port: 80
-  tls:
-    certResolver: cloudflare
+  ingressClassName: nginx
+  rules:
+    - host: inventory.euroclasstravel.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: inventory-backend
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: inventory-frontend
+                port:
+                  number: 80
