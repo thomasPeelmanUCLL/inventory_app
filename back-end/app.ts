@@ -9,6 +9,7 @@ import { inventoryRouter } from './controller/inventory.routes';
 import { itemRouter } from './controller/item.routes';
 import { soldItemRouter } from './controller/soldItem.routes';
 import { priceVariableRouter } from './controller/priceVariable.routes';
+import { integrationRouter } from './controller/integration.routes';
 import { auth } from './lib/auth';
 import { toNodeHandler } from 'better-auth/node';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
@@ -64,7 +65,7 @@ app.use(
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
                 scriptSrc: ["'self'"],
-                imgSrc: ["'self'", 'data:', 'https:'],
+                imgSrc: ["'self'", "data:", "https:"],
                 connectSrc: ["'self'"],
             },
         },
@@ -199,30 +200,7 @@ const swaggerOptions = {
         info: {
             title: 'Secure Inventory Management API',
             version: '2.2.0',
-            description: `
-# Secure Inventory Management API v2.2
-
-## 🔐 Security & Architecture
-- **Multi-tenant authorization** with role-based access control
-- **Input validation** with Zod schemas (client + server)
-- **Transactional operations** preventing race conditions
-- **Rate limiting** with read/write differentiation
-- **DTO mappers** for clean API responses
-- **Request correlation** with X-Request-ID headers
-- **Structured logging** for observability
-
-## 🚀 Authentication Flow
-Better Auth with secure HTTP-only cookies and session management.
-
-## ⚡ Rate Limits
-- **Auth**: 100/15min, **Login**: 10/15min
-- **Read APIs**: 120/min, **Write APIs**: 30/min
-
-## 🎯 Endpoints
-- **Health**: \`/health\` - Basic health check
-- **Readiness**: \`/ready\` - Comprehensive readiness probe
-- **Docs**: \`/api-docs\` - Interactive API documentation
-      `,
+            description: `\n# Secure Inventory Management API v2.2\n\n## 🔐 Security & Architecture\n- **Multi-tenant authorization** with role-based access control\n- **Input validation** with Zod schemas (client + server)\n- **Transactional operations** preventing race conditions\n- **Rate limiting** with read/write differentiation\n- **DTO mappers** for clean API responses\n- **Request correlation** with X-Request-ID headers\n- **Structured logging** for observability\n\n## 🚀 Authentication Flow\nBetter Auth with secure HTTP-only cookies and session management.\n\n## ⚡ Rate Limits\n- **Auth**: 100/15min, **Login**: 10/15min\n- **Read APIs**: 120/min, **Write APIs**: 30/min\n\n## 🎯 Endpoints\n- **Health**: \\`/health\\` - Basic health check\n- **Readiness**: \\`/ready\\` - Comprehensive readiness probe\n- **Docs**: \\`/api-docs\\` - Interactive API documentation\n      `,
         },
         servers: [{ url: `http://localhost:${PORT}`, description: 'Development server' }],
         components: {
@@ -252,6 +230,7 @@ app.use('/inventorys', inventoryRouter);
 app.use('/items', itemRouter);
 app.use('/soldItems', soldItemRouter);
 app.use('/priceVariables', priceVariableRouter);
+app.use('/integrations', integrationRouter);
 
 // Enhanced Health Check (minimal, fast)
 app.get('/health', async (req: Request, res: Response) => {
