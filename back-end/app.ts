@@ -28,7 +28,6 @@ function isValidHttpUrl(value?: string): boolean {
     }
 }
 
-// Production environment validation
 if (process.env.NODE_ENV === 'production') {
     const required: Record<string, string | undefined> = {
         FRONTEND_URL: process.env.FRONTEND_URL,
@@ -36,28 +35,28 @@ if (process.env.NODE_ENV === 'production') {
         DATABASE_URL: process.env.DATABASE_URL,
         BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     };
+
     const missing = Object.entries(required)
-        .filter(([, v]) => !v)
-        .map(([k]) => k);
+        .filter(([, value]) => !value)
+        .map(([key]) => key);
+
     if (missing.length > 0) {
-        console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+        console.error(`Missing required environment variables: ${missing.join(', ')}`);
         process.exit(1);
     }
 
     const invalidUrls: string[] = [];
     if (!isValidHttpUrl(process.env.FRONTEND_URL)) invalidUrls.push('FRONTEND_URL');
     if (!isValidHttpUrl(process.env.BACKEND_URL)) invalidUrls.push('BACKEND_URL');
+
     if (invalidUrls.length > 0) {
-        console.error(
-            `❌ Invalid URL format for: ${invalidUrls.join(', ')}. Use fully-qualified URLs like https://example.com`,
-        );
+        console.error(`Invalid URL format for: ${invalidUrls.join(', ')}`);
         process.exit(1);
     }
 
-    console.log('✅ Production environment validated');
+    console.log('Production environment validated');
 }
 
-// Security headers
 app.use(
     helmet({
         contentSecurityPolicy: {
@@ -65,7 +64,7 @@ app.use(
                 defaultSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
                 scriptSrc: ["'self'"],
-                imgSrc: ["'self'", "data:", "https:"],
+                imgSrc: ["'self'", 'data:', 'https:'],
                 connectSrc: ["'self'"],
             },
         },
@@ -74,13 +73,11 @@ app.use(
     }),
 );
 
-// Trust proxy and add request correlation
 app.set('trust proxy', 1);
-app.use(addRequestId); // Add unique request ID for tracing
-app.use(logRequest); // Structured logging
-app.use(requestTimer); // Performance monitoring
+app.use(addRequestId);
+app.use(logRequest);
+app.use(requestTimer);
 
-// Enhanced rate limiters with better granularity
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
@@ -107,10 +104,9 @@ const loginLimiter = rateLimit({
     keyGenerator: (req) => `${req.ip}:login`,
 });
 
-// Separate limiters for read vs write operations
 const readLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 120, // Higher limit for GET requests
+    max: 120,
     message: { error: 'Too many read requests, please try again later.', retryAfter: '1 minute' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -119,14 +115,13 @@ const readLimiter = rateLimit({
 
 const writeLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 30, // Stricter limit for write operations
+    max: 30,
     message: { error: 'Too many write requests, please try again later.', retryAfter: '1 minute' },
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => ['GET', 'HEAD'].includes(req.method),
 });
 
-// CORS with better logging
 const allowedOrigins =
     process.env.NODE_ENV === 'production'
         ? [process.env.FRONTEND_URL as string].filter(Boolean)
@@ -139,7 +134,7 @@ app.use(
             if (allowedOrigins.includes(origin)) {
                 return callback(null, true);
             }
-            console.warn(`⚠️  CORS: Blocked request from unauthorized origin: ${origin}`);
+            console.warn(`CORS: Blocked request from unauthorized origin: ${origin}`);
             return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
         },
         credentials: true,
@@ -154,14 +149,10 @@ app.use(
     }),
 );
 
-// Auth rate limiting
 app.use('/api/auth/*', authLimiter);
 app.use('/api/auth/sign-in/*', loginLimiter);
-
-// Better Auth routes (before json())
 app.all('/api/auth/*', toNodeHandler(auth));
 
-// JSON parsing with enhanced error reporting
 app.use(
     express.json({
         limit: '10mb',
@@ -186,21 +177,19 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     next(err);
 });
 
-// Apply granular rate limiting to API routes
 app.use(
     ['/users', '/inventorys', '/items', '/soldItems', '/priceVariables'],
     readLimiter,
     writeLimiter,
 );
 
-// Swagger with enhanced security info
 const swaggerOptions = {
     definition: {
         openapi: '3.0.0',
         info: {
             title: 'Secure Inventory Management API',
             version: '2.2.0',
-            description: `\n# Secure Inventory Management API v2.2\n\n## 🔐 Security & Architecture\n- **Multi-tenant authorization** with role-based access control\n- **Input validation** with Zod schemas (client + server)\n- **Transactional operations** preventing race conditions\n- **Rate limiting** with read/write differentiation\n- **DTO mappers** for clean API responses\n- **Request correlation** with X-Request-ID headers\n- **Structured logging** for observability\n\n## 🚀 Authentication Flow\nBetter Auth with secure HTTP-only cookies and session management.\n\n## ⚡ Rate Limits\n- **Auth**: 100/15min, **Login**: 10/15min\n- **Read APIs**: 120/min, **Write APIs**: 30/min\n\n## 🎯 Endpoints\n- **Health**: \\`/health\\` - Basic health check\n- **Readiness**: \\`/ready\\` - Comprehensive readiness probe\n- **Docs**: \\`/api-docs\\` - Interactive API documentation\n      `,
+            description: 'Secure inventory management API with authentication, authorization, and analytics.',
         },
         servers: [{ url: `http://localhost:${PORT}`, description: 'Development server' }],
         components: {
@@ -213,6 +202,7 @@ const swaggerOptions = {
     },
     apis: ['./controller/*.ts', './controller/*.js', './dto/*.ts'],
 };
+
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use(
     '/api-docs',
@@ -224,7 +214,6 @@ app.use(
     }),
 );
 
-// Routes
 app.use('/users', userRouter);
 app.use('/inventorys', inventoryRouter);
 app.use('/items', itemRouter);
@@ -232,7 +221,6 @@ app.use('/soldItems', soldItemRouter);
 app.use('/priceVariables', priceVariableRouter);
 app.use('/integrations', integrationRouter);
 
-// Enhanced Health Check (minimal, fast)
 app.get('/health', async (req: Request, res: Response) => {
     const requestId = (req as any).requestId;
     const db = await checkDatabase();
@@ -250,7 +238,6 @@ app.get('/health', async (req: Request, res: Response) => {
     });
 });
 
-// Readiness Probe (comprehensive)
 app.get('/ready', async (req: Request, res: Response) => {
     const requestId = (req as any).requestId;
     const readiness = await checkReadiness();
@@ -273,7 +260,6 @@ app.get('/ready', async (req: Request, res: Response) => {
     });
 });
 
-// Enhanced Root Route
 app.get('/', (_req: Request, res: Response) => {
     res.json({
         message: 'Secure Inventory Management API v2.2',
@@ -281,38 +267,23 @@ app.get('/', (_req: Request, res: Response) => {
         health: '/health',
         readiness: '/ready',
         auth: '/api/auth/*',
-        features: {
-            'multi-tenant-authorization': true,
-            'input-validation': true,
-            'transactional-operations': true,
-            'dto-responses': true,
-            'structured-logging': true,
-            'request-correlation': true,
-            'granular-rate-limiting': true,
-            'security-headers': true,
-        },
     });
 });
 
-// 404 then error handler
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Start server with enhanced logging
 app.listen(PORT, () => {
-    console.log(`🚀 Secure Inventory API v2.2 running on http://localhost:${PORT}`);
-    console.log(`📚 Documentation: http://localhost:${PORT}/api-docs`);
-    console.log(`🔍 Health: http://localhost:${PORT}/health`);
-    console.log(`✅ Readiness: http://localhost:${PORT}/ready`);
-    console.log(`🔐 Auth: http://localhost:${PORT}/api/auth/*`);
-    console.log(`🛡️  Security: Helmet, CORS, rate limiting (read: 120/min, write: 30/min)`);
-    console.log(`🎯 Architecture: DTOs, request correlation, structured logging`);
-    console.log(`⚡ Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Secure Inventory API v2.2 running on http://localhost:${PORT}`);
+    console.log(`Documentation: http://localhost:${PORT}/api-docs`);
+    console.log(`Health: http://localhost:${PORT}/health`);
+    console.log(`Readiness: http://localhost:${PORT}/ready`);
+    console.log(`Auth: http://localhost:${PORT}/api/auth/*`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
-    // Log configuration in development
     if (process.env.NODE_ENV !== 'production') {
-        console.log(`📊 CORS Origins:`, allowedOrigins);
-        console.log(`📛 Database: ${process.env.DATABASE_URL ? '✅ configured' : '❌ missing'}`);
+        console.log('CORS Origins:', allowedOrigins);
+        console.log('Database:', process.env.DATABASE_URL ? 'configured' : 'missing');
     }
 });
 
