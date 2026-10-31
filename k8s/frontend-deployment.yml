@@ -5,6 +5,11 @@ metadata:
   namespace: inventory
   labels:
     app: frontend
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: frontend=ghcr.io/thomaspeelmanucll/inventory-frontend
+    argocd-image-updater.argoproj.io/frontend.update-strategy: digest
+    argocd-image-updater.argoproj.io/frontend.allow-tags: regexp:^sha-[0-9a-f]{40}$
+    argocd-image-updater.argoproj.io/frontend.force-update: "false"
 spec:
   replicas: 1
   selector:
@@ -23,8 +28,8 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: frontend
-          image: ghcr.io/thomaspeelmanucll/inventory-frontend:latest
-          imagePullPolicy: Always
+          image: ghcr.io/thomaspeelmanucll/inventory-frontend:sha-578a051dd058426f3894f278f930d6dbdcc2b471
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
           envFrom:
@@ -35,10 +40,6 @@ spec:
               value: "3000"
             - name: HOSTNAME
               value: "::"
-            # INTERNAL_API_URL is loaded from configmap via envFrom above.
-            # It points to the backend ClusterIP service (pod-to-pod, never public).
-            # NEXT_PUBLIC_API_URL is baked into the image at build time from the
-            # NEXT_PUBLIC_API_URL GitHub Actions secret — no runtime env needed.
           startupProbe:
             httpGet:
               path: /
