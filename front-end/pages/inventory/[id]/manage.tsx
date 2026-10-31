@@ -5,6 +5,10 @@ import Header from '../../../components/layout/Header';
 import InventoryHeader from '../../../components/inventory/InventoryHeader';
 import ManageUsersModal from '../../../components/inventory/ManageUsersModal';
 import PriceVariablesSection from '../../../components/inventory/PriceVariablesSection';
+import WebsiteCatalogueSection, {
+    WebsiteCatalogueFormErrors,
+    WebsiteCatalogueFormValues,
+} from '../../../components/inventory/WebsiteCatalogueSection';
 import LoadingScreen from '../../../components/common/LoadingScreen';
 import ErrorScreen from '../../../components/common/ErrorScreen';
 import Toast from '../../../components/common/Toast';
@@ -27,6 +31,7 @@ const ManageItemsPage = () => {
     const [itemBeingEdited, setItemBeingEdited] = useState<Item | null>(null);
     const [expandedPricesItemId, setExpandedPricesItemId] = useState<number | null>(null);
     const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<number | null>(null);
+    const [catalogueErrors, setCatalogueErrors] = useState<WebsiteCatalogueFormErrors>({});
 
     useEffect(() => {
         if (inventoryIdParam) void fetchInventory();
@@ -47,12 +52,64 @@ const ManageItemsPage = () => {
 
     const handleSaveItem = async () => {
         if (!itemBeingEdited?.id) return;
+        setCatalogueErrors({});
+
+        const publishEnabled = Boolean(itemBeingEdited.publishedToWebsite);
+        const isValidMoney = (value: string) => /^\d+(\.\d{1,2})?$/.test(value);
+        const memberPriceValue =
+            itemBeingEdited.memberPrice === null || itemBeingEdited.memberPrice === undefined
+                ? ''
+                : String(itemBeingEdited.memberPrice);
+        const nonMemberPriceValue =
+            itemBeingEdited.nonMemberPrice === null || itemBeingEdited.nonMemberPrice === undefined
+                ? ''
+                : String(itemBeingEdited.nonMemberPrice);
+
+        const nextErrors: WebsiteCatalogueFormErrors = {};
+        if (
+            itemBeingEdited.websiteSortOrder !== undefined &&
+            itemBeingEdited.websiteSortOrder !== null &&
+            !Number.isInteger(itemBeingEdited.websiteSortOrder)
+        ) {
+            nextErrors.websiteSortOrder = 'Sort order must be an integer';
+        }
+        if (publishEnabled && !itemBeingEdited.websiteCategory?.trim()) {
+            nextErrors.websiteCategory = 'Website category is required when publishing';
+        }
+        if (publishEnabled && !memberPriceValue) {
+            nextErrors.memberPrice = 'Member price is required when publishing';
+        } else if (memberPriceValue && !isValidMoney(memberPriceValue)) {
+            nextErrors.memberPrice = 'Member price must be a non-negative amount with 2 decimals';
+        }
+        if (publishEnabled && !nonMemberPriceValue) {
+            nextErrors.nonMemberPrice = 'Non-member price is required when publishing';
+        } else if (nonMemberPriceValue && !isValidMoney(nonMemberPriceValue)) {
+            nextErrors.nonMemberPrice =
+                'Non-member price must be a non-negative amount with 2 decimals';
+        }
+        if (Object.keys(nextErrors).length > 0) {
+            setCatalogueErrors(nextErrors);
+            return;
+        }
+
         try {
             await updateItem(itemBeingEdited.id, {
                 name: itemBeingEdited.name || '',
                 description: itemBeingEdited.description || '',
                 buyPrice: itemBeingEdited.buyPrice ?? 0,
                 quantity: itemBeingEdited.quantity ?? 0,
+                websiteCategory: itemBeingEdited.websiteCategory?.trim() || null,
+                websiteEmoji: itemBeingEdited.websiteEmoji?.trim() || null,
+                websiteSortOrder: itemBeingEdited.websiteSortOrder ?? 0,
+                memberPrice:
+                    itemBeingEdited.memberPrice === undefined
+                        ? null
+                        : (itemBeingEdited.memberPrice ?? null),
+                nonMemberPrice:
+                    itemBeingEdited.nonMemberPrice === undefined
+                        ? null
+                        : (itemBeingEdited.nonMemberPrice ?? null),
+                publishedToWebsite: Boolean(itemBeingEdited.publishedToWebsite),
             });
             await fetchInventory();
             setItemBeingEdited(null);
@@ -173,6 +230,11 @@ const ManageItemsPage = () => {
                                                     ) : (
                                                         <div className="font-medium">
                                                             {item.name}
+                                                            {item.publishedToWebsite && (
+                                                                <span className="ml-2 inline-flex text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                                                                    Published
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -270,9 +332,29 @@ const ManageItemsPage = () => {
                                                     ) : (
                                                         <>
                                                             <button
-                                                                onClick={() =>
-                                                                    setItemBeingEdited({ ...item })
-                                                                }
+                                                                onClick={() => {
+                                                                    setCatalogueErrors({});
+                                                                    setItemBeingEdited({
+                                                                        ...item,
+                                                                        websiteCategory:
+                                                                            item.websiteCategory ??
+                                                                            '',
+                                                                        websiteEmoji:
+                                                                            item.websiteEmoji ?? '',
+                                                                        websiteSortOrder:
+                                                                            item.websiteSortOrder ??
+                                                                            0,
+                                                                        memberPrice:
+                                                                            item.memberPrice ?? null,
+                                                                        nonMemberPrice:
+                                                                            item.nonMemberPrice ??
+                                                                            null,
+                                                                        publishedToWebsite:
+                                                                            Boolean(
+                                                                                item.publishedToWebsite,
+                                                                            ),
+                                                                    });
+                                                                }}
                                                                 className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
                                                             >
                                                                 Edit
@@ -311,6 +393,93 @@ const ManageItemsPage = () => {
                                     {expandedPricesItemId === item.id && item.id && (
                                         <PriceVariablesSection itemId={item.id} canEdit={canEdit} />
                                     )}
+                                    {itemBeingEdited?.id === item.id && (() => {
+                                        const editingItem = itemBeingEdited;
+                                        if (!editingItem) return null;
+                                        return (
+                                            <div className="p-4 border-t border-gray-200">
+                                                <WebsiteCatalogueSection
+                                                    value={{
+                                                        publishedToWebsite: Boolean(
+                                                            editingItem.publishedToWebsite,
+                                                        ),
+                                                        websiteCategory:
+                                                            editingItem.websiteCategory ?? '',
+                                                        websiteEmoji:
+                                                            editingItem.websiteEmoji ?? '',
+                                                        websiteSortOrder: String(
+                                                            editingItem.websiteSortOrder ?? 0,
+                                                        ),
+                                                        memberPrice:
+                                                            editingItem.memberPrice === null ||
+                                                            editingItem.memberPrice === undefined
+                                                                ? ''
+                                                                : String(editingItem.memberPrice),
+                                                        nonMemberPrice:
+                                                            editingItem.nonMemberPrice === null ||
+                                                            editingItem.nonMemberPrice === undefined
+                                                                ? ''
+                                                                : String(
+                                                                      editingItem.nonMemberPrice,
+                                                                  ),
+                                                    }}
+                                                    errors={catalogueErrors}
+                                                    onChange={(field, fieldValue) => {
+                                                        if (!itemBeingEdited) return;
+                                                        if (field === 'publishedToWebsite') {
+                                                            setItemBeingEdited({
+                                                                ...itemBeingEdited,
+                                                                publishedToWebsite:
+                                                                    fieldValue as boolean,
+                                                            });
+                                                            return;
+                                                        }
+                                                        if (field === 'websiteSortOrder') {
+                                                            setItemBeingEdited({
+                                                                ...itemBeingEdited,
+                                                                websiteSortOrder:
+                                                                    (fieldValue as string) === ''
+                                                                        ? 0
+                                                                        : parseInt(
+                                                                              fieldValue as string,
+                                                                              10,
+                                                                          ),
+                                                            });
+                                                            return;
+                                                        }
+                                                        if (field === 'memberPrice') {
+                                                            setItemBeingEdited({
+                                                                ...itemBeingEdited,
+                                                                memberPrice:
+                                                                    (fieldValue as string) === ''
+                                                                        ? null
+                                                                        : parseFloat(
+                                                                              fieldValue as string,
+                                                                          ),
+                                                            });
+                                                            return;
+                                                        }
+                                                        if (field === 'nonMemberPrice') {
+                                                            setItemBeingEdited({
+                                                                ...itemBeingEdited,
+                                                                nonMemberPrice:
+                                                                    (fieldValue as string) === ''
+                                                                        ? null
+                                                                        : parseFloat(
+                                                                              fieldValue as string,
+                                                                          ),
+                                                            });
+                                                            return;
+                                                        }
+                                                        setItemBeingEdited({
+                                                            ...itemBeingEdited,
+                                                            [field]: fieldValue as string,
+                                                        });
+                                                    }}
+                                                />
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             ))}
                         </div>

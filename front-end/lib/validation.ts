@@ -21,30 +21,67 @@ export type InventoryUpdateInput = z.infer<typeof inventoryUpdateSchema>;
 // ITEM VALIDATION
 // ========================================
 
-export const itemSchema = z.object({
-    name: z.string().min(1, 'Item name is required').max(200, 'Name too long'),
-    description: z.string().min(1, 'Description is required').max(1000, 'Description too long'),
-    buyPrice: z
-        .union([
-            z.number().min(0, 'Buy price cannot be negative'),
-            z.string().refine((val) => {
-                const num = parseFloat(val);
-                return !isNaN(num) && num >= 0;
-            }, 'Buy price must be a positive number'),
-        ])
-        .transform((val) => (typeof val === 'string' ? parseFloat(val) : val)),
-    quantity: z.number().int('Quantity must be an integer').min(0, 'Quantity cannot be negative'),
-    buyedAt: z.string().datetime('Invalid date format').optional().or(z.literal('')),
-    inventoryId: z.number().int().positive('Invalid inventory ID').optional(),
+const itemBaseSchema = z.object({
+        name: z.string().min(1, 'Item name is required').max(200, 'Name too long'),
+        description: z.string().min(1, 'Description is required').max(1000, 'Description too long'),
+        buyPrice: z
+            .union([
+                z.number().min(0, 'Buy price cannot be negative'),
+                z.string().refine((val) => {
+                    const num = parseFloat(val);
+                    return !isNaN(num) && num >= 0;
+                }, 'Buy price must be a positive number'),
+            ])
+            .transform((val) => (typeof val === 'string' ? parseFloat(val) : val)),
+        quantity: z.number().int('Quantity must be an integer').min(0, 'Quantity cannot be negative'),
+        buyedAt: z.string().datetime('Invalid date format').optional().or(z.literal('')),
+        inventoryId: z.number().int().positive('Invalid inventory ID').optional(),
+        websiteCategory: z.string().optional().nullable(),
+        websiteEmoji: z.string().optional().nullable(),
+        websiteSortOrder: z.number().int('Sort order must be an integer').optional(),
+        memberPrice: z.number().min(0, 'Member price cannot be negative').optional().nullable(),
+        nonMemberPrice: z
+            .number()
+            .min(0, 'Non-member price cannot be negative')
+            .optional()
+            .nullable(),
+        publishedToWebsite: z.boolean().optional().default(false),
 });
 
-export const itemUpdateSchema = itemSchema.partial().extend({
+const addPublishedRefinement = (data: any, ctx: z.RefinementCtx) => {
+    if (!data.publishedToWebsite) return;
+    if (!data.websiteCategory || data.websiteCategory.trim() === '') {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['websiteCategory'],
+            message: 'Website category is required when publishing',
+        });
+    }
+    if (data.memberPrice === null || data.memberPrice === undefined) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['memberPrice'],
+            message: 'Member price is required when publishing',
+        });
+    }
+    if (data.nonMemberPrice === null || data.nonMemberPrice === undefined) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['nonMemberPrice'],
+            message: 'Non-member price is required when publishing',
+        });
+    }
+};
+
+export const itemSchema = itemBaseSchema.superRefine(addPublishedRefinement);
+
+export const itemUpdateSchema = itemBaseSchema.partial().extend({
     buyedAt: z
         .string()
         .datetime()
         .optional()
         .or(z.literal('').transform(() => undefined)),
-});
+}).superRefine(addPublishedRefinement);
 
 export type ItemInput = z.infer<typeof itemSchema>;
 export type ItemUpdateInput = z.infer<typeof itemUpdateSchema>;

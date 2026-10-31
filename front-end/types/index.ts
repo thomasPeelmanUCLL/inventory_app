@@ -17,6 +17,12 @@ export interface Item {
     quantity: number;
     buyedAt?: Date;
     inventoryId?: number;
+    websiteCategory?: string | null;
+    websiteEmoji?: string | null;
+    websiteSortOrder?: number;
+    memberPrice?: number | null;
+    nonMemberPrice?: number | null;
+    publishedToWebsite?: boolean;
     priceVariables?: PriceVariable[];
     createdAt?: Date;
     updatedAt?: Date;

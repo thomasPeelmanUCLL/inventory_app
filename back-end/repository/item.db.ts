@@ -71,6 +71,12 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
             quantity: item.getQuantity(),
             buyedAt: item.getBuyedAt(),
             inventoryId: item.getInventoryId(),
+            websiteCategory: item.getWebsiteCategory() ?? null,
+            websiteEmoji: item.getWebsiteEmoji() ?? null,
+            websiteSortOrder: item.getWebsiteSortOrder(),
+            memberPrice: item.getMemberPrice() ?? null,
+            nonMemberPrice: item.getNonMemberPrice() ?? null,
+            publishedToWebsite: item.getPublishedToWebsite(),
         };
 
         // Add price variables if provided
@@ -100,6 +106,12 @@ class ItemRepository extends BaseRepository<Item, ItemPrisma> {
             quantity: item.getQuantity(),
             buyedAt: item.getBuyedAt(),
             inventoryId: item.getInventoryId(),
+            websiteCategory: item.getWebsiteCategory() ?? null,
+            websiteEmoji: item.getWebsiteEmoji() ?? null,
+            websiteSortOrder: item.getWebsiteSortOrder(),
+            memberPrice: item.getMemberPrice() ?? null,
+            nonMemberPrice: item.getNonMemberPrice() ?? null,
+            publishedToWebsite: item.getPublishedToWebsite(),
         };
 
         const result = await this.update(item, data, {

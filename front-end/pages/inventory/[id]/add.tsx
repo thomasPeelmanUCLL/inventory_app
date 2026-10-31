@@ -4,6 +4,10 @@ import Link from 'next/link';
 import Header from '@components/layout/Header';
 import InventoryHeader from '@components/inventory/InventoryHeader';
 import ManageUsersModal from '@components/inventory/ManageUsersModal';
+import WebsiteCatalogueSection, {
+    WebsiteCatalogueFormErrors,
+    WebsiteCatalogueFormValues,
+} from '@components/inventory/WebsiteCatalogueSection';
 import { getInventoryById, createItem } from '../../../lib/api';
 import { useSession } from '../../../lib/auth-client';
 import { Item, Inventory } from '@types';
@@ -23,7 +27,14 @@ const AddItemPage = () => {
         buyPrice: '',
         quantity: '',
         purchasedAt: '',
+        websiteCategory: '',
+        websiteEmoji: '',
+        websiteSortOrder: '0',
+        memberPrice: '',
+        nonMemberPrice: '',
+        publishedToWebsite: false,
     });
+    const [catalogueErrors, setCatalogueErrors] = useState<WebsiteCatalogueFormErrors>({});
 
     useEffect(() => {
         if (inventoryIdParam) void fetchInventory();
@@ -50,6 +61,7 @@ const AddItemPage = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setCatalogueErrors({});
 
         if (
             !newItemForm.name ||
@@ -61,6 +73,31 @@ const AddItemPage = () => {
             return;
         }
 
+        const publishEnabled = newItemForm.publishedToWebsite;
+        const isValidMoney = (value: string) => /^\d+(\.\d{1,2})?$/.test(value);
+        const nextErrors: WebsiteCatalogueFormErrors = {};
+        if (newItemForm.websiteSortOrder && !/^-?\d+$/.test(newItemForm.websiteSortOrder)) {
+            nextErrors.websiteSortOrder = 'Sort order must be an integer';
+        }
+        if (publishEnabled && !newItemForm.websiteCategory.trim()) {
+            nextErrors.websiteCategory = 'Website category is required when publishing';
+        }
+        if (publishEnabled && !newItemForm.memberPrice.trim()) {
+            nextErrors.memberPrice = 'Member price is required when publishing';
+        } else if (newItemForm.memberPrice && !isValidMoney(newItemForm.memberPrice)) {
+            nextErrors.memberPrice = 'Member price must be a non-negative amount with 2 decimals';
+        }
+        if (publishEnabled && !newItemForm.nonMemberPrice.trim()) {
+            nextErrors.nonMemberPrice = 'Non-member price is required when publishing';
+        } else if (newItemForm.nonMemberPrice && !isValidMoney(newItemForm.nonMemberPrice)) {
+            nextErrors.nonMemberPrice =
+                'Non-member price must be a non-negative amount with 2 decimals';
+        }
+        if (Object.keys(nextErrors).length > 0) {
+            setCatalogueErrors(nextErrors);
+            return;
+        }
+
         try {
             const newItemData = {
                 name: newItemForm.name,
@@ -69,6 +106,15 @@ const AddItemPage = () => {
                 quantity: parseInt(newItemForm.quantity),
                 purchasedAt: newItemForm.purchasedAt || undefined,
                 inventoryId: Number(inventoryIdParam),
+                websiteCategory: newItemForm.websiteCategory.trim() || null,
+                websiteEmoji: newItemForm.websiteEmoji.trim() || null,
+                websiteSortOrder:
+                    newItemForm.websiteSortOrder === '' ? 0 : parseInt(newItemForm.websiteSortOrder),
+                memberPrice: newItemForm.memberPrice ? parseFloat(newItemForm.memberPrice) : null,
+                nonMemberPrice: newItemForm.nonMemberPrice
+                    ? parseFloat(newItemForm.nonMemberPrice)
+                    : null,
+                publishedToWebsite: newItemForm.publishedToWebsite,
             };
 
             await createItem(newItemData);
@@ -80,6 +126,12 @@ const AddItemPage = () => {
                 buyPrice: '',
                 quantity: '',
                 purchasedAt: '',
+                websiteCategory: '',
+                websiteEmoji: '',
+                websiteSortOrder: '0',
+                memberPrice: '',
+                nonMemberPrice: '',
+                publishedToWebsite: false,
             });
             await fetchInventory();
         } catch (err) {
@@ -245,6 +297,31 @@ const AddItemPage = () => {
                                 existing items.
                             </p>
                         </div>
+
+                        <WebsiteCatalogueSection
+                            value={{
+                                publishedToWebsite: newItemForm.publishedToWebsite,
+                                websiteCategory: newItemForm.websiteCategory,
+                                websiteEmoji: newItemForm.websiteEmoji,
+                                websiteSortOrder: newItemForm.websiteSortOrder,
+                                memberPrice: newItemForm.memberPrice,
+                                nonMemberPrice: newItemForm.nonMemberPrice,
+                            }}
+                            errors={catalogueErrors}
+                            onChange={(field, fieldValue) => {
+                                if (field === 'publishedToWebsite') {
+                                    setNewItemForm({
+                                        ...newItemForm,
+                                        publishedToWebsite: fieldValue as boolean,
+                                    });
+                                    return;
+                                }
+                                setNewItemForm({
+                                    ...newItemForm,
+                                    [field]: fieldValue as string,
+                                });
+                            }}
+                        />
 
                         <button
                             type="submit"
