@@ -1,4 +1,4 @@
-name: Build & Deploy
+name: Build & Push
 
 on:
   push:
@@ -7,14 +7,13 @@ on:
     branches: [main]
 
 concurrency:
-  group: deploy-inventory-${{ github.ref }}
+  group: build-inventory-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
-  # ── 1. CI gate ────────────────────────────────────────────
   ci-frontend:
     name: Frontend · Type-check · Build
     runs-on: ubuntu-latest
@@ -62,7 +61,6 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run lint
 
-  # ── 2. Build & push Docker images to GHCR ────────────────
   docker-frontend:
     name: Build & push frontend image
     runs-on: ubuntu-latest
@@ -117,9 +115,6 @@ jobs:
       contents: read
       packages: write
 
-    outputs:
-      sha_tag: ${{ env.REGISTRY }}/thomaspeelmanucll/inventory-backend:sha-${{ github.sha }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -152,167 +147,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  # ── 3. Deploy to Kubernetes ───────────────────────────────
-  deploy:
-    name: Deploy to Kubernetes
-    runs-on: ubuntu-latest
-    needs: [docker-frontend, docker-backend]
-    if: github.event_name == 'push'
-    environment: production
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Configure kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-          sed -i "s|server:.*|server: ${{ secrets.K8S_API_SERVER }}|g" ~/.kube/config
-          echo "--- Effective server after patch ---"
-          grep "server:" ~/.kube/config
-
-      - name: Verify cluster connectivity
-        run: |
-          SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-          echo "Connecting to: $SERVER"
-          if echo "$SERVER" | grep -qE '127\.0\.0\.1|localhost|\[::1\]'; then
-            echo "::error::KUBECONFIG points to localhost. Set REAL cluster kubeconfig in secrets."
-            exit 1
-          fi
-          kubectl cluster-info
-
-      - name: Ensure inventory namespace exists
-        run: kubectl apply -f k8s/namespace.yml
-
-      - name: Build encoded DATABASE_URL
-        run: |
-          ENCODED_PASSWORD=$(python3 -c "import os, urllib.parse; print(urllib.parse.quote(os.environ['RAW_PASSWORD'], safe=''))")
-          DATABASE_URL="mysql://inventory:${ENCODED_PASSWORD}@postgres.inventory.svc.cluster.local:3306/inventory"
-          echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
-        env:
-          RAW_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-
-
-      - name: Create / update postgres secret
-        run: |
-          kubectl create secret generic postgres-secret \
-            --namespace inventory \
-            --from-literal=POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-      - name: Create / update backend secret
-        run: |
-          FRONTEND_URL_RAW="${{ secrets.FRONTEND_URL }}"
-          BACKEND_URL_RAW="${{ secrets.BACKEND_URL }}"
-
-          normalize_url() {
-            local value="$1"
-            if [[ -z "$value" ]]; then
-              echo ""
-              return
-            fi
-            if [[ "$value" =~ ^https?:// ]]; then
-              echo "$value"
-            else
-              # Default to https in production when protocol is omitted.
-              echo "https://$value"
-            fi
-          }
-
-          FRONTEND_URL_NORM="$(normalize_url "$FRONTEND_URL_RAW")"
-          BACKEND_URL_NORM="$(normalize_url "$BACKEND_URL_RAW")"
-
-          kubectl create secret generic inventory-backend-secret \
-            --namespace inventory \
-            --from-literal=DATABASE_URL="$DATABASE_URL" \
-            --from-literal=BETTER_AUTH_SECRET="${{ secrets.BETTER_AUTH_SECRET }}" \
-            --from-literal=FRONTEND_URL="$FRONTEND_URL_NORM" \
-            --from-literal=BACKEND_URL="$BACKEND_URL_NORM" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-      # INTERNAL_API_URL is not a secret — it lives in frontend-configmap.yml
-      # and is applied in the next step via kubectl apply -f k8s/
-
-      - name: Apply manifest changes
-        run: kubectl apply -f k8s/
-
-      - name: Wait for database to be ready
-        run: kubectl rollout status deployment/postgres -n inventory --timeout=300s
-
-      - name: Sync database user password with secret
-        run: |
-          DB_POD=$(kubectl get pod -n inventory -l app=postgres -o jsonpath='{.items[0].metadata.name}')
-          SQL_PASSWORD=$(python3 -c "import os; print(\"'\" + os.environ['POSTGRES_PASSWORD'].replace(\"'\", \"''\") + \"'\")")
-          kubectl exec -n inventory "$DB_POD" -- sh -lc "mariadb -uroot -p\"$POSTGRES_PASSWORD\" -e \"CREATE USER IF NOT EXISTS 'inventory'@'%' IDENTIFIED BY ${SQL_PASSWORD}; ALTER USER 'inventory'@'%' IDENTIFIED BY ${SQL_PASSWORD}; GRANT ALL PRIVILEGES ON inventory.* TO 'inventory'@'%'; FLUSH PRIVILEGES;\""
-        env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-
-      - name: Sync Prisma schema (MariaDB)
-        run: |
-          kubectl delete pod prisma-sync -n inventory --ignore-not-found=true
-
-          kubectl run prisma-sync \
-            --image=${{ needs.docker-backend.outputs.sha_tag }} \
-            --restart=Never \
-            --namespace=inventory \
-            --env="DATABASE_URL=$DATABASE_URL" \
-            --command -- npx prisma db push --accept-data-loss --skip-generate
-
-          if ! kubectl wait pod/prisma-sync \
-            --for=jsonpath='{.status.phase}'=Succeeded \
-            -n inventory \
-            --timeout=180s; then
-            echo "::error::Prisma schema sync pod did not succeed in time"
-            kubectl get pod prisma-sync -n inventory -o wide || true
-            kubectl describe pod prisma-sync -n inventory || true
-            kubectl logs prisma-sync -n inventory --all-containers=true || true
-            exit 1
-          fi
-
-          kubectl logs prisma-sync -n inventory
-          kubectl delete pod prisma-sync -n inventory --ignore-not-found=true
-
-      - name: Prisma schema sync — cleanup on failure
-        if: failure()
-        run: kubectl delete pod prisma-sync -n inventory --ignore-not-found=true
-
-      - name: Update backend image
-        run: |
-          kubectl set image deployment/inventory-backend \
-            backend=${{ needs.docker-backend.outputs.sha_tag }} \
-            -n inventory
-
-      - name: Update frontend image
-        run: |
-          kubectl set image deployment/inventory-frontend \
-            frontend=${{ env.REGISTRY }}/thomaspeelmanucll/inventory-frontend:sha-${{ github.sha }} \
-            -n inventory
-
-      - name: Wait for backend rollout
-        run: kubectl rollout status deployment/inventory-backend -n inventory --timeout=300s
-
-      - name: Wait for frontend rollout
-        run: kubectl rollout status deployment/inventory-frontend -n inventory --timeout=300s
-
-      - name: Verify pods are healthy
-        run: kubectl get pods -n inventory
-
-      - name: Debug — show pod details on failure
-        if: failure()
-        run: |
-          echo "==== Pods ===="
-          kubectl get pods -n inventory -o wide
-          echo ""
-          echo "==== Backend events ===="
-          kubectl describe deployment inventory-backend -n inventory | tail -30
-          echo ""
-          echo "==== Pod logs ===="
-          for pod in $(kubectl get pods -n inventory -o jsonpath='{.items[*].metadata.name}'); do
-            echo "--- $pod ---"
-            kubectl logs "$pod" -n inventory --tail=50 2>/dev/null || true
-          done
