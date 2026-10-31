@@ -74,6 +74,13 @@ spec:
                 secretKeyRef:
                   name: inventory-backend-secret
                   key: BACKEND_URL
+            - name: INTEGRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: inventory-integration-token
+                  key: token
+            - name: WEBSITE_INVENTORY_ID
+              value: "1"
           livenessProbe:
             httpGet:
               path: /health
