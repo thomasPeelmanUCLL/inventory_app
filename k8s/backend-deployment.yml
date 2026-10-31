@@ -5,6 +5,11 @@ metadata:
   namespace: inventory
   labels:
     app: backend
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: backend=ghcr.io/thomaspeelmanucll/inventory-backend
+    argocd-image-updater.argoproj.io/backend.update-strategy: digest
+    argocd-image-updater.argoproj.io/backend.allow-tags: regexp:^sha-[0-9a-f]{40}$
+    argocd-image-updater.argoproj.io/backend.force-update: "false"
 spec:
   replicas: 1
   selector:
@@ -41,8 +46,8 @@ spec:
                   key: POSTGRES_PASSWORD
       containers:
         - name: backend
-          image: ghcr.io/thomaspeelmanucll/inventory-backend:latest
-          imagePullPolicy: Always
+          image: ghcr.io/thomaspeelmanucll/inventory-backend:sha-578a051dd058426f3894f278f930d6dbdcc2b471
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
           envFrom:
