@@ -21,6 +21,24 @@ spec:
         app: backend
     spec:
       terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: wait-for-db
+          image: mariadb:11
+          command:
+            - sh
+            - -c
+            - |
+              until mariadb -h postgres.inventory.svc.cluster.local \
+                -P 3306 -uinventory -p"$MARIADB_PASSWORD" -e 'SELECT 1'; do
+                echo "Waiting for inventory database..."
+                sleep 2
+              done
+          env:
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
       containers:
         - name: backend
           image: ghcr.io/thomaspeelmanucll/inventory-backend:latest
