@@ -28,6 +28,12 @@ export function useItems() {
         quantity: number;
         buyedAt?: string;
         inventoryId?: number;
+        websiteCategory?: string | null;
+        websiteEmoji?: string | null;
+        websiteSortOrder?: number;
+        memberPrice?: number | null;
+        nonMemberPrice?: number | null;
+        publishedToWebsite?: boolean;
         priceVariables?: Array<{ name: string; value: number; type: string; isDefault?: boolean }>;
     }) => {
         try {
@@ -49,6 +55,12 @@ export function useItems() {
             quantity?: number;
             buyedAt?: string;
             inventoryId?: number;
+            websiteCategory?: string | null;
+            websiteEmoji?: string | null;
+            websiteSortOrder?: number;
+            memberPrice?: number | null;
+            nonMemberPrice?: number | null;
+            publishedToWebsite?: boolean;
         },
     ) => {
         try {
@@ -109,6 +121,12 @@ export function useInventoryItems(inventoryId: number | null) {
         buyPrice: number;
         quantity: number;
         buyedAt?: string;
+        websiteCategory?: string | null;
+        websiteEmoji?: string | null;
+        websiteSortOrder?: number;
+        memberPrice?: number | null;
+        nonMemberPrice?: number | null;
+        publishedToWebsite?: boolean;
     }) => {
         if (!inventoryId) throw new Error('No inventory selected');
         try {
@@ -129,6 +147,12 @@ export function useInventoryItems(inventoryId: number | null) {
             buyPrice?: number;
             quantity?: number;
             buyedAt?: string;
+            websiteCategory?: string | null;
+            websiteEmoji?: string | null;
+            websiteSortOrder?: number;
+            memberPrice?: number | null;
+            nonMemberPrice?: number | null;
+            publishedToWebsite?: boolean;
         },
     ) => {
         try {

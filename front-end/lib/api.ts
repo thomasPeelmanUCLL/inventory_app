@@ -166,6 +166,12 @@ export async function createItem(itemData: {
     quantity: number;
     purchasedAt?: string;
     inventoryId?: number;
+    websiteCategory?: string | null;
+    websiteEmoji?: string | null;
+    websiteSortOrder?: number;
+    memberPrice?: number | null;
+    nonMemberPrice?: number | null;
+    publishedToWebsite?: boolean;
     priceVariables?: Array<{ name: string; value: number; type: string; isDefault?: boolean }>;
 }) {
     const response = await fetchWithAuth(`${API_BASE_URL}/items`, {
@@ -184,6 +190,12 @@ export async function updateItem(
         quantity?: number;
         purchasedAt?: string;
         inventoryId?: number;
+        websiteCategory?: string | null;
+        websiteEmoji?: string | null;
+        websiteSortOrder?: number;
+        memberPrice?: number | null;
+        nonMemberPrice?: number | null;
+        publishedToWebsite?: boolean;
     },
 ) {
     const response = await fetchWithAuth(`${API_BASE_URL}/items/${itemId}`, {

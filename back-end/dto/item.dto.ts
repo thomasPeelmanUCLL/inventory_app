@@ -8,6 +8,12 @@ export interface ItemDTO {
     quantity: number;
     buyedAt: string | null;
     inventoryId: number | null;
+    websiteCategory: string | null;
+    websiteEmoji: string | null;
+    websiteSortOrder: number;
+    memberPrice: string | null;
+    nonMemberPrice: string | null;
+    publishedToWebsite: boolean;
     priceVariables?: PriceVariableDTO[];
     createdAt: string;
     updatedAt: string | null;
@@ -37,6 +43,24 @@ export function itemToDTO(item: Item | any): ItemDTO {
     const inventoryIdRaw = (item as any).getInventoryId
         ? (item as any).getInventoryId()
         : (item as any).inventoryId;
+    const websiteCategoryRaw = (item as any).getWebsiteCategory
+        ? (item as any).getWebsiteCategory()
+        : (item as any).websiteCategory;
+    const websiteEmojiRaw = (item as any).getWebsiteEmoji
+        ? (item as any).getWebsiteEmoji()
+        : (item as any).websiteEmoji;
+    const websiteSortOrderRaw = (item as any).getWebsiteSortOrder
+        ? (item as any).getWebsiteSortOrder()
+        : (item as any).websiteSortOrder;
+    const memberPriceRaw = (item as any).getMemberPrice
+        ? (item as any).getMemberPrice()
+        : (item as any).memberPrice;
+    const nonMemberPriceRaw = (item as any).getNonMemberPrice
+        ? (item as any).getNonMemberPrice()
+        : (item as any).nonMemberPrice;
+    const publishedToWebsiteRaw = (item as any).getPublishedToWebsite
+        ? (item as any).getPublishedToWebsite()
+        : (item as any).publishedToWebsite;
 
     return {
         id: (item as any).getId ? (item as any).getId() : (item as any).id,
@@ -53,6 +77,18 @@ export function itemToDTO(item: Item | any): ItemDTO {
                   ? new Date(buyedAt).toISOString()
                   : null,
         inventoryId: typeof inventoryIdRaw === 'number' ? inventoryIdRaw : null,
+        websiteCategory: websiteCategoryRaw ?? null,
+        websiteEmoji: websiteEmojiRaw ?? null,
+        websiteSortOrder: Number.isInteger(websiteSortOrderRaw) ? websiteSortOrderRaw : 0,
+        memberPrice:
+            memberPriceRaw === null || memberPriceRaw === undefined
+                ? null
+                : memberPriceRaw?.toString?.() || String(memberPriceRaw),
+        nonMemberPrice:
+            nonMemberPriceRaw === null || nonMemberPriceRaw === undefined
+                ? null
+                : nonMemberPriceRaw?.toString?.() || String(nonMemberPriceRaw),
+        publishedToWebsite: Boolean(publishedToWebsiteRaw),
         priceVariables:
             (item as any).getPriceVariables?.()?.map((pv: any) => ({
                 id: pv.getId ? pv.getId() : pv.id,
@@ -82,6 +118,12 @@ export function validateItemInput(data: any): {
     quantity: number;
     buyedAt?: Date;
     inventoryId?: number;
+    websiteCategory?: string | null;
+    websiteEmoji?: string | null;
+    websiteSortOrder?: number;
+    memberPrice?: number | null;
+    nonMemberPrice?: number | null;
+    publishedToWebsite?: boolean;
 } {
     if (!data.name || typeof data.name !== 'string') {
         throw new Error('Item name is required and must be a string');
@@ -104,5 +146,23 @@ export function validateItemInput(data: any): {
         quantity,
         buyedAt: data.buyedAt ? new Date(data.buyedAt) : undefined,
         inventoryId: data.inventoryId ? Number(data.inventoryId) : undefined,
+        websiteCategory: data.websiteCategory ?? undefined,
+        websiteEmoji: data.websiteEmoji ?? undefined,
+        websiteSortOrder:
+            data.websiteSortOrder === undefined ? undefined : Number(data.websiteSortOrder),
+        memberPrice:
+            data.memberPrice === undefined
+                ? undefined
+                : data.memberPrice === null
+                  ? null
+                  : Number(data.memberPrice),
+        nonMemberPrice:
+            data.nonMemberPrice === undefined
+                ? undefined
+                : data.nonMemberPrice === null
+                  ? null
+                  : Number(data.nonMemberPrice),
+        publishedToWebsite:
+            data.publishedToWebsite === undefined ? undefined : Boolean(data.publishedToWebsite),
     };
 }

@@ -16,6 +16,52 @@ const getItemsByInventoryId = async ({ inventoryId }: { inventoryId: number }): 
     return await itemDB.getItemsByInventoryId({ inventoryId });
 };
 
+const hasAtMostTwoDecimals = (value: number): boolean =>
+    Math.abs(value * 100 - Math.round(value * 100)) < Number.EPSILON * 1000;
+
+const toMoneyDecimal = (
+    value: number | Prisma.Decimal | null | undefined,
+    fieldName: string,
+): Prisma.Decimal | null => {
+    if (value === undefined || value === null) return null;
+
+    const decimalValue = typeof value === 'number' ? new Prisma.Decimal(value) : value;
+    const numericValue = decimalValue.toNumber();
+    if (numericValue < 0) {
+        throw new Error(`${fieldName} cannot be negative`);
+    }
+    if (!hasAtMostTwoDecimals(numericValue)) {
+        throw new Error(`${fieldName} must have at most 2 decimal places`);
+    }
+    return new Prisma.Decimal(numericValue.toFixed(2));
+};
+
+const toOptionalTrimmedString = (value: string | null | undefined): string | null => {
+    if (value === undefined || value === null) return null;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+};
+
+const validateWebsitePublicationFields = ({
+    publishedToWebsite,
+    websiteCategory,
+    memberPrice,
+    nonMemberPrice,
+}: {
+    publishedToWebsite: boolean;
+    websiteCategory: string | null;
+    memberPrice: Prisma.Decimal | null;
+    nonMemberPrice: Prisma.Decimal | null;
+}) => {
+    if (!publishedToWebsite) return;
+    if (!websiteCategory) {
+        throw new Error('Website category is required when publishing an item');
+    }
+    if (!memberPrice || !nonMemberPrice) {
+        throw new Error('Member and non-member prices are required when publishing an item');
+    }
+};
+
 // NEW: Bulk query method to prevent N+1 queries
 const getItemsByInventoryIds = async ({
     inventoryIds,
@@ -34,6 +80,12 @@ const createItem = async ({
     buyedAt,
     inventoryId,
     priceVariables,
+    websiteCategory,
+    websiteEmoji,
+    websiteSortOrder,
+    memberPrice,
+    nonMemberPrice,
+    publishedToWebsite,
 }: {
     name: string;
     description: string;
@@ -42,6 +94,12 @@ const createItem = async ({
     buyedAt?: Date;
     inventoryId?: number;
     priceVariables?: Array<{ name: string; value: number; type: string; isDefault?: boolean }>;
+    websiteCategory?: string | null;
+    websiteEmoji?: string | null;
+    websiteSortOrder?: number;
+    memberPrice?: number | Prisma.Decimal | null;
+    nonMemberPrice?: number | Prisma.Decimal | null;
+    publishedToWebsite?: boolean;
 }): Promise<Item> => {
     // Enhanced validation for financial precision
     const buyPriceDecimal =
@@ -53,6 +111,9 @@ const createItem = async ({
 
     if (quantity < 0) {
         throw new Error('Quantity cannot be negative');
+    }
+    if (websiteSortOrder !== undefined && !Number.isInteger(websiteSortOrder)) {
+        throw new Error('Website sort order must be an integer');
     }
 
     // Validate price variables if provided
@@ -70,6 +131,18 @@ const createItem = async ({
         }
     }
 
+    const parsedWebsiteCategory = toOptionalTrimmedString(websiteCategory);
+    const parsedWebsiteEmoji = toOptionalTrimmedString(websiteEmoji);
+    const parsedMemberPrice = toMoneyDecimal(memberPrice, 'Member price');
+    const parsedNonMemberPrice = toMoneyDecimal(nonMemberPrice, 'Non-member price');
+    const parsedPublishedToWebsite = publishedToWebsite ?? false;
+    validateWebsitePublicationFields({
+        publishedToWebsite: parsedPublishedToWebsite,
+        websiteCategory: parsedWebsiteCategory,
+        memberPrice: parsedMemberPrice,
+        nonMemberPrice: parsedNonMemberPrice,
+    });
+
     const item = new Item({
         name,
         description,
@@ -77,6 +150,12 @@ const createItem = async ({
         quantity,
         buyedAt,
         inventoryId,
+        websiteCategory: parsedWebsiteCategory,
+        websiteEmoji: parsedWebsiteEmoji,
+        websiteSortOrder: websiteSortOrder ?? 0,
+        memberPrice: parsedMemberPrice,
+        nonMemberPrice: parsedNonMemberPrice,
+        publishedToWebsite: parsedPublishedToWebsite,
     });
     return await itemDB.createItem(item, priceVariables);
 };
@@ -89,6 +168,12 @@ const updateItem = async ({
     quantity,
     buyedAt,
     inventoryId,
+    websiteCategory,
+    websiteEmoji,
+    websiteSortOrder,
+    memberPrice,
+    nonMemberPrice,
+    publishedToWebsite,
 }: {
     id: number;
     name?: string;
@@ -97,6 +182,12 @@ const updateItem = async ({
     quantity?: number;
     buyedAt?: Date;
     inventoryId?: number;
+    websiteCategory?: string | null;
+    websiteEmoji?: string | null;
+    websiteSortOrder?: number;
+    memberPrice?: number | Prisma.Decimal | null;
+    nonMemberPrice?: number | Prisma.Decimal | null;
+    publishedToWebsite?: boolean;
 }): Promise<Item> => {
     const existingItem = await getItemById({ id });
     if (!existingItem) {
@@ -118,6 +209,37 @@ const updateItem = async ({
     if (finalQuantity < 0) {
         throw new Error('Quantity cannot be negative');
     }
+    if (websiteSortOrder !== undefined && !Number.isInteger(websiteSortOrder)) {
+        throw new Error('Website sort order must be an integer');
+    }
+
+    const finalWebsiteCategory =
+        websiteCategory !== undefined
+            ? toOptionalTrimmedString(websiteCategory)
+            : existingItem.getWebsiteCategory() ?? null;
+    const finalWebsiteEmoji =
+        websiteEmoji !== undefined
+            ? toOptionalTrimmedString(websiteEmoji)
+            : existingItem.getWebsiteEmoji() ?? null;
+    const finalMemberPrice =
+        memberPrice !== undefined
+            ? toMoneyDecimal(memberPrice, 'Member price')
+            : existingItem.getMemberPrice() ?? null;
+    const finalNonMemberPrice =
+        nonMemberPrice !== undefined
+            ? toMoneyDecimal(nonMemberPrice, 'Non-member price')
+            : existingItem.getNonMemberPrice() ?? null;
+    const finalPublishedToWebsite =
+        publishedToWebsite !== undefined
+            ? publishedToWebsite
+            : existingItem.getPublishedToWebsite() ?? false;
+
+    validateWebsitePublicationFields({
+        publishedToWebsite: finalPublishedToWebsite,
+        websiteCategory: finalWebsiteCategory,
+        memberPrice: finalMemberPrice,
+        nonMemberPrice: finalNonMemberPrice,
+    });
 
     const updatedItem = new Item({
         id,
@@ -127,6 +249,15 @@ const updateItem = async ({
         quantity: finalQuantity,
         buyedAt: buyedAt !== undefined ? buyedAt : existingItem.getBuyedAt(),
         inventoryId: inventoryId !== undefined ? inventoryId : existingItem.getInventoryId(),
+        websiteCategory: finalWebsiteCategory,
+        websiteEmoji: finalWebsiteEmoji,
+        websiteSortOrder:
+            websiteSortOrder !== undefined
+                ? websiteSortOrder
+                : existingItem.getWebsiteSortOrder() ?? 0,
+        memberPrice: finalMemberPrice,
+        nonMemberPrice: finalNonMemberPrice,
+        publishedToWebsite: finalPublishedToWebsite,
     });
 
     const result = await itemDB.updateItem(updatedItem);

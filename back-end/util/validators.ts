@@ -14,14 +14,45 @@ export const itemIdParam = z.object({
     itemId: z.coerce.number().int().positive('Item ID must be a positive integer'),
 });
 
+const moneyValue = z
+    .union([
+        z.number().nonnegative('Value must be non-negative').finite(),
+        z
+            .string()
+            .trim()
+            .min(1, 'Value is required')
+            .refine((value) => /^\d+(\.\d{1,2})?$/.test(value), {
+                message: 'Value must be a non-negative number with at most 2 decimals',
+            })
+            .transform((value) => Number(value)),
+    ])
+    .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < Number.EPSILON * 1000, {
+        message: 'Value must have at most 2 decimals',
+    });
+
+const optionalCatalogueText = z
+    .union([z.string(), z.null()])
+    .optional()
+    .transform((value) => {
+        if (value === undefined || value === null) return value;
+        const trimmed = value.trim();
+        return trimmed === '' ? null : trimmed;
+    });
+
 // Item validators
-export const itemInput = z.object({
+const itemBaseInput = z.object({
     name: z.string().min(1, 'Name is required').max(255, 'Name too long'),
     description: z.string().max(1000, 'Description too long').default(''),
     buyPrice: z.coerce.number().nonnegative('Buy price must be non-negative').finite(),
     quantity: z.coerce.number().int().nonnegative('Quantity must be non-negative'),
     buyedAt: z.coerce.date().optional(),
     inventoryId: z.coerce.number().int().positive().optional(),
+    websiteCategory: optionalCatalogueText,
+    websiteEmoji: optionalCatalogueText,
+    websiteSortOrder: z.coerce.number().int('Website sort order must be an integer').optional(),
+    memberPrice: z.union([moneyValue, z.null()]).optional(),
+    nonMemberPrice: z.union([moneyValue, z.null()]).optional(),
+    publishedToWebsite: z.coerce.boolean().optional().default(false),
     priceVariables: z
         .array(
             z.object({
@@ -34,7 +65,33 @@ export const itemInput = z.object({
         .optional(),
 });
 
-export const itemUpdateInput = itemInput.partial();
+const addPublishedRefinement = (data: any, ctx: z.RefinementCtx) => {
+    if (!data.publishedToWebsite) return;
+    if (!data.websiteCategory) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['websiteCategory'],
+            message: 'Website category is required when publishing',
+        });
+    }
+    if (data.memberPrice === undefined || data.memberPrice === null) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['memberPrice'],
+            message: 'Member price is required when publishing',
+        });
+    }
+    if (data.nonMemberPrice === undefined || data.nonMemberPrice === null) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['nonMemberPrice'],
+            message: 'Non-member price is required when publishing',
+        });
+    }
+};
+
+export const itemInput = itemBaseInput.superRefine(addPublishedRefinement);
+export const itemUpdateInput = itemBaseInput.partial().superRefine(addPublishedRefinement);
 
 // Sold item validators
 export const soldItemInput = z.object({
