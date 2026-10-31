@@ -16,6 +16,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
   namespace: inventory
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes:
     - ReadWriteOnce
@@ -67,16 +69,24 @@ spec:
             - name: postgres-storage
               mountPath: /var/lib/mysql
           livenessProbe:
-            tcpSocket:
-              port: 3306
-            initialDelaySeconds: 40
+            exec:
+              command:
+                - healthcheck.sh
+                - --connect
+                - --innodb_initialized
+            initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
-            tcpSocket:
-              port: 3306
+            exec:
+              command:
+                - healthcheck.sh
+                - --connect
+                - --innodb_initialized
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 5
             failureThreshold: 3
           resources:
             requests:
@@ -103,4 +113,3 @@ spec:
     - port: 3306
       targetPort: 3306
   type: ClusterIP
-
