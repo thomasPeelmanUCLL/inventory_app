@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: frontend
-          image: ghcr.io/thomaspeelmanucll/inventory-frontend:sha-578a051dd058426f3894f278f930d6dbdcc2b471
+          image: ghcr.io/thomaspeelmanucll/inventory-frontend:sha-2176e6758351e8b224c7ab5d24210c757bbabf43
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
