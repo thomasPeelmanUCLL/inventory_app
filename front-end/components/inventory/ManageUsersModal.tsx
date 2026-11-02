@@ -7,6 +7,7 @@ import {
 } from '../../lib/api';
 import { useSession } from '../../lib/auth-client';
 import ConfirmDialog from '../common/ConfirmDialog';
+import { InventoryRole } from '@types';
 
 type InventoryUser = {
     id: number;
@@ -29,7 +30,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
     const [allRegisteredUsers, setAllRegisteredUsers] = useState<User[]>([]);
     const [showAddUserForm, setShowAddUserForm] = useState(false);
     const [selectedUserEmail, setSelectedUserEmail] = useState('');
-    const [selectedRole, setSelectedRole] = useState('viewer');
+    const [selectedRole, setSelectedRole] = useState<InventoryRole>('viewer');
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
     const [removeConfirmUserId, setRemoveConfirmUserId] = useState<string | null>(null);
@@ -225,7 +226,7 @@ const ManageUsersModal = ({ inventoryId, isOwner, onClose }: Props) => {
                                                 <select
                                                     value={selectedRole}
                                                     onChange={(e) =>
-                                                        setSelectedRole(e.target.value)
+                                                        setSelectedRole(e.target.value as InventoryRole)
                                                     }
                                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                                 >

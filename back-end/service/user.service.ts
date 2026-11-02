@@ -1,35 +1,15 @@
 import userDB from '../repository/user.db';
 import { User } from '../model/user';
+import { createError } from '../util/errors';
 
-const getAllUsers = async (): Promise<User[]> => userDB.getAllUsers();
-
-const getUserById = async ({ id }: { id: string }): Promise<User> => {
-    const user = await userDB.getUserById({ id });
-    if (!user) {
-        throw new Error(`User with ID: ${id} does not exist.`);
-    }
-    return user;
-};
-
-const getUserByName = async ({ name }: { name: string }): Promise<User> => {
-    const user = await userDB.getUserByName({ name });
-    if (!user) {
-        throw new Error(`User with username: ${name} does not exist.`);
-    }
-    return user;
-};
-
-const getUserByEmail = async ({ email }: { email: string }): Promise<User> => {
-    const user = await userDB.getUserByEmail({ email });
-    if (!user) {
-        throw new Error(`User with email: ${email} does not exist.`);
-    }
+const orNotFound = (user: User | null): User => {
+    if (!user) throw createError.notFound('User not found');
     return user;
 };
 
 export default {
-    getAllUsers,
-    getUserById, // ADDED
-    getUserByName,
-    getUserByEmail,
+    getAllUsers: () => userDB.getAllUsers(),
+    getUserById: async ({ id }: { id: string }) => orNotFound(await userDB.getUserById({ id })),
+    getUserByName: async ({ name }: { name: string }) => orNotFound(await userDB.getUserByName({ name })),
+    getUserByEmail: async ({ email }: { email: string }) => orNotFound(await userDB.getUserByEmail({ email })),
 };

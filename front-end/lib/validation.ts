@@ -104,7 +104,7 @@ export const soldItemSchema = z.object({
     quantity: z.number().int('Quantity must be an integer').min(1, 'Quantity must be at least 1'),
     priceVariableName: z.string().max(100, 'Price variable name too long').optional(),
     isCustomPrice: z.boolean().default(false),
-    payedCash: z.boolean().default(false),
+    paidCash: z.boolean().default(false),
     soldAt: z.string().datetime('Invalid date format').optional(),
 });
 

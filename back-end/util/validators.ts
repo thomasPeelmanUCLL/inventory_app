@@ -1,227 +1,184 @@
 import { z } from 'zod';
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { formatZodError } from '../middleware/error.middleware';
 
-// Parameter validators
-export const idParam = z.object({
-    id: z.coerce.number().int().positive('ID must be a positive integer'),
+// ---- Params ----
+
+const positiveId = (label: string) =>
+    z.coerce.number().int().positive(`${label} must be a positive integer`);
+
+export const idParam = z.object({ id: positiveId('ID') });
+export const inventoryIdParam = z.object({ inventoryId: positiveId('Inventory ID') });
+export const itemIdParam = z.object({ itemId: positiveId('Item ID') });
+export const inventoryUserParams = z.object({
+    id: positiveId('Inventory ID'),
+    userId: z.string().min(1, 'User ID is required'),
 });
 
-export const inventoryIdParam = z.object({
-    inventoryId: z.coerce.number().int().positive('Inventory ID must be a positive integer'),
-});
+// ---- Shared field types ----
 
-export const itemIdParam = z.object({
-    itemId: z.coerce.number().int().positive('Item ID must be a positive integer'),
-});
+const twoDecimals = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-9;
 
-const moneyValue = z
+/** Non-negative euro amount with at most 2 decimals, as a number or numeric string. */
+const money = z
     .union([
-        z.number().nonnegative('Value must be non-negative').finite(),
+        z.number(),
         z
             .string()
             .trim()
-            .min(1, 'Value is required')
-            .refine((value) => /^\d+(\.\d{1,2})?$/.test(value), {
-                message: 'Value must be a non-negative number with at most 2 decimals',
-            })
-            .transform((value) => Number(value)),
+            .regex(/^\d+(\.\d{1,2})?$/, 'Value must be a non-negative number with at most 2 decimals')
+            .transform(Number),
     ])
-    .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < Number.EPSILON * 1000, {
-        message: 'Value must have at most 2 decimals',
-    });
+    .pipe(
+        z
+            .number()
+            .finite()
+            .nonnegative('Value must be non-negative')
+            .refine(twoDecimals, 'Value must have at most 2 decimals'),
+    );
 
-const optionalCatalogueText = z
-    .union([z.string(), z.null()])
-    .optional()
-    .transform((value) => {
-        if (value === undefined || value === null) return value;
-        const trimmed = value.trim();
-        return trimmed === '' ? null : trimmed;
-    });
+/** Optional free text where '' and whitespace mean "clear it". */
+const optionalText = z
+    .string()
+    .nullish()
+    .transform((value) => (value == null ? value : value.trim() || null));
 
-// Item validators
-const itemBaseInput = z.object({
-    name: z.string().min(1, 'Name is required').max(255, 'Name too long'),
-    description: z.string().max(1000, 'Description too long').default(''),
-    buyPrice: z.coerce.number().nonnegative('Buy price must be non-negative').finite(),
-    quantity: z.coerce.number().int().nonnegative('Quantity must be non-negative'),
-    buyedAt: z.coerce.date().optional(),
-    inventoryId: z.coerce.number().int().positive().optional(),
-    websiteCategory: optionalCatalogueText,
-    websiteEmoji: optionalCatalogueText,
-    websiteSortOrder: z.coerce.number().int('Website sort order must be an integer').optional(),
-    memberPrice: z.union([moneyValue, z.null()]).optional(),
-    nonMemberPrice: z.union([moneyValue, z.null()]).optional(),
-    publishedToWebsite: z.coerce.boolean().optional().default(false),
-    priceVariables: z
-        .array(
-            z.object({
-                name: z.string().min(1, 'Price variable name is required').max(255),
-                value: z.coerce.number().positive('Price variable value must be positive'),
-                type: z.string().min(1, 'Type is required').max(100),
-                isDefault: z.coerce.boolean().optional().default(false),
-            }),
-        )
-        .optional(),
+// ---- Items ----
+
+const priceVariableFields = z.object({
+    name: z.string().trim().min(1, 'Price variable name is required').max(255, 'Name too long'),
+    value: z.coerce.number().finite().nonnegative('Value cannot be negative'),
+    type: z.enum(['PERCENTAGE', 'FIXED'], {
+        errorMap: () => ({ message: 'Type must be PERCENTAGE or FIXED' }),
+    }),
+    isDefault: z.coerce.boolean().optional().default(false),
 });
 
-const addPublishedRefinement = (data: any, ctx: z.RefinementCtx) => {
+const itemFields = z.object({
+    name: z.string().min(1, 'Name is required').max(255, 'Name too long'),
+    description: z.string().max(1000, 'Description too long').default(''),
+    buyPrice: z.coerce.number().finite().nonnegative('Buy price must be non-negative'),
+    quantity: z.coerce.number().int().nonnegative('Quantity must be non-negative'),
+    buyedAt: z.coerce.date().optional(),
+    inventoryId: positiveId('Inventory ID').optional(),
+    websiteCategory: optionalText,
+    websiteEmoji: optionalText,
+    websiteSortOrder: z.coerce.number().int('Website sort order must be an integer').optional(),
+    memberPrice: money.nullish(),
+    nonMemberPrice: money.nullish(),
+    publishedToWebsite: z.coerce.boolean().optional(),
+    priceVariables: z.array(priceVariableFields).optional(),
+});
+
+/** Publishing needs a category and both prices. Only checked when the body itself publishes. */
+const requirePublishFields = (data: Partial<z.infer<typeof itemFields>>, ctx: z.RefinementCtx) => {
     if (!data.publishedToWebsite) return;
-    if (!data.websiteCategory) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['websiteCategory'],
-            message: 'Website category is required when publishing',
-        });
-    }
-    if (data.memberPrice === undefined || data.memberPrice === null) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['memberPrice'],
-            message: 'Member price is required when publishing',
-        });
-    }
-    if (data.nonMemberPrice === undefined || data.nonMemberPrice === null) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['nonMemberPrice'],
-            message: 'Non-member price is required when publishing',
-        });
+    const missing: Array<[keyof typeof data, string]> = [
+        ['websiteCategory', 'Website category is required when publishing'],
+        ['memberPrice', 'Member price is required when publishing'],
+        ['nonMemberPrice', 'Non-member price is required when publishing'],
+    ];
+    for (const [field, message] of missing) {
+        if (data[field] == null) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message });
     }
 };
 
-export const itemInput = itemBaseInput.superRefine(addPublishedRefinement);
-export const itemUpdateInput = itemBaseInput.partial().superRefine(addPublishedRefinement);
+export const itemInput = itemFields.superRefine(requirePublishFields);
+export const itemUpdateInput = itemFields
+    .omit({ priceVariables: true })
+    .partial()
+    .superRefine(requirePublishFields);
 
-// Sold item validators
-export const soldItemInput = z.object({
-    itemId: z.coerce.number().int().positive('Item ID must be a positive integer'),
-    finalSellPrice: z.coerce.number().positive('Sell price must be positive').finite(),
+export type ItemInput = z.infer<typeof itemInput>;
+export type ItemUpdateInput = z.infer<typeof itemUpdateInput>;
+
+// ---- Sold items ----
+
+/** The column is paidCash; older clients sent payedCash or paidWithCash. Accept all three. */
+const normalizePaidCash = (body: unknown) => {
+    if (!body || typeof body !== 'object' || 'paidCash' in body) return body;
+    const { payedCash, paidWithCash, ...rest } = body as Record<string, unknown>;
+    const paidCash = payedCash ?? paidWithCash;
+    return paidCash === undefined ? rest : { ...rest, paidCash };
+};
+
+const soldItemFields = z.object({
+    itemId: positiveId('Item ID'),
+    finalSellPrice: z.coerce.number().finite().positive('Sell price must be positive'),
     priceVariableName: z.string().min(1).max(255).optional(),
     isCustomPrice: z.coerce.boolean().optional().default(false),
-    payedCash: z.coerce.boolean().optional().default(false),
+    paidCash: z.coerce.boolean().optional().default(false),
     quantity: z.coerce.number().int().positive('Quantity must be positive'),
     soldAt: z.coerce.date().optional(),
 });
 
-export const soldItemUpdateInput = soldItemInput.partial().extend({
-    itemId: z.never().optional(), // Can't change itemId on update
-});
+export const soldItemInput = z.preprocess(normalizePaidCash, soldItemFields);
+export const soldItemUpdateInput = z.preprocess(
+    normalizePaidCash,
+    soldItemFields.omit({ itemId: true }).partial(),
+);
 
-// Price variable validators
-export const priceVariableInput = z.object({
-    name: z.string().min(1, 'Name is required').max(255, 'Name too long'),
-    value: z.coerce.number().positive('Value must be positive').finite(),
-    type: z.string().min(1, 'Type is required').max(100, 'Type too long'),
-    isDefault: z.coerce.boolean().optional().default(false),
-    itemId: z.coerce.number().int().positive('Item ID must be a positive integer'),
-});
+export type SoldItemInput = z.infer<typeof soldItemFields>;
+export type SoldItemUpdateInput = Partial<Omit<SoldItemInput, 'itemId'>>;
 
-export const priceVariableUpdateInput = priceVariableInput.partial().extend({
-    itemId: z.never().optional(), // Can't change itemId on update
-});
+// ---- Price variables ----
 
-// Inventory validators
+export const priceVariableInput = priceVariableFields.extend({ itemId: positiveId('Item ID') });
+export const priceVariableUpdateInput = priceVariableFields.partial();
+
+// ---- Inventories ----
+
 export const inventoryInput = z.object({
     name: z.string().min(1, 'Name is required').max(255, 'Name too long'),
     description: z.string().max(1000, 'Description too long').default(''),
 });
-
 export const inventoryUpdateInput = inventoryInput.partial();
 
-// User management validators
-export const addUserToInventoryInput = z.object({
-    userId: z.string().uuid('Invalid user ID format'),
-    role: z.enum(['owner', 'admin', 'editor', 'viewer'], {
-        errorMap: () => ({ message: 'Role must be one of: owner, admin, editor, viewer' }),
-    }),
-});
+export const INVENTORY_ROLES = ['owner', 'editor', 'viewer'] as const;
+export type InventoryRole = (typeof INVENTORY_ROLES)[number];
 
-// Analytics query validators
+/** Add a member by email (what the UI sends) or by user id. */
+export const addUserToInventoryInput = z
+    .object({
+        email: z.string().trim().email('Invalid email').optional(),
+        userId: z.string().min(1).optional(),
+        role: z.enum(INVENTORY_ROLES, {
+            errorMap: () => ({ message: 'Role must be one of: owner, editor, viewer' }),
+        }),
+    })
+    .refine((data) => data.email || data.userId, { message: 'Email or userId is required' });
+
+// ---- Analytics ----
+
 export const analyticsQuery = z
     .object({
         startDate: z.coerce.date().optional(),
         endDate: z.coerce.date().optional(),
     })
-    .refine(
-        (data) => {
-            if (data.startDate && data.endDate) {
-                return data.startDate <= data.endDate;
-            }
-            return true;
-        },
-        {
-            message: 'Start date must be before end date',
-        },
-    );
+    .refine((d) => !d.startDate || !d.endDate || d.startDate <= d.endDate, {
+        message: 'Start date must be before end date',
+    });
 
-// Pagination validators
-export const paginationQuery = z.object({
-    page: z.coerce.number().int().positive().optional().default(1),
-    limit: z.coerce.number().int().positive().max(100).optional().default(20),
-});
+// ---- Middleware ----
 
-// Generic error handler for Zod validation
-export const handleZodError = (error: z.ZodError) => {
-    const errors = error.errors.map((err) => ({
-        field: err.path.join('.'),
-        message: err.message,
-    }));
-
-    return {
-        error: 'Validation failed',
-        details: errors,
+const validate =
+    (source: 'body' | 'params' | 'query', schema: z.ZodTypeAny): RequestHandler =>
+    (req, res, next) => {
+        const result = schema.safeParse(req[source]);
+        if (!result.success) return res.status(400).json(formatZodError(result.error));
+        // req.query is a getter in newer Express; assign onto it instead of replacing it
+        if (source === 'query') Object.assign(req.query, result.data);
+        else req[source] = result.data;
+        next();
     };
-};
 
-// Middleware wrapper for validation
-export const validateBody = (schema: z.ZodSchema) => {
-    return (req: any, res: any, next: any) => {
-        try {
-            req.body = schema.parse(req.body);
-            next();
-        } catch (error) {
-            if (error instanceof z.ZodError) {
-                return res.status(400).json(handleZodError(error));
-            }
-            next(error);
-        }
-    };
-};
+export const validateBody = (schema: z.ZodTypeAny) => validate('body', schema);
+export const validateParams = (schema: z.ZodTypeAny) => validate('params', schema);
+export const validateQuery = (schema: z.ZodTypeAny) => validate('query', schema);
 
-export const validateParams = (schema: z.ZodSchema) => {
-    return (req: any, res: any, next: any) => {
-        try {
-            req.params = schema.parse(req.params);
-            next();
-        } catch (error) {
-            if (error instanceof z.ZodError) {
-                return res.status(400).json(handleZodError(error));
-            }
-            next(error);
-        }
+/** Forwards rejected promises from async handlers to the error middleware. */
+export const asyncHandler =
+    (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>): RequestHandler =>
+    (req, res, next) => {
+        fn(req, res, next).catch(next);
     };
-};
-
-export const validateQuery = (schema: z.ZodSchema) => {
-    return (req: any, res: any, next: any) => {
-        try {
-            req.query = schema.parse(req.query);
-            next();
-        } catch (error) {
-            if (error instanceof z.ZodError) {
-                return res.status(400).json(handleZodError(error));
-            }
-            next(error);
-        }
-    };
-};
-
-// Async error wrapper to catch async route handler errors
-export const asyncHandler = (
-    fn: (req: Request, res: Response, next: NextFunction) => Promise<any>,
-) => {
-    return (req: Request, res: Response, next: NextFunction) => {
-        Promise.resolve(fn(req, res, next)).catch(next);
-    };
-};

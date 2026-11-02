@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     getPriceVariablesByItemId,
     createPriceVariable,
@@ -37,18 +37,22 @@ export default function PriceVariablesSection({ itemId, canEdit }: PriceVariable
         setPriceVariables(fetchedVariables);
     };
 
-    const loadPriceVariables = async () => {
-        try {
-            await reloadPriceVariables();
-            setIsLoaded(true);
-        } catch {
-            setPriceVariables([]);
-            setIsLoaded(true);
-        }
-    };
+    // Load once per item, not on every render
+    useEffect(() => {
+        let cancelled = false;
+        getPriceVariablesByItemId(itemId)
+            .catch(() => [])
+            .then((fetchedVariables) => {
+                if (cancelled) return;
+                setPriceVariables(fetchedVariables);
+                setIsLoaded(true);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [itemId]);
 
     if (!isLoaded) {
-        loadPriceVariables();
         return <div className="p-4 text-gray-500">Loading price variables...</div>;
     }
 

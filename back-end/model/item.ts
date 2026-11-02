@@ -1,6 +1,31 @@
 import { Item as ItemPrisma, Prisma, PriceVariable as PriceVariablePrisma } from '@prisma/client';
 import { BaseModel } from './base.model';
 import { PriceVariable } from './priceVariable';
+import { createError } from '../util/errors';
+
+export type Money = Prisma.Decimal | number;
+
+export const toDecimal = (value: Money): Prisma.Decimal =>
+    typeof value === 'number' ? new Prisma.Decimal(value) : value;
+
+const toNullableDecimal = (value: Money | null | undefined): Prisma.Decimal | null =>
+    value == null ? null : toDecimal(value);
+
+/** Everything an item is made of, minus identity and relations. */
+export type ItemFields = {
+    name: string;
+    description: string;
+    buyPrice: Money;
+    quantity: number;
+    buyedAt?: Date;
+    inventoryId?: number;
+    websiteCategory?: string | null;
+    websiteEmoji?: string | null;
+    websiteSortOrder?: number;
+    memberPrice?: Money | null;
+    nonMemberPrice?: Money | null;
+    publishedToWebsite?: boolean;
+};
 
 export class Item extends BaseModel {
     private name: string;
@@ -8,58 +33,29 @@ export class Item extends BaseModel {
     private buyPrice: Prisma.Decimal;
     private buyedAt?: Date;
     private inventoryId?: number;
-    private websiteCategory?: string | null;
-    private websiteEmoji?: string | null;
+    private websiteCategory: string | null;
+    private websiteEmoji: string | null;
     private websiteSortOrder: number;
-    private memberPrice?: Prisma.Decimal | null;
-    private nonMemberPrice?: Prisma.Decimal | null;
+    private memberPrice: Prisma.Decimal | null;
+    private nonMemberPrice: Prisma.Decimal | null;
     private publishedToWebsite: boolean;
     private priceVariables?: PriceVariable[];
 
-    constructor(item: {
-        id?: number;
-        name: string;
-        description: string;
-        buyPrice: Prisma.Decimal | number;
-        quantity: number;
-        buyedAt?: Date;
-        createdAt?: Date;
-        inventoryId?: number;
-        websiteCategory?: string | null;
-        websiteEmoji?: string | null;
-        websiteSortOrder?: number;
-        memberPrice?: Prisma.Decimal | number | null;
-        nonMemberPrice?: Prisma.Decimal | number | null;
-        publishedToWebsite?: boolean;
-        priceVariables?: PriceVariable[];
-    }) {
-        super({
-            id: item.id,
-            quantity: item.quantity,
-            createdAt: item.createdAt,
-        });
+    constructor(
+        item: ItemFields & { id?: number; createdAt?: Date; priceVariables?: PriceVariable[] },
+    ) {
+        super({ id: item.id, quantity: item.quantity, createdAt: item.createdAt });
         this.validate(item);
         this.name = item.name;
         this.description = item.description;
-        this.buyPrice =
-            typeof item.buyPrice === 'number' ? new Prisma.Decimal(item.buyPrice) : item.buyPrice;
+        this.buyPrice = toDecimal(item.buyPrice);
         this.buyedAt = item.buyedAt;
         this.inventoryId = item.inventoryId;
         this.websiteCategory = item.websiteCategory ?? null;
         this.websiteEmoji = item.websiteEmoji ?? null;
         this.websiteSortOrder = item.websiteSortOrder ?? 0;
-        this.memberPrice =
-            item.memberPrice === undefined || item.memberPrice === null
-                ? null
-                : typeof item.memberPrice === 'number'
-                  ? new Prisma.Decimal(item.memberPrice)
-                  : item.memberPrice;
-        this.nonMemberPrice =
-            item.nonMemberPrice === undefined || item.nonMemberPrice === null
-                ? null
-                : typeof item.nonMemberPrice === 'number'
-                  ? new Prisma.Decimal(item.nonMemberPrice)
-                  : item.nonMemberPrice;
+        this.memberPrice = toNullableDecimal(item.memberPrice);
+        this.nonMemberPrice = toNullableDecimal(item.nonMemberPrice);
         this.publishedToWebsite = item.publishedToWebsite ?? false;
         this.priceVariables = item.priceVariables;
     }
@@ -76,10 +72,6 @@ export class Item extends BaseModel {
         return this.buyPrice;
     }
 
-    getBuyPriceAsNumber(): number {
-        return this.buyPrice.toNumber();
-    }
-
     getBuyedAt(): Date | undefined {
         return this.buyedAt;
     }
@@ -92,11 +84,11 @@ export class Item extends BaseModel {
         return this.priceVariables;
     }
 
-    getWebsiteCategory(): string | null | undefined {
+    getWebsiteCategory(): string | null {
         return this.websiteCategory;
     }
 
-    getWebsiteEmoji(): string | null | undefined {
+    getWebsiteEmoji(): string | null {
         return this.websiteEmoji;
     }
 
@@ -104,11 +96,11 @@ export class Item extends BaseModel {
         return this.websiteSortOrder;
     }
 
-    getMemberPrice(): Prisma.Decimal | null | undefined {
+    getMemberPrice(): Prisma.Decimal | null {
         return this.memberPrice;
     }
 
-    getNonMemberPrice(): Prisma.Decimal | null | undefined {
+    getNonMemberPrice(): Prisma.Decimal | null {
         return this.nonMemberPrice;
     }
 
@@ -116,57 +108,44 @@ export class Item extends BaseModel {
         return this.publishedToWebsite;
     }
 
-    validate(item: {
-        id?: number;
-        name: string;
-        description: string;
-        buyPrice: Prisma.Decimal | number;
-        quantity: number;
-        buyedAt?: Date;
-        createdAt?: Date;
-        websiteSortOrder?: number;
-    }) {
-        if (!item.name) {
-            throw new Error('Name is required');
+    /** The editable fields, e.g. to merge a partial update onto. */
+    toFields(): ItemFields {
+        return {
+            name: this.name,
+            description: this.description,
+            buyPrice: this.buyPrice,
+            quantity: this.quantity,
+            buyedAt: this.buyedAt,
+            inventoryId: this.inventoryId,
+            websiteCategory: this.websiteCategory,
+            websiteEmoji: this.websiteEmoji,
+            websiteSortOrder: this.websiteSortOrder,
+            memberPrice: this.memberPrice,
+            nonMemberPrice: this.nonMemberPrice,
+            publishedToWebsite: this.publishedToWebsite,
+        };
+    }
+
+    protected validate(item: ItemFields) {
+        if (!item.name) throw createError.badRequest('Name is required');
+        if (item.name.length < 3) throw createError.badRequest('Name must be at least 3 characters long');
+        if (!item.description) throw createError.badRequest('Description is required');
+        if (item.buyPrice == null) throw createError.badRequest('Buy price is required');
+        if (toDecimal(item.buyPrice).isNegative()) {
+            throw createError.badRequest('Buy price must be a positive number');
         }
-        if (item.name.length < 3) {
-            throw new Error('Name must be at least 3 characters long');
-        }
-        if (!item.description) {
-            throw new Error('Description is required');
-        }
-        if (item.buyPrice === undefined || item.buyPrice === null) {
-            throw new Error('Buy price is required');
-        }
-        const price = typeof item.buyPrice === 'number' ? item.buyPrice : item.buyPrice.toNumber();
-        if (price < 0) {
-            throw new Error('Buy price must be a positive number');
-        }
-        if (
-            item.websiteSortOrder !== undefined &&
-            !Number.isInteger(item.websiteSortOrder)
-        ) {
-            throw new Error('Website sort order must be an integer');
+        if (item.quantity < 0) throw createError.badRequest('Quantity cannot be negative');
+        if (item.websiteSortOrder !== undefined && !Number.isInteger(item.websiteSortOrder)) {
+            throw createError.badRequest('Website sort order must be an integer');
         }
     }
 
     static from(itemPrisma: ItemPrisma & { priceVariables?: PriceVariablePrisma[] }): Item {
         return new Item({
-            id: itemPrisma.id,
-            name: itemPrisma.name,
-            description: itemPrisma.description,
-            buyPrice: itemPrisma.buyPrice,
-            quantity: itemPrisma.quantity,
-            buyedAt: itemPrisma.buyedAt || undefined,
-            createdAt: itemPrisma.createdAt,
-            inventoryId: itemPrisma.inventoryId || undefined,
-            websiteCategory: itemPrisma.websiteCategory,
-            websiteEmoji: itemPrisma.websiteEmoji,
-            websiteSortOrder: itemPrisma.websiteSortOrder,
-            memberPrice: itemPrisma.memberPrice,
-            nonMemberPrice: itemPrisma.nonMemberPrice,
-            publishedToWebsite: itemPrisma.publishedToWebsite,
-            priceVariables: itemPrisma.priceVariables?.map((pv) => PriceVariable.from(pv)),
+            ...itemPrisma,
+            buyedAt: itemPrisma.buyedAt ?? undefined,
+            inventoryId: itemPrisma.inventoryId ?? undefined,
+            priceVariables: itemPrisma.priceVariables?.map(PriceVariable.from),
         });
     }
 }

@@ -1,8 +1,57 @@
 import { Prisma } from '@prisma/client';
 import database from '../repository/database';
 
-// Standalone analytics implementation using Prisma to avoid repository circular deps
-export async function getInventoryAnalyticsPrisma({
+const DAY_MS = 24 * 60 * 60 * 1000;
+const TOP_ITEMS_LIMIT = 25;
+
+type Totals = { totalBuyPrice: number; totalSellPrice: number; totalProfit: number };
+type PriceTotals = Totals & { sellPrice: number; priceVariableName: string | null; quantity: number };
+type ItemTotals = Totals & {
+    itemId: number;
+    itemName: string;
+    totalQuantity: number;
+    prices: Map<string, PriceTotals>;
+};
+type DayTotals = Totals & { date: string; totalQuantity: number; transactionCount: number };
+type PaymentTotals = Totals & { transactionCount: number };
+
+const emptyTotals = (): Totals => ({ totalBuyPrice: 0, totalSellPrice: 0, totalProfit: 0 });
+
+const addTo = (totals: Totals, buy: number, sell: number) => {
+    totals.totalBuyPrice += buy;
+    totals.totalSellPrice += sell;
+    totals.totalProfit += sell - buy;
+};
+
+/** Get-or-create for the Map buckets below. */
+const bucket = <K, V>(map: Map<K, V>, key: K, create: () => V): V => {
+    let value = map.get(key);
+    if (!value) map.set(key, (value = create()));
+    return value;
+};
+
+/**
+ * soldAt filter. A date-only end date (what the UI sends, e.g. 2026-11-02) means
+ * "through the end of that day", so it becomes an exclusive bound at the next midnight.
+ */
+const soldAtRange = (startDate?: Date, endDate?: Date): Prisma.DateTimeFilter | undefined => {
+    if (!startDate && !endDate) return undefined;
+    const endIsDateOnly = endDate !== undefined && endDate.getTime() % DAY_MS === 0;
+    return {
+        ...(startDate && { gte: startDate }),
+        ...(endDate && (endIsDateOnly ? { lt: new Date(endDate.getTime() + DAY_MS) } : { lte: endDate })),
+    };
+};
+
+const toPaymentDTO = ({ totalBuyPrice, totalSellPrice, totalProfit, transactionCount }: PaymentTotals) => ({
+    buyPrice: totalBuyPrice,
+    sellPrice: totalSellPrice,
+    profit: totalProfit,
+    transactionCount,
+});
+
+/** Sales analytics for one inventory, computed in a single pass over its sales. */
+export async function getInventoryAnalytics({
     inventoryId,
     startDate,
     endDate,
@@ -11,203 +60,102 @@ export async function getInventoryAnalyticsPrisma({
     startDate?: Date;
     endDate?: Date;
 }) {
-    const whereBase = {
-        item: { inventoryId },
-        ...(startDate ? { soldAt: { gte: startDate } } : {}),
-        ...(endDate ? { soldAt: { lte: endDate } } : {}),
-    } as any;
-
-    // Summary
-    const summaryAgg = await database.soldItem.aggregate({
-        where: whereBase,
-        _sum: {
-            finalSellPrice: true,
-            quantity: true,
-        },
-        _count: true,
-    });
-
-    // Join to get buyPrice for accurate buy totals
-    const lines = await database.soldItem.findMany({
-        where: whereBase,
+    const sales = await database.soldItem.findMany({
+        where: { item: { inventoryId }, soldAt: soldAtRange(startDate, endDate) },
         select: {
             finalSellPrice: true,
             quantity: true,
             paidCash: true,
             priceVariableName: true,
-            item: { select: { id: true, name: true, buyPrice: true } },
             soldAt: true,
+            item: { select: { id: true, name: true, buyPrice: true } },
         },
         orderBy: { soldAt: 'asc' },
     });
 
-    // Compute totals
-    let totalBuyPrice = 0;
-    let totalSellPrice = 0;
-    let totalProfit = 0;
-    let cashTransactions = 0;
-    let nonCashTransactions = 0;
+    const summary = { ...emptyTotals(), totalQuantitySold: 0, cashTransactions: 0, nonCashTransactions: 0 };
+    const cash: PaymentTotals = { ...emptyTotals(), transactionCount: 0 };
+    const nonCash: PaymentTotals = { ...emptyTotals(), transactionCount: 0 };
+    const byItem = new Map<number, ItemTotals>();
+    const byDay = new Map<string, DayTotals>();
+    const byPriceVariable = new Map<string, Totals & { priceVariableName: string; count: number }>();
 
-    const byItem = new Map<number, any>();
-    const byDay = new Map<string, any>();
-    const byPriceVar = new Map<string, any>();
+    for (const sale of sales) {
+        const quantity = sale.quantity;
+        const unitSell = Number(sale.finalSellPrice);
+        const sell = unitSell * quantity;
+        const buy = Number(sale.item.buyPrice) * quantity;
+        const priceKey = sale.priceVariableName ?? 'DEFAULT';
+        const day = sale.soldAt.toISOString().slice(0, 10);
 
-    for (const s of lines) {
-        const qty = Number(s.quantity);
-        const sell = Number(s.finalSellPrice) * qty;
-        const buy = Number(s.item.buyPrice) * qty;
-        const profit = sell - buy;
+        addTo(summary, buy, sell);
+        summary.totalQuantitySold += quantity;
+        if (sale.paidCash) summary.cashTransactions++;
+        else summary.nonCashTransactions++;
 
-        totalBuyPrice += buy;
-        totalSellPrice += sell;
-        totalProfit += profit;
+        const method = sale.paidCash ? cash : nonCash;
+        addTo(method, buy, sell);
+        method.transactionCount++;
 
-        if (s.paidCash) cashTransactions++;
-        else nonCashTransactions++;
-
-        // by item
-        const bi = byItem.get(s.item.id) || {
-            itemId: s.item.id,
-            itemName: s.item.name,
+        const item = bucket(byItem, sale.item.id, () => ({
+            ...emptyTotals(),
+            itemId: sale.item.id,
+            itemName: sale.item.name,
             totalQuantity: 0,
-            totalBuyPrice: 0,
-            totalSellPrice: 0,
-            totalProfit: 0,
-            priceBreakdown: new Map<string, any>(),
-        };
-        bi.totalQuantity += qty;
-        bi.totalBuyPrice += buy;
-        bi.totalSellPrice += sell;
-        bi.totalProfit += profit;
+            prices: new Map<string, PriceTotals>(),
+        }));
+        addTo(item, buy, sell);
+        item.totalQuantity += quantity;
 
-        const pvKey = String(s.priceVariableName ?? 'DEFAULT');
-        const pb = bi.priceBreakdown.get(pvKey) || {
-            sellPrice: Number(s.finalSellPrice),
-            priceVariableName: s.priceVariableName ?? null,
+        const price = bucket(item.prices, priceKey, () => ({
+            ...emptyTotals(),
+            sellPrice: unitSell,
+            priceVariableName: sale.priceVariableName,
             quantity: 0,
-            totalBuy: 0,
-            totalSell: 0,
-            profit: 0,
-        };
-        pb.quantity += qty;
-        pb.totalBuy += buy;
-        pb.totalSell += sell;
-        pb.profit += profit;
-        bi.priceBreakdown.set(pvKey, pb);
+        }));
+        addTo(price, buy, sell);
+        price.quantity += quantity;
 
-        byItem.set(s.item.id, bi);
-
-        // by day
-        const day = s.soldAt.toISOString().split('T')[0];
-        const bd = byDay.get(day) || {
+        const dayTotals = bucket(byDay, day, () => ({
+            ...emptyTotals(),
             date: day,
-            totalBuyPrice: 0,
-            totalSellPrice: 0,
-            totalProfit: 0,
             totalQuantity: 0,
             transactionCount: 0,
-        };
-        bd.totalBuyPrice += buy;
-        bd.totalSellPrice += sell;
-        bd.totalProfit += profit;
-        bd.totalQuantity += qty;
-        bd.transactionCount += 1;
-        byDay.set(day, bd);
+        }));
+        addTo(dayTotals, buy, sell);
+        dayTotals.totalQuantity += quantity;
+        dayTotals.transactionCount++;
 
-        // price variable breakdown
-        const pvAgg = byPriceVar.get(pvKey) || {
-            priceVariableName: s.priceVariableName ?? 'DEFAULT',
+        const priceVariable = bucket(byPriceVariable, priceKey, () => ({
+            ...emptyTotals(),
+            priceVariableName: priceKey,
             count: 0,
-            totalBuyPrice: 0,
-            totalSellPrice: 0,
-            totalProfit: 0,
-        };
-        pvAgg.count += 1;
-        pvAgg.totalBuyPrice += buy;
-        pvAgg.totalSellPrice += sell;
-        pvAgg.totalProfit += profit;
-        byPriceVar.set(pvKey, pvAgg);
+        }));
+        addTo(priceVariable, buy, sell);
+        priceVariable.count++;
     }
 
     return {
-        summary: {
-            totalBuyPrice,
-            totalSellPrice,
-            totalProfit,
-            totalQuantitySold: Number(summaryAgg._sum.quantity) || 0,
-            totalTransactions: summaryAgg._count || lines.length,
-            cashTransactions,
-            nonCashTransactions,
-        },
-        topSellingItems: Array.from(byItem.values())
-            .map((x: any) => ({
-                itemId: x.itemId,
-                itemName: x.itemName,
-                totalQuantity: x.totalQuantity,
-                totalBuyPrice: x.totalBuyPrice,
-                totalSellPrice: x.totalSellPrice,
-                totalProfit: x.totalProfit,
-                priceBreakdown: Array.from(x.priceBreakdown.values()),
-            }))
+        summary: { ...summary, totalTransactions: sales.length },
+        topSellingItems: [...byItem.values()]
             .sort((a, b) => b.totalQuantity - a.totalQuantity)
-            .slice(0, 25),
-        salesByDay: Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date)),
-        paymentMethodBreakdown: {
-            cash: {
-                buyPrice: Number(
-                    Array.from(lines)
-                        .filter((l) => l.paidCash)
-                        .reduce((acc, s) => acc + Number(s.item.buyPrice) * Number(s.quantity), 0)
-                        .toFixed(2),
+            .slice(0, TOP_ITEMS_LIMIT)
+            .map(({ prices, ...item }) => ({
+                ...item,
+                priceBreakdown: [...prices.values()].map(
+                    ({ totalBuyPrice, totalSellPrice, totalProfit, ...rest }) => ({
+                        ...rest,
+                        totalBuy: totalBuyPrice,
+                        totalSell: totalSellPrice,
+                        profit: totalProfit,
+                    }),
                 ),
-                sellPrice: Number(
-                    Array.from(lines)
-                        .filter((l) => l.paidCash)
-                        .reduce((acc, s) => acc + Number(s.finalSellPrice) * Number(s.quantity), 0)
-                        .toFixed(2),
-                ),
-                profit: Number(
-                    Array.from(lines)
-                        .filter((l) => l.paidCash)
-                        .reduce(
-                            (acc, s) =>
-                                acc +
-                                (Number(s.finalSellPrice) - Number(s.item.buyPrice)) *
-                                    Number(s.quantity),
-                            0,
-                        )
-                        .toFixed(2),
-                ),
-                transactionCount: lines.filter((l) => l.paidCash).length,
-            },
-            nonCash: {
-                buyPrice: Number(
-                    Array.from(lines)
-                        .filter((l) => !l.paidCash)
-                        .reduce((acc, s) => acc + Number(s.item.buyPrice) * Number(s.quantity), 0)
-                        .toFixed(2),
-                ),
-                sellPrice: Number(
-                    Array.from(lines)
-                        .filter((l) => !l.paidCash)
-                        .reduce((acc, s) => acc + Number(s.finalSellPrice) * Number(s.quantity), 0)
-                        .toFixed(2),
-                ),
-                profit: Number(
-                    Array.from(lines)
-                        .filter((l) => !l.paidCash)
-                        .reduce(
-                            (acc, s) =>
-                                acc +
-                                (Number(s.finalSellPrice) - Number(s.item.buyPrice)) *
-                                    Number(s.quantity),
-                            0,
-                        )
-                        .toFixed(2),
-                ),
-                transactionCount: lines.filter((l) => !l.paidCash).length,
-            },
-        },
-        priceVariableBreakdown: Array.from(byPriceVar.values()),
+            })),
+        // Sales come back sorted by soldAt, so days are already in order
+        salesByDay: [...byDay.values()],
+        paymentMethodBreakdown: { cash: toPaymentDTO(cash), nonCash: toPaymentDTO(nonCash) },
+        priceVariableBreakdown: [...byPriceVariable.values()],
     };
 }
+
+export type InventoryAnalytics = Awaited<ReturnType<typeof getInventoryAnalytics>>;

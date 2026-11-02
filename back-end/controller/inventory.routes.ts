@@ -5,154 +5,104 @@
  *     description: Inventory management endpoints
  */
 
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import inventoryService from '../service/inventory.service';
-import { Inventory } from '../model/inventory';
-import { requireAuth } from '../middleware/auth.middleware';
-import { createError } from '../middleware/error.middleware';
+import { currentUserId, requireAuth } from '../middleware/auth.middleware';
 import {
-    validateBody,
-    validateParams,
+    addUserToInventoryInput,
+    asyncHandler,
     idParam,
     inventoryInput,
     inventoryUpdateInput,
+    inventoryUserParams,
+    validateBody,
+    validateParams,
 } from '../util/validators';
+import { inventoriesToDTO, inventoryToDTO, inventoryUserToDTO } from '../dto/inventory.dto';
 
 const inventoryRouter = express.Router();
 
-// All inventory routes require auth
 inventoryRouter.use(requireAuth);
 
-// Get all inventories for authenticated user
-inventoryRouter.get('/my', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const user = (req as any).user;
-        const inventories = await inventoryService.getInventoriesByUserId(user.id);
-        res.status(200).json(inventories);
-    } catch (error) {
-        next(error);
-    }
-});
+inventoryRouter.get(
+    '/my',
+    asyncHandler(async (req, res) => {
+        res.json(inventoriesToDTO(await inventoryService.getInventoriesByUserId(currentUserId(req))));
+    }),
+);
 
-// Get inventory by ID (access controlled)
 inventoryRouter.get(
     '/:id',
     validateParams(idParam),
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { id } = req.params as any;
-            const user = (req as any).user;
-
-            const role = await inventoryService.checkUserAccess(user.id, Number(id));
-            if (!role) return next(createError.forbidden('Access denied'));
-
-            const inventory = await inventoryService.getInventoryById(Number(id));
-            res.status(200).json(inventory);
-        } catch (error) {
-            next(error);
-        }
-    },
+    asyncHandler(async (req, res) => {
+        const inventory = await inventoryService.getInventoryById(Number(req.params.id), currentUserId(req));
+        res.json(inventoryToDTO(inventory));
+    }),
 );
 
-// Create inventory (creator becomes owner)
+// The creator becomes owner
 inventoryRouter.post(
     '/',
     validateBody(inventoryInput),
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const user = (req as any).user;
-            const inventory = new Inventory({
-                name: req.body.name,
-                description: req.body.description,
-            });
-            const result = await inventoryService.createInventory(inventory, user.id);
-            res.status(201).json(result);
-        } catch (error) {
-            next(error);
-        }
-    },
+    asyncHandler(async (req, res) => {
+        const inventory = await inventoryService.createInventory(req.body, currentUserId(req));
+        res.status(201).json(inventoryToDTO(inventory));
+    }),
 );
 
-// Delete inventory (owner only)
-inventoryRouter.delete(
-    '/:id',
-    validateParams(idParam),
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { id } = req.params as any;
-            const user = (req as any).user;
-            await inventoryService.deleteInventory(Number(id), user.id);
-            res.status(204).send();
-        } catch (error) {
-            next(error);
-        }
-    },
-);
-
-// Get users of inventory (access controlled)
-inventoryRouter.get(
-    '/:id/users',
-    validateParams(idParam),
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { id } = req.params as any;
-            const user = (req as any).user;
-            const users = await inventoryService.getInventoryUsers(Number(id), user.id);
-            res.status(200).json(users);
-        } catch (error) {
-            next(error);
-        }
-    },
-);
-
-// Add user to inventory (owner only)
-inventoryRouter.post(
-    '/:id/users',
-    validateParams(idParam),
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { id } = req.params as any;
-            const requestingUserId = (req as any).user.id;
-            const { userId, role } = req.body;
-            await inventoryService.addUserToInventory(userId, Number(id), role, requestingUserId);
-            res.status(201).json({ message: 'User added successfully' });
-        } catch (error) {
-            next(error);
-        }
-    },
-);
-
-// Remove user from inventory (owner only)
-inventoryRouter.delete(
-    '/:id/users/:userId',
-    validateParams(idParam),
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { id, userId } = req.params as any;
-            const requestingUserId = (req as any).user.id;
-            await inventoryService.removeUserFromInventory(userId, Number(id), requestingUserId);
-            res.status(204).send();
-        } catch (error) {
-            next(error);
-        }
-    },
-);
-
-// Update inventory (owner or editor)
 inventoryRouter.put(
     '/:id',
     validateParams(idParam),
     validateBody(inventoryUpdateInput),
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const { id } = req.params as any;
-            const user = (req as any).user;
-            const updated = await inventoryService.updateInventory(Number(id), req.body, user.id);
-            res.status(200).json(updated);
-        } catch (error) {
-            next(error);
-        }
-    },
+    asyncHandler(async (req, res) => {
+        const inventory = await inventoryService.updateInventory(
+            Number(req.params.id),
+            req.body,
+            currentUserId(req),
+        );
+        res.json(inventoryToDTO(inventory));
+    }),
+);
+
+inventoryRouter.delete(
+    '/:id',
+    validateParams(idParam),
+    asyncHandler(async (req, res) => {
+        await inventoryService.deleteInventory(Number(req.params.id), currentUserId(req));
+        res.status(204).send();
+    }),
+);
+
+inventoryRouter.get(
+    '/:id/users',
+    validateParams(idParam),
+    asyncHandler(async (req, res) => {
+        const members = await inventoryService.getInventoryUsers(Number(req.params.id), currentUserId(req));
+        res.json(members.map(inventoryUserToDTO));
+    }),
+);
+
+inventoryRouter.post(
+    '/:id/users',
+    validateParams(idParam),
+    validateBody(addUserToInventoryInput),
+    asyncHandler(async (req, res) => {
+        await inventoryService.addUserToInventory(Number(req.params.id), req.body, currentUserId(req));
+        res.status(201).json({ message: 'User added successfully' });
+    }),
+);
+
+inventoryRouter.delete(
+    '/:id/users/:userId',
+    validateParams(inventoryUserParams),
+    asyncHandler(async (req, res) => {
+        await inventoryService.removeUserFromInventory(
+            req.params.userId,
+            Number(req.params.id),
+            currentUserId(req),
+        );
+        res.status(204).send();
+    }),
 );
 
 export { inventoryRouter };

@@ -1,77 +1,60 @@
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import itemService from '../service/item.service';
-import inventoryDB from '../repository/inventory.db';
-import { requireAuth } from '../middleware/auth.middleware';
-import { requireInventoryAccess } from '../middleware/authorization.middleware';
+import { getMemberInventoryIds, requireInventoryRole, requireItemRole } from '../service/access.service';
+import { currentUserId, requireAuth } from '../middleware/auth.middleware';
 import {
-    validateParams,
-    validateBody,
+    asyncHandler,
     idParam,
     inventoryIdParam,
+    ItemInput,
     itemInput,
+    ItemUpdateInput,
     itemUpdateInput,
-    asyncHandler,
+    validateBody,
+    validateParams,
 } from '../util/validators';
-import { createError } from '../middleware/error.middleware';
-import { safeGetItemById } from '../util/safe';
+import { itemToDTO, itemsToDTO } from '../dto/item.dto';
 
 const itemRouter = express.Router();
 
 itemRouter.use(requireAuth);
 
+// Items from every inventory the user is a member of
 itemRouter.get(
     '/',
-    asyncHandler(async (req: Request, res: Response) => {
-        const user = (req as any).user;
-        const userInventories = await inventoryDB.getInventoriesByUserId({ userId: user.id });
-        const inventoryIds = userInventories.map((inv) => inv.getId());
-        if (inventoryIds.length === 0) return res.status(200).json([]);
-        // Use bulk method to avoid N+1
-        const items = await itemService.getItemsByInventoryIds({ inventoryIds });
-        res.status(200).json(items);
-    }),
-);
-
-itemRouter.get(
-    '/:id',
-    validateParams(idParam),
-    asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params as any; // validated
-        const user = (req as any).user;
-        const item = await safeGetItemById(Number(id));
-        if (!item.getInventoryId()) throw createError.notFound('Item not found');
-        const hasAccess = await inventoryDB.userHasAccess({
-            userId: user.id,
-            inventoryId: item.getInventoryId()!,
-        });
-        if (!hasAccess) throw createError.forbidden("Access denied to this item's inventory");
-        res.status(200).json(item);
+    asyncHandler(async (req, res) => {
+        const inventoryIds = await getMemberInventoryIds(currentUserId(req));
+        res.json(itemsToDTO(await itemService.getItemsByInventoryIds({ inventoryIds })));
     }),
 );
 
 itemRouter.get(
     '/inventory/:inventoryId',
     validateParams(inventoryIdParam),
-    requireInventoryAccess('inventoryId'),
-    asyncHandler(async (req: Request, res: Response) => {
-        const { inventoryId } = req.params as any; // validated
-        const items = await itemService.getItemsByInventoryId({ inventoryId: Number(inventoryId) });
-        res.status(200).json(items);
+    asyncHandler(async (req, res) => {
+        const inventoryId = Number(req.params.inventoryId);
+        await requireInventoryRole(currentUserId(req), inventoryId, 'read');
+        res.json(itemsToDTO(await itemService.getItemsByInventoryId({ inventoryId })));
+    }),
+);
+
+itemRouter.get(
+    '/:id',
+    validateParams(idParam),
+    asyncHandler(async (req, res) => {
+        const id = Number(req.params.id);
+        await requireItemRole(currentUserId(req), id, 'read');
+        res.json(itemToDTO(await itemService.getItemById({ id })));
     }),
 );
 
 itemRouter.post(
     '/',
     validateBody(itemInput),
-    asyncHandler(async (req: Request, res: Response) => {
-        const user = (req as any).user;
-        const { inventoryId, ...itemData } = req.body;
-        if (inventoryId) {
-            const ok = await inventoryDB.userHasAccess({ userId: user.id, inventoryId });
-            if (!ok) throw createError.forbidden('Access denied to this inventory');
-        }
-        const item = await itemService.createItem({ ...itemData, inventoryId });
-        res.status(201).json(item);
+    asyncHandler(async (req, res) => {
+        const body = req.body as ItemInput;
+        if (body.inventoryId) await requireInventoryRole(currentUserId(req), body.inventoryId, 'write');
+        res.status(201).json(itemToDTO(await itemService.createItem(body)));
     }),
 );
 
@@ -79,49 +62,26 @@ itemRouter.put(
     '/:id',
     validateParams(idParam),
     validateBody(itemUpdateInput),
-    asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params as any;
-        const user = (req as any).user;
-        const { inventoryId: newInventoryId, ...updateData } = req.body;
-        const existing = await safeGetItemById(Number(id));
-        if (existing.getInventoryId()) {
-            const ok = await inventoryDB.userHasAccess({
-                userId: user.id,
-                inventoryId: existing.getInventoryId()!,
-            });
-            if (!ok) throw createError.forbidden("Access denied to this item's current inventory");
+    asyncHandler(async (req, res) => {
+        const id = Number(req.params.id);
+        const userId = currentUserId(req);
+        const body = req.body as ItemUpdateInput;
+        const currentInventoryId = await requireItemRole(userId, id, 'write');
+        // Moving an item needs write access on the destination too
+        if (body.inventoryId && body.inventoryId !== currentInventoryId) {
+            await requireInventoryRole(userId, body.inventoryId, 'write');
         }
-        if (newInventoryId && newInventoryId !== existing.getInventoryId()) {
-            const ok = await inventoryDB.userHasAccess({
-                userId: user.id,
-                inventoryId: newInventoryId,
-            });
-            if (!ok) throw createError.forbidden('Access denied to target inventory');
-        }
-        const item = await itemService.updateItem({
-            id: Number(id),
-            ...updateData,
-            inventoryId: newInventoryId,
-        });
-        res.status(200).json(item);
+        res.json(itemToDTO(await itemService.updateItem({ id, ...body })));
     }),
 );
 
 itemRouter.delete(
     '/:id',
     validateParams(idParam),
-    asyncHandler(async (req: Request, res: Response) => {
-        const { id } = req.params as any;
-        const user = (req as any).user;
-        const item = await safeGetItemById(Number(id));
-        if (item.getInventoryId()) {
-            const ok = await inventoryDB.userHasAccess({
-                userId: user.id,
-                inventoryId: item.getInventoryId()!,
-            });
-            if (!ok) throw createError.forbidden("Access denied to this item's inventory");
-        }
-        await itemService.deleteItem({ id: Number(id) });
+    asyncHandler(async (req, res) => {
+        const id = Number(req.params.id);
+        await requireItemRole(currentUserId(req), id, 'write');
+        await itemService.deleteItem({ id });
         res.status(204).send();
     }),
 );
