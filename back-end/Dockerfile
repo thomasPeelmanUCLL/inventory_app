@@ -21,7 +21,6 @@ COPY middleware ./middleware
 COPY model ./model
 COPY repository ./repository
 COPY service ./service
-COPY types ./types
 COPY util ./util
 COPY lib ./lib
 COPY dto ./dto
