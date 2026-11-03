@@ -1,5 +1,7 @@
 import { Item } from '../model/item';
+import { PriceVariableDTO, priceVariableToDTO } from './priceVariable.dto';
 
+/** Money is sent as a decimal string ("1.5") so no precision is lost in transit. */
 export interface ItemDTO {
     id: number;
     name: string;
@@ -14,155 +16,26 @@ export interface ItemDTO {
     memberPrice: string | null;
     nonMemberPrice: string | null;
     publishedToWebsite: boolean;
-    priceVariables?: PriceVariableDTO[];
+    priceVariables: PriceVariableDTO[];
     createdAt: string;
-    updatedAt: string | null;
 }
 
-export interface PriceVariableDTO {
-    id: number;
-    name: string;
-    value: string;
-    type: 'PERCENTAGE' | 'FIXED';
-    isDefault: boolean;
-    itemId: number;
-    createdAt: string;
-    updatedAt: string | null;
-}
+export const itemToDTO = (item: Item): ItemDTO => ({
+    id: item.getId(),
+    name: item.getName(),
+    description: item.getDescription(),
+    buyPrice: item.getBuyPrice().toString(),
+    quantity: item.getQuantity(),
+    buyedAt: item.getBuyedAt()?.toISOString() ?? null,
+    inventoryId: item.getInventoryId() ?? null,
+    websiteCategory: item.getWebsiteCategory(),
+    websiteEmoji: item.getWebsiteEmoji(),
+    websiteSortOrder: item.getWebsiteSortOrder(),
+    memberPrice: item.getMemberPrice()?.toString() ?? null,
+    nonMemberPrice: item.getNonMemberPrice()?.toString() ?? null,
+    publishedToWebsite: item.getPublishedToWebsite(),
+    priceVariables: (item.getPriceVariables() ?? []).map(priceVariableToDTO),
+    createdAt: item.getCreatedAt().toISOString(),
+});
 
-export function itemToDTO(item: Item | any): ItemDTO {
-    const buyPrice = (item as any).getBuyPrice
-        ? (item as any).getBuyPrice()
-        : (item as any).buyPrice;
-    const quantity = (item as any).getQuantity
-        ? (item as any).getQuantity()
-        : (item as any).quantity;
-    const buyedAt = (item as any).getBuyedAt?.() ?? (item as any).buyedAt ?? null;
-    const createdAt = (item as any).getCreatedAt?.() ?? (item as any).createdAt ?? new Date();
-    const updatedAt = (item as any).getUpdatedAt?.() ?? (item as any).updatedAt ?? null;
-    const inventoryIdRaw = (item as any).getInventoryId
-        ? (item as any).getInventoryId()
-        : (item as any).inventoryId;
-    const websiteCategoryRaw = (item as any).getWebsiteCategory
-        ? (item as any).getWebsiteCategory()
-        : (item as any).websiteCategory;
-    const websiteEmojiRaw = (item as any).getWebsiteEmoji
-        ? (item as any).getWebsiteEmoji()
-        : (item as any).websiteEmoji;
-    const websiteSortOrderRaw = (item as any).getWebsiteSortOrder
-        ? (item as any).getWebsiteSortOrder()
-        : (item as any).websiteSortOrder;
-    const memberPriceRaw = (item as any).getMemberPrice
-        ? (item as any).getMemberPrice()
-        : (item as any).memberPrice;
-    const nonMemberPriceRaw = (item as any).getNonMemberPrice
-        ? (item as any).getNonMemberPrice()
-        : (item as any).nonMemberPrice;
-    const publishedToWebsiteRaw = (item as any).getPublishedToWebsite
-        ? (item as any).getPublishedToWebsite()
-        : (item as any).publishedToWebsite;
-
-    return {
-        id: (item as any).getId ? (item as any).getId() : (item as any).id,
-        name: (item as any).getName ? (item as any).getName() : (item as any).name,
-        description: (item as any).getDescription
-            ? (item as any).getDescription()
-            : (item as any).description,
-        buyPrice: buyPrice?.toString?.() || String(buyPrice),
-        quantity: Number(quantity) || 0,
-        buyedAt:
-            buyedAt instanceof Date
-                ? buyedAt.toISOString()
-                : buyedAt
-                  ? new Date(buyedAt).toISOString()
-                  : null,
-        inventoryId: typeof inventoryIdRaw === 'number' ? inventoryIdRaw : null,
-        websiteCategory: websiteCategoryRaw ?? null,
-        websiteEmoji: websiteEmojiRaw ?? null,
-        websiteSortOrder: Number.isInteger(websiteSortOrderRaw) ? websiteSortOrderRaw : 0,
-        memberPrice:
-            memberPriceRaw === null || memberPriceRaw === undefined
-                ? null
-                : memberPriceRaw?.toString?.() || String(memberPriceRaw),
-        nonMemberPrice:
-            nonMemberPriceRaw === null || nonMemberPriceRaw === undefined
-                ? null
-                : nonMemberPriceRaw?.toString?.() || String(nonMemberPriceRaw),
-        publishedToWebsite: Boolean(publishedToWebsiteRaw),
-        priceVariables:
-            (item as any).getPriceVariables?.()?.map((pv: any) => ({
-                id: pv.getId ? pv.getId() : pv.id,
-                name: pv.getName ? pv.getName() : pv.name,
-                value: (pv.getValue ? pv.getValue() : pv.value)?.toString?.() || String(pv.value),
-                type: (pv.getType ? pv.getType() : pv.type) as 'PERCENTAGE' | 'FIXED',
-                isDefault: pv.getIsDefault ? pv.getIsDefault() : !!pv.isDefault,
-                itemId: pv.getItemId ? pv.getItemId() : pv.itemId,
-                createdAt:
-                    (pv.getCreatedAt?.() ?? pv.createdAt ?? new Date()).toISOString?.() ||
-                    new Date().toISOString(),
-                updatedAt: (pv.getUpdatedAt?.() ?? pv.updatedAt ?? null)?.toISOString?.() || null,
-            })) ?? [],
-        createdAt: createdAt instanceof Date ? createdAt.toISOString() : String(createdAt),
-        updatedAt: updatedAt instanceof Date ? updatedAt.toISOString() : null,
-    };
-}
-
-export function itemsToDTO(items: Array<Item | any>): ItemDTO[] {
-    return items.map(itemToDTO);
-}
-
-export function validateItemInput(data: any): {
-    name: string;
-    description: string;
-    buyPrice: number;
-    quantity: number;
-    buyedAt?: Date;
-    inventoryId?: number;
-    websiteCategory?: string | null;
-    websiteEmoji?: string | null;
-    websiteSortOrder?: number;
-    memberPrice?: number | null;
-    nonMemberPrice?: number | null;
-    publishedToWebsite?: boolean;
-} {
-    if (!data.name || typeof data.name !== 'string') {
-        throw new Error('Item name is required and must be a string');
-    }
-    if (typeof data.description !== 'string') {
-        throw new Error('Item description must be a string');
-    }
-    const buyPrice = Number(data.buyPrice);
-    if (isNaN(buyPrice) || buyPrice < 0) {
-        throw new Error('Buy price must be a positive number');
-    }
-    const quantity = Number(data.quantity);
-    if (isNaN(quantity) || quantity < 0 || !Number.isInteger(quantity)) {
-        throw new Error('Quantity must be a non-negative integer');
-    }
-    return {
-        name: data.name.trim(),
-        description: data.description.trim(),
-        buyPrice,
-        quantity,
-        buyedAt: data.buyedAt ? new Date(data.buyedAt) : undefined,
-        inventoryId: data.inventoryId ? Number(data.inventoryId) : undefined,
-        websiteCategory: data.websiteCategory ?? undefined,
-        websiteEmoji: data.websiteEmoji ?? undefined,
-        websiteSortOrder:
-            data.websiteSortOrder === undefined ? undefined : Number(data.websiteSortOrder),
-        memberPrice:
-            data.memberPrice === undefined
-                ? undefined
-                : data.memberPrice === null
-                  ? null
-                  : Number(data.memberPrice),
-        nonMemberPrice:
-            data.nonMemberPrice === undefined
-                ? undefined
-                : data.nonMemberPrice === null
-                  ? null
-                  : Number(data.nonMemberPrice),
-        publishedToWebsite:
-            data.publishedToWebsite === undefined ? undefined : Boolean(data.publishedToWebsite),
-    };
-}
+export const itemsToDTO = (items: Item[]): ItemDTO[] => items.map(itemToDTO);

@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "users" ALTER COLUMN "role" SET DEFAULT 'user',
-ALTER COLUMN "age" DROP NOT NULL;

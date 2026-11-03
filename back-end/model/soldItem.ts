@@ -1,6 +1,19 @@
-import { SoldItem as SoldItemPrisma, Prisma } from '@prisma/client';
+import { SoldItem as SoldItemPrisma, Item as ItemPrisma, Prisma } from '@prisma/client';
 import { BaseModel } from './base.model';
-import { Item } from './item'; // ✅ Import Item model
+import { Item, Money, toDecimal } from './item';
+import { createError } from '../util/errors';
+
+type SoldItemFields = {
+    id?: number;
+    itemId: number;
+    finalSellPrice: Money;
+    quantity: number;
+    priceVariableName?: string;
+    isCustomPrice?: boolean;
+    paidCash: boolean;
+    soldAt?: Date;
+    item?: Item;
+};
 
 export class SoldItem extends BaseModel {
     private itemId: number;
@@ -9,31 +22,14 @@ export class SoldItem extends BaseModel {
     private isCustomPrice: boolean;
     private paidCash: boolean;
     private soldAt: Date;
-    private item?: Item; // ✅ ADD THIS - Optional item property
+    private item?: Item;
 
-    constructor(soldItem: {
-        id?: number;
-        itemId: number;
-        finalSellPrice: Prisma.Decimal | number;
-        quantity: number;
-        priceVariableName?: string;
-        isCustomPrice?: boolean;
-        paidCash: boolean;
-        soldAt?: Date;
-        createdAt?: Date;
-        item?: any; // ✅ ADD THIS
-    }) {
-        super({
-            id: soldItem.id,
-            quantity: soldItem.quantity,
-            createdAt: soldItem.createdAt,
-        });
+    constructor(soldItem: SoldItemFields) {
+        // A sale has no separate creation time; soldAt doubles as createdAt
+        super({ id: soldItem.id, quantity: soldItem.quantity, createdAt: soldItem.soldAt });
         this.validate(soldItem);
         this.itemId = soldItem.itemId;
-        this.finalSellPrice =
-            typeof soldItem.finalSellPrice === 'number'
-                ? new Prisma.Decimal(soldItem.finalSellPrice)
-                : soldItem.finalSellPrice;
+        this.finalSellPrice = toDecimal(soldItem.finalSellPrice);
         this.priceVariableName = soldItem.priceVariableName;
         this.isCustomPrice = soldItem.isCustomPrice ?? false;
         this.paidCash = soldItem.paidCash;
@@ -45,17 +41,12 @@ export class SoldItem extends BaseModel {
         return this.itemId;
     }
 
-    // ✅ ADD THIS METHOD
     getItem(): Item | undefined {
         return this.item;
     }
 
     getFinalSellPrice(): Prisma.Decimal {
         return this.finalSellPrice;
-    }
-
-    getFinalSellPriceAsNumber(): number {
-        return this.finalSellPrice.toNumber();
     }
 
     getPriceVariableName(): string | undefined {
@@ -66,7 +57,7 @@ export class SoldItem extends BaseModel {
         return this.isCustomPrice;
     }
 
-    isPayedCash(): boolean {
+    isPaidCash(): boolean {
         return this.paidCash;
     }
 
@@ -74,59 +65,22 @@ export class SoldItem extends BaseModel {
         return this.soldAt;
     }
 
-    validate(soldItem: {
-        id?: number;
-        itemId: number;
-        finalSellPrice: Prisma.Decimal | number;
-        paidCash: boolean;
-        quantity: number;
-        soldAt?: Date;
-        createdAt?: Date;
-    }) {
-        if (!soldItem.itemId) {
-            throw new Error('Item ID is required');
+    protected validate(soldItem: SoldItemFields) {
+        if (!soldItem.itemId) throw createError.badRequest('Item ID is required');
+        if (soldItem.finalSellPrice == null) throw createError.badRequest('Final sell price is required');
+        const price = toDecimal(soldItem.finalSellPrice);
+        if (price.isNaN() || price.lessThanOrEqualTo(0)) {
+            throw createError.badRequest('Invalid finalSellPrice: must be a positive number');
         }
-
-        if (soldItem.finalSellPrice === undefined || soldItem.finalSellPrice === null) {
-            throw new Error('Final sell price is required');
-        }
-
-        const price =
-            typeof soldItem.finalSellPrice === 'number'
-                ? soldItem.finalSellPrice
-                : soldItem.finalSellPrice.toNumber();
-
-        console.log('🔍 Validating finalSellPrice:', soldItem.finalSellPrice);
-        console.log('🔍 Converted price:', price);
-        console.log('🔍 Is NaN?', isNaN(price));
-        console.log('🔍 Type:', typeof price);
-
-        if (isNaN(price) || price <= 0) {
-            // Changed from < 0 to <= 0 AND added NaN check
-            throw new Error(`Invalid finalSellPrice: must be a positive number`);
-        }
-
-        if (soldItem.paidCash === undefined || soldItem.paidCash === null) {
-            throw new Error('Paid cash status is required');
-        }
-
-        if (soldItem.quantity <= 0) {
-            throw new Error('Quantity must be a positive number');
-        }
+        if (soldItem.paidCash == null) throw createError.badRequest('Paid cash status is required');
+        if (soldItem.quantity <= 0) throw createError.badRequest('Quantity must be a positive number');
     }
 
-    static from(soldItemPrisma: SoldItemPrisma & { item?: any }): SoldItem {
+    static from(soldItemPrisma: SoldItemPrisma & { item?: ItemPrisma }): SoldItem {
         return new SoldItem({
-            id: soldItemPrisma.id,
-            itemId: soldItemPrisma.itemId,
-            finalSellPrice: soldItemPrisma.finalSellPrice,
-            quantity: soldItemPrisma.quantity,
-            priceVariableName: soldItemPrisma.priceVariableName || undefined,
-            isCustomPrice: soldItemPrisma.isCustomPrice,
-            paidCash: soldItemPrisma.paidCash,
-            soldAt: soldItemPrisma.soldAt,
-            createdAt: soldItemPrisma.soldAt, // Using soldAt as createdAt for SoldItem
-            item: soldItemPrisma.item,
+            ...soldItemPrisma,
+            priceVariableName: soldItemPrisma.priceVariableName ?? undefined,
+            item: soldItemPrisma.item ? Item.from(soldItemPrisma.item) : undefined,
         });
     }
 }

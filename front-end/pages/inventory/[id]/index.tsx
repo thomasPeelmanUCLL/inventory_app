@@ -1,59 +1,31 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import Link from 'next/link';
-import Header from '../../../components/layout/Header';
-import InventoryHeader from '../../../components/inventory/InventoryHeader';
+import { useState } from 'react';
+import InventoryPageLayout from '../../../components/inventory/InventoryPageLayout';
 import ItemsGrid from '../../../components/inventory/ItemsGrid';
 import SellModal from '../../../components/inventory/SellModal';
 import CartSidebar from '../../../components/inventory/CartSidebar';
-import ManageUsersModal from '../../../components/inventory/ManageUsersModal';
-import LoadingScreen from '../../../components/common/LoadingScreen';
-import ErrorScreen from '../../../components/common/ErrorScreen';
-import Toast from '../../../components/common/Toast';
 import ConfirmDialog from '../../../components/common/ConfirmDialog';
-import { getInventoryById, createSoldItem } from '../../../lib/api';
+import { createSoldItem } from '../../../lib/api';
 import { getDefaultSellPriceForItem } from '../../../lib/pricing';
-import { useSession } from '../../../lib/auth-client';
+import { useInventoryPage } from '../../../hooks/useInventoryPage';
 import { useToast } from '../../../hooks/useToast';
-import { Inventory, Item, SellModalData, CartItem } from '@types';
+import { CartItem, Item, SellModalData } from '@types';
+
+const errorMessage = (err: unknown, fallback: string) => (err instanceof Error && err.message) || fallback;
+
+const sameCartLine = (entry: CartItem, sale: SellModalData) =>
+    entry.item.id === sale.item.id && entry.priceVariableName === sale.priceVariableName;
 
 const InventoryDetailPage = () => {
-    const router = useRouter();
-    const { id: inventoryIdParam } = router.query;
-    const { data: session } = useSession();
+    const page = useInventoryPage();
     const { toast, showToast } = useToast();
 
-    const [inventory, setInventory] = useState<Inventory | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [fetchError, setFetchError] = useState<string | null>(null);
     const [sellModal, setSellModal] = useState<SellModalData | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [showCart, setShowCart] = useState(false);
-    const [showManageUsersModal, setShowManageUsersModal] = useState(false);
-    const [checkoutConfirmData, setCheckoutConfirmData] = useState<{
-        paidWithCash: boolean;
-    } | null>(null);
-
-    useEffect(() => {
-        if (inventoryIdParam) void fetchInventory();
-    }, [inventoryIdParam]);
-
-    const fetchInventory = async () => {
-        try {
-            setIsLoading(true);
-            setFetchError(null);
-            const fetchedInventory = await getInventoryById(Number(inventoryIdParam));
-            setInventory(fetchedInventory);
-        } catch (err: any) {
-            setFetchError(err.message || 'Failed to load inventory');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const [checkoutPaidCash, setCheckoutPaidCash] = useState<boolean | null>(null);
 
     const handleSellItem = (item: Item) => {
         const { finalSellPrice, priceVariableName } = getDefaultSellPriceForItem(item);
-
         setSellModal({
             item,
             quantity: 1,
@@ -66,211 +38,135 @@ const InventoryDetailPage = () => {
 
     const handleAddToCart = () => {
         if (!sellModal) return;
-        setCart((prevCart) => {
-            const existingCartEntry = prevCart.find(
-                (cartEntry) =>
-                    cartEntry.item.id === sellModal.item.id &&
-                    cartEntry.priceVariableName === sellModal.priceVariableName,
-            );
-            if (existingCartEntry) {
-                return prevCart.map((cartEntry) =>
-                    cartEntry.item.id === sellModal.item.id &&
-                    cartEntry.priceVariableName === sellModal.priceVariableName
-                        ? {
-                              ...cartEntry,
-                              quantityToSell: cartEntry.quantityToSell + sellModal.quantity,
-                          }
-                        : cartEntry,
-                );
-            }
-            return [
-                ...prevCart,
-                {
-                    item: sellModal.item,
-                    quantityToSell: sellModal.quantity,
-                    finalSellPrice: sellModal.finalSellPrice,
-                    priceVariableName: sellModal.priceVariableName,
-                    isCustomPrice: sellModal.isCustomPrice,
-                },
-            ];
-        });
+        setCart((prevCart) =>
+            prevCart.some((entry) => sameCartLine(entry, sellModal))
+                ? prevCart.map((entry) =>
+                      sameCartLine(entry, sellModal)
+                          ? { ...entry, quantityToSell: entry.quantityToSell + sellModal.quantity }
+                          : entry,
+                  )
+                : [
+                      ...prevCart,
+                      {
+                          item: sellModal.item,
+                          quantityToSell: sellModal.quantity,
+                          finalSellPrice: sellModal.finalSellPrice,
+                          priceVariableName: sellModal.priceVariableName,
+                          isCustomPrice: sellModal.isCustomPrice,
+                      },
+                  ],
+        );
         setSellModal(null);
         showToast('Added to cart');
     };
 
+    const sell = (entry: CartItem, paidCash: boolean) =>
+        createSoldItem({
+            itemId: entry.item.id!,
+            finalSellPrice: entry.finalSellPrice,
+            quantity: entry.quantityToSell,
+            priceVariableName: entry.priceVariableName,
+            isCustomPrice: entry.isCustomPrice,
+            paidCash,
+        });
+
     const handleBuyNow = async () => {
         if (!sellModal) return;
         try {
-            await createSoldItem({
-                itemId: sellModal.item.id!,
-                finalSellPrice: sellModal.finalSellPrice,
-                quantity: sellModal.quantity,
-                priceVariableName: sellModal.priceVariableName,
-                isCustomPrice: sellModal.isCustomPrice,
-                paidWithCash: sellModal.paymentMethod === 'cash',
-            });
+            await sell({ ...sellModal, quantityToSell: sellModal.quantity }, sellModal.paymentMethod === 'cash');
             setSellModal(null);
-            await fetchInventory();
+            await page.reload();
             showToast('Sale recorded successfully');
-        } catch (err: any) {
-            showToast(err.message || 'Failed to record sale', 'error');
+        } catch (err) {
+            showToast(errorMessage(err, 'Failed to record sale'), 'error');
         }
     };
 
-    const handleCheckout = async (paidWithCash: boolean) => {
+    /** Sells the cart line by line; each line leaves the cart once sold, so a retry never sells it twice. */
+    const handleCheckout = async (paidCash: boolean) => {
+        setCheckoutPaidCash(null);
+        let sold = 0;
         try {
-            for (const cartEntry of cart) {
-                await createSoldItem({
-                    itemId: cartEntry.item.id!,
-                    finalSellPrice: cartEntry.finalSellPrice,
-                    quantity: cartEntry.quantityToSell,
-                    priceVariableName: cartEntry.priceVariableName,
-                    isCustomPrice: cartEntry.isCustomPrice,
-                    paidWithCash,
-                });
+            for (const entry of cart) {
+                await sell(entry, paidCash);
+                sold++;
+                setCart((prevCart) => prevCart.filter((line) => line !== entry));
             }
-            setCart([]);
             setShowCart(false);
-            setCheckoutConfirmData(null);
-            await fetchInventory();
-            showToast(`Checkout successful — ${cart.length} item(s) sold`);
-        } catch (err: any) {
-            showToast(err.message || 'Checkout failed', 'error');
+            showToast(`Checkout successful — ${sold} item(s) sold`);
+        } catch (err) {
+            showToast(`${errorMessage(err, 'Checkout failed')} (${sold} of ${cart.length} sold)`, 'error');
+        } finally {
+            await page.reload();
         }
     };
 
-    const getCurrentUserRole = () => {
-        if (!inventory || !session?.user) return 'viewer';
-        return (
-            inventory.users?.find((member) => member.user.id === session.user.id)?.role || 'viewer'
+    const updateCart = (itemId: number | undefined, update: (entry: CartItem) => CartItem | null) =>
+        setCart((prevCart) =>
+            prevCart.flatMap((entry) => {
+                if (entry.item.id !== itemId) return [entry];
+                const next = update(entry);
+                return next ? [next] : [];
+            }),
         );
-    };
-
-    if (isLoading)
-        return (
-            <>
-                <Header />
-                <LoadingScreen />
-            </>
-        );
-    if (fetchError)
-        return (
-            <>
-                <Header />
-                <ErrorScreen message={fetchError} onRetry={fetchInventory} />
-            </>
-        );
-    if (!inventory)
-        return (
-            <>
-                <Header />
-                <ErrorScreen message="Inventory not found" />
-            </>
-        );
-
-    const currentUserRole = getCurrentUserRole();
-    const canEdit = currentUserRole === 'owner' || currentUserRole === 'editor';
-    const isOwner = currentUserRole === 'owner';
 
     return (
-        <>
-            <Header />
-            <Toast toast={toast} />
+        <InventoryPageLayout page={page} activeTab="overview" toast={toast}>
+            {(inventory) => (
+                <>
+                    {checkoutPaidCash !== null && (
+                        <ConfirmDialog
+                            title="Confirm checkout?"
+                            description={`Sell ${cart.length} item(s) from cart?`}
+                            confirmLabel="Checkout"
+                            onConfirm={() => handleCheckout(checkoutPaidCash)}
+                            onCancel={() => setCheckoutPaidCash(null)}
+                        />
+                    )}
 
-            {checkoutConfirmData && (
-                <ConfirmDialog
-                    title="Confirm checkout?"
-                    description={`Sell ${cart.length} item(s) from cart?`}
-                    confirmLabel="Checkout"
-                    onConfirm={() => handleCheckout(checkoutConfirmData.paidWithCash)}
-                    onCancel={() => setCheckoutConfirmData(null)}
-                />
+                    {page.canEdit && (
+                        <div className="flex justify-end mb-4">
+                            <button
+                                onClick={() => setShowCart(true)}
+                                className="relative px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                            >
+                                🛒 Cart{' '}
+                                {cart.length > 0 && (
+                                    <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-2">
+                                        {cart.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    <ItemsGrid items={inventory.items || []} canEdit={page.canEdit} onSell={handleSellItem} />
+
+                    {sellModal && (
+                        <SellModal
+                            sellModal={sellModal}
+                            priceVariables={sellModal.item.priceVariables || []}
+                            onClose={() => setSellModal(null)}
+                            onAddToCart={handleAddToCart}
+                            onBuyNow={handleBuyNow}
+                            onChange={setSellModal}
+                        />
+                    )}
+
+                    {showCart && (
+                        <CartSidebar
+                            cart={cart}
+                            onClose={() => setShowCart(false)}
+                            onRemoveItem={(itemId) => updateCart(itemId, () => null)}
+                            onUpdateQuantity={(itemId, quantityToSell) =>
+                                updateCart(itemId, (entry) => ({ ...entry, quantityToSell }))
+                            }
+                            onCheckout={setCheckoutPaidCash}
+                        />
+                    )}
+                </>
             )}
-
-            <div className="container mx-auto px-4 py-8">
-                <Link
-                    href="/inventory"
-                    className="text-blue-600 hover:text-blue-800 mb-4 inline-block"
-                >
-                    ← Back to Inventories
-                </Link>
-
-                <InventoryHeader
-                    inventory={inventory}
-                    role={currentUserRole}
-                    canEdit={canEdit}
-                    isOwner={isOwner}
-                    activeTab="overview"
-                    onManageUsers={() => setShowManageUsersModal(true)}
-                />
-
-                {canEdit && (
-                    <div className="flex justify-end mb-4">
-                        <button
-                            onClick={() => setShowCart(true)}
-                            className="relative px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                        >
-                            🛒 Cart{' '}
-                            {cart.length > 0 && (
-                                <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-2">
-                                    {cart.length}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                )}
-
-                <ItemsGrid
-                    items={inventory.items || []}
-                    canEdit={canEdit}
-                    onSell={handleSellItem}
-                />
-            </div>
-
-            {sellModal && (
-                <SellModal
-                    sellModal={sellModal}
-                    priceVariables={sellModal.item.priceVariables || []}
-                    onClose={() => setSellModal(null)}
-                    onAddToCart={handleAddToCart}
-                    onBuyNow={handleBuyNow}
-                    onChange={setSellModal}
-                />
-            )}
-
-            {showCart && (
-                <CartSidebar
-                    cart={cart}
-                    onClose={() => setShowCart(false)}
-                    onRemoveItem={(itemId) =>
-                        setCart((prevCart) =>
-                            prevCart.filter((cartEntry) => cartEntry.item.id !== itemId),
-                        )
-                    }
-                    onUpdateQuantity={(itemId, newQuantity) =>
-                        setCart((prevCart) =>
-                            prevCart.map((cartEntry) =>
-                                cartEntry.item.id === itemId
-                                    ? { ...cartEntry, quantityToSell: newQuantity }
-                                    : cartEntry,
-                            ),
-                        )
-                    }
-                    onCheckout={(paidWithCash) => setCheckoutConfirmData({ paidWithCash })}
-                />
-            )}
-
-            {showManageUsersModal && (
-                <ManageUsersModal
-                    inventoryId={Number(inventoryIdParam)}
-                    isOwner={isOwner}
-                    onClose={() => {
-                        setShowManageUsersModal(false);
-                        void fetchInventory();
-                    }}
-                />
-            )}
-        </>
+        </InventoryPageLayout>
     );
 };
 

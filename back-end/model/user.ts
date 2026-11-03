@@ -1,5 +1,7 @@
 import { User as UserPrisma } from '@prisma/client';
-import { Role } from '../types';
+import { createError } from '../util/errors';
+
+export type Role = 'admin' | 'user' | 'guest';
 
 export class User {
     private id?: string;
@@ -18,9 +20,7 @@ export class User {
     }
 
     getId(): string {
-        if (this.id === undefined) {
-            throw new Error('User ID is undefined');
-        }
+        if (this.id === undefined) throw new Error('User ID is undefined');
         return this.id;
     }
 
@@ -40,14 +40,9 @@ export class User {
         return this.role;
     }
 
-    validate(user: { id?: string; name: string; email: string; role?: Role; age?: number }) {
-        if (!user.name?.trim()) {
-            throw new Error('Username is required');
-        }
-
-        if (!user.email?.trim()) {
-            throw new Error('Email is required');
-        }
+    private validate(user: { name: string; email: string }) {
+        if (!user.name?.trim()) throw createError.badRequest('Username is required');
+        if (!user.email?.trim()) throw createError.badRequest('Email is required');
     }
 
     equals(user: User): boolean {
@@ -60,12 +55,6 @@ export class User {
     }
 
     static from({ id, email, name, role, age }: UserPrisma): User {
-        return new User({
-            id,
-            email,
-            name,
-            role: role ? (role as Role) : undefined,
-            age: age ?? undefined,
-        });
+        return new User({ id, email, name, role: (role as Role) || undefined, age: age ?? undefined });
     }
 }

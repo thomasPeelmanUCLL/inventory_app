@@ -1,3 +1,6 @@
+export type InventoryRole = 'owner' | 'editor' | 'viewer';
+export type PriceVariableType = 'PERCENTAGE' | 'FIXED';
+
 export interface User {
     id: string;
     email: string;
@@ -37,7 +40,7 @@ export interface SoldItem {
     priceVariableName?: string;
     isCustomPrice?: boolean;
     quantity: number;
-    payedCash: boolean;
+    paidCash: boolean;
     soldAt: Date;
     item?: Item;
 }
@@ -48,7 +51,7 @@ export type PriceVariable = {
     id: number;
     name: string;
     value: number;
-    type: 'PERCENTAGE' | 'FIXED';
+    type: PriceVariableType;
     isDefault: boolean;
     itemId: number;
     createdAt?: string;
@@ -61,7 +64,9 @@ export type Inventory = {
     description: string;
     items: Item[];
     users?: Array<{
-        role: string;
+        id: number;
+        userId: string;
+        role: InventoryRole;
         user: {
             id: string;
             name: string;
@@ -75,7 +80,7 @@ export type Inventory = {
 export interface InventoryUser {
     userId: string;
     inventoryId: number;
-    role: 'owner' | 'editor' | 'viewer';
+    role: InventoryRole;
     user?: User;
     addedAt?: Date;
 }

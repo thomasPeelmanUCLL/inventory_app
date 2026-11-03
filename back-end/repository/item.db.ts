@@ -1,145 +1,74 @@
+import { Prisma } from '@prisma/client';
+import database from './database';
 import { Item } from '../model/item';
-import { Item as ItemPrisma, PriceVariable as PriceVariablePrisma } from '@prisma/client';
-import { BaseRepository } from './base.repository';
 
-type ItemWithPriceVariables = ItemPrisma & {
-    priceVariables?: PriceVariablePrisma[];
+const withPriceVariables = { priceVariables: true } as const;
+
+const toData = (item: Item) => ({
+    name: item.getName(),
+    description: item.getDescription(),
+    buyPrice: item.getBuyPrice(),
+    quantity: item.getQuantity(),
+    buyedAt: item.getBuyedAt(),
+    inventoryId: item.getInventoryId(),
+    websiteCategory: item.getWebsiteCategory(),
+    websiteEmoji: item.getWebsiteEmoji(),
+    websiteSortOrder: item.getWebsiteSortOrder(),
+    memberPrice: item.getMemberPrice(),
+    nonMemberPrice: item.getNonMemberPrice(),
+    publishedToWebsite: item.getPublishedToWebsite(),
+});
+
+const getItemById = async ({ id }: { id: number }): Promise<Item | null> => {
+    const item = await database.item.findUnique({ where: { id }, include: withPriceVariables });
+    return item ? Item.from(item) : null;
 };
 
-class ItemRepository extends BaseRepository<Item, ItemPrisma> {
-    protected entityName = 'item';
+const getItemsByInventoryIds = async ({ inventoryIds }: { inventoryIds: number[] }): Promise<Item[]> => {
+    if (inventoryIds.length === 0) return [];
+    const items = await database.item.findMany({
+        where: { inventoryId: { in: inventoryIds } },
+        include: withPriceVariables,
+        orderBy: [{ inventoryId: 'asc' }, { name: 'asc' }],
+    });
+    return items.map(Item.from);
+};
 
-    protected fromPrisma(prismaEntity: ItemWithPriceVariables): Item {
-        return Item.from(prismaEntity);
-    }
+const getItemsByInventoryId = ({ inventoryId }: { inventoryId: number }) =>
+    getItemsByInventoryIds({ inventoryIds: [inventoryId] });
 
-    protected getEntityId(entity: Item): number {
-        return entity.getId();
-    }
+const createItem = async (
+    item: Item,
+    priceVariables: Array<Omit<Prisma.PriceVariableCreateManyItemInput, 'id'>> = [],
+): Promise<Item> => {
+    const created = await database.item.create({
+        data: {
+            ...toData(item),
+            ...(priceVariables.length > 0 && { priceVariables: { create: priceVariables } }),
+        },
+        include: withPriceVariables,
+    });
+    return Item.from(created);
+};
 
-    async getAllItems(): Promise<Item[]> {
-        return this.findMany({
-            include: {
-                priceVariables: true,
-            },
-        });
-    }
+const updateItem = async (item: Item): Promise<Item> => {
+    const updated = await database.item.update({
+        where: { id: item.getId() },
+        data: toData(item),
+        include: withPriceVariables,
+    });
+    return Item.from(updated);
+};
 
-    async getItemById({ id }: { id: number }): Promise<Item | null> {
-        return this.findUnique({
-            where: { id },
-            include: {
-                priceVariables: true,
-            },
-        });
-    }
-
-    async getItemsByInventoryId({ inventoryId }: { inventoryId: number }): Promise<Item[]> {
-        return this.findMany({
-            where: { inventoryId },
-            include: {
-                priceVariables: true,
-            },
-            orderBy: {
-                name: 'asc',
-            },
-        });
-    }
-
-    // NEW: Bulk query to prevent N+1 queries when fetching items from multiple inventories
-    async getItemsByInventoryIds({ inventoryIds }: { inventoryIds: number[] }): Promise<Item[]> {
-        if (inventoryIds.length === 0) return [];
-
-        return this.findMany({
-            where: {
-                inventoryId: {
-                    in: inventoryIds,
-                },
-            },
-            include: {
-                priceVariables: true,
-            },
-            orderBy: [{ inventoryId: 'asc' }, { name: 'asc' }],
-        });
-    }
-
-    async createItem(item: Item, priceVariables?: any[]): Promise<Item> {
-        const data: any = {
-            name: item.getName(),
-            description: item.getDescription(),
-            buyPrice: item.getBuyPrice(),
-            quantity: item.getQuantity(),
-            buyedAt: item.getBuyedAt(),
-            inventoryId: item.getInventoryId(),
-            websiteCategory: item.getWebsiteCategory() ?? null,
-            websiteEmoji: item.getWebsiteEmoji() ?? null,
-            websiteSortOrder: item.getWebsiteSortOrder(),
-            memberPrice: item.getMemberPrice() ?? null,
-            nonMemberPrice: item.getNonMemberPrice() ?? null,
-            publishedToWebsite: item.getPublishedToWebsite(),
-        };
-
-        // Add price variables if provided
-        if (priceVariables && priceVariables.length > 0) {
-            data.priceVariables = {
-                create: priceVariables.map((pv) => ({
-                    name: pv.name,
-                    value: pv.value,
-                    type: pv.type,
-                    isDefault: pv.isDefault ?? false,
-                })),
-            };
-        }
-
-        return this.create(data, {
-            include: {
-                priceVariables: true,
-            },
-        });
-    }
-
-    async updateItem(item: Item): Promise<Item> {
-        const data = {
-            name: item.getName(),
-            description: item.getDescription(),
-            buyPrice: item.getBuyPrice(),
-            quantity: item.getQuantity(),
-            buyedAt: item.getBuyedAt(),
-            inventoryId: item.getInventoryId(),
-            websiteCategory: item.getWebsiteCategory() ?? null,
-            websiteEmoji: item.getWebsiteEmoji() ?? null,
-            websiteSortOrder: item.getWebsiteSortOrder(),
-            memberPrice: item.getMemberPrice() ?? null,
-            nonMemberPrice: item.getNonMemberPrice() ?? null,
-            publishedToWebsite: item.getPublishedToWebsite(),
-        };
-
-        const result = await this.update(item, data, {
-            include: {
-                priceVariables: true,
-            },
-        });
-
-        if (!result) {
-            throw new Error(`Failed to update item with ID: ${item.getId()}`);
-        }
-
-        return result;
-    }
-
-    async deleteItem({ id }: { id: number }): Promise<void> {
-        return this.delete(id);
-    }
-}
-
-const itemRepository = new ItemRepository();
+const deleteItem = async ({ id }: { id: number }): Promise<void> => {
+    await database.item.delete({ where: { id } });
+};
 
 export default {
-    getAllItems: itemRepository.getAllItems.bind(itemRepository),
-    getItemById: itemRepository.getItemById.bind(itemRepository),
-    getItemsByInventoryId: itemRepository.getItemsByInventoryId.bind(itemRepository),
-    getItemsByInventoryIds: itemRepository.getItemsByInventoryIds.bind(itemRepository), // NEW
-    createItem: itemRepository.createItem.bind(itemRepository),
-    updateItem: itemRepository.updateItem.bind(itemRepository),
-    deleteItem: itemRepository.deleteItem.bind(itemRepository),
+    getItemById,
+    getItemsByInventoryId,
+    getItemsByInventoryIds,
+    createItem,
+    updateItem,
+    deleteItem,
 };

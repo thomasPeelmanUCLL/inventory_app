@@ -1,37 +1,24 @@
-import { PrismaClient } from '@prisma/client';
+import database from './database';
 import { User } from '../model/user';
 
-const prisma = new PrismaClient();
-
 const getAllUsers = async (): Promise<User[]> => {
-    const users = await prisma.user.findMany();
-    return users.map((user) => User.from(user));
+    const users = await database.user.findMany({ orderBy: { name: 'asc' } });
+    return users.map(User.from);
 };
 
 const getUserById = async ({ id }: { id: string }): Promise<User | null> => {
-    const userPrisma = await prisma.user.findUnique({
-        where: { id },
-    });
-    return userPrisma ? User.from(userPrisma) : null;
+    const user = await database.user.findUnique({ where: { id } });
+    return user ? User.from(user) : null;
 };
 
 const getUserByName = async ({ name }: { name: string }): Promise<User | null> => {
-    const userPrisma = await prisma.user.findFirst({
-        where: { name },
-    });
-    return userPrisma ? User.from(userPrisma) : null;
+    const user = await database.user.findFirst({ where: { name } });
+    return user ? User.from(user) : null;
 };
 
 const getUserByEmail = async ({ email }: { email: string }): Promise<User | null> => {
-    const userPrisma = await prisma.user.findUnique({
-        where: { email },
-    });
-    return userPrisma ? User.from(userPrisma) : null;
+    const user = await database.user.findUnique({ where: { email } });
+    return user ? User.from(user) : null;
 };
 
-export default {
-    getAllUsers,
-    getUserById,
-    getUserByName,
-    getUserByEmail,
-};
+export default { getAllUsers, getUserById, getUserByName, getUserByEmail };

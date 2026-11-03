@@ -52,45 +52,24 @@
  *           format: int64
  */
 
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import priceVariableService from '../service/priceVariable.service';
-import { requireAuth } from '../middleware/auth.middleware';
+import { currentUserId, requireAuth } from '../middleware/auth.middleware';
+import {
+    asyncHandler,
+    idParam,
+    itemIdParam,
+    priceVariableInput,
+    priceVariableUpdateInput,
+    validateBody,
+    validateParams,
+} from '../util/validators';
 import { priceVariableToDTO, priceVariablesToDTO } from '../dto/priceVariable.dto';
 
 const priceVariableRouter = express.Router();
 
-// Apply auth middleware to all price variable routes
+// Every route checks the caller's role on the inventory the price variable's item belongs to
 priceVariableRouter.use(requireAuth);
-
-/**
- * @swagger
- * /priceVariables:
- *   get:
- *     summary: Get all price variables
- *     tags:
- *       - Price Variables
- *     security:
- *       - betterAuth: []
- *     responses:
- *       200:
- *         description: A list of price variables
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/PriceVariable'
- *       401:
- *         description: User not authenticated
- */
-priceVariableRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const priceVariables = await priceVariableService.getAllPriceVariables();
-        res.status(200).json(priceVariablesToDTO(priceVariables));
-    } catch (error) {
-        next(error);
-    }
-});
 
 /**
  * @swagger
@@ -122,16 +101,14 @@ priceVariableRouter.get('/', async (req: Request, res: Response, next: NextFunct
  */
 priceVariableRouter.get(
     '/item/:itemId',
-    async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            const priceVariables = await priceVariableService.getPriceVariablesByItemId({
-                itemId: Number(req.params.itemId),
-            });
-            res.status(200).json(priceVariablesToDTO(priceVariables));
-        } catch (error) {
-            next(error);
-        }
-    },
+    validateParams(itemIdParam),
+    asyncHandler(async (req, res) => {
+        const priceVariables = await priceVariableService.getPriceVariablesByItemId(
+            Number(req.params.itemId),
+            currentUserId(req),
+        );
+        res.json(priceVariablesToDTO(priceVariables));
+    }),
 );
 
 /**
@@ -161,16 +138,17 @@ priceVariableRouter.get(
  *       404:
  *         description: Price variable not found
  */
-priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const priceVariable = await priceVariableService.getPriceVariableById({
-            id: Number(req.params.id),
-        });
-        res.status(200).json(priceVariableToDTO(priceVariable));
-    } catch (error) {
-        next(error);
-    }
-});
+priceVariableRouter.get(
+    '/:id',
+    validateParams(idParam),
+    asyncHandler(async (req, res) => {
+        const priceVariable = await priceVariableService.getPriceVariableById(
+            Number(req.params.id),
+            currentUserId(req),
+        );
+        res.json(priceVariableToDTO(priceVariable));
+    }),
+);
 
 /**
  * @swagger
@@ -199,21 +177,14 @@ priceVariableRouter.get('/:id', async (req: Request, res: Response, next: NextFu
  *       401:
  *         description: User not authenticated
  */
-priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { name, itemId, value, type, isDefault } = req.body;
-        const priceVariable = await priceVariableService.createPriceVariable({
-            name,
-            value: Number(value),
-            type,
-            isDefault: Boolean(isDefault),
-            itemId: Number(itemId),
-        });
+priceVariableRouter.post(
+    '/',
+    validateBody(priceVariableInput),
+    asyncHandler(async (req, res) => {
+        const priceVariable = await priceVariableService.createPriceVariable(req.body, currentUserId(req));
         res.status(201).json(priceVariableToDTO(priceVariable));
-    } catch (error) {
-        next(error);
-    }
-});
+    }),
+);
 
 /**
  * @swagger
@@ -261,21 +232,19 @@ priceVariableRouter.post('/', async (req: Request, res: Response, next: NextFunc
  *       404:
  *         description: Price variable not found
  */
-priceVariableRouter.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { name, value, type, isDefault } = req.body;
-        const priceVariable = await priceVariableService.updatePriceVariable({
-            id: Number(req.params.id),
-            name,
-            value: value !== undefined ? Number(value) : undefined,
-            type,
-            isDefault: isDefault !== undefined ? Boolean(isDefault) : undefined,
-        });
-        res.status(200).json(priceVariableToDTO(priceVariable));
-    } catch (error) {
-        next(error);
-    }
-});
+priceVariableRouter.put(
+    '/:id',
+    validateParams(idParam),
+    validateBody(priceVariableUpdateInput),
+    asyncHandler(async (req, res) => {
+        const priceVariable = await priceVariableService.updatePriceVariable(
+            Number(req.params.id),
+            req.body,
+            currentUserId(req),
+        );
+        res.json(priceVariableToDTO(priceVariable));
+    }),
+);
 
 /**
  * @swagger
@@ -300,13 +269,13 @@ priceVariableRouter.put('/:id', async (req: Request, res: Response, next: NextFu
  *       404:
  *         description: Price variable not found
  */
-priceVariableRouter.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        await priceVariableService.deletePriceVariable({ id: Number(req.params.id) });
+priceVariableRouter.delete(
+    '/:id',
+    validateParams(idParam),
+    asyncHandler(async (req, res) => {
+        await priceVariableService.deletePriceVariable(Number(req.params.id), currentUserId(req));
         res.status(204).send();
-    } catch (error) {
-        next(error);
-    }
-});
+    }),
+);
 
 export { priceVariableRouter };

@@ -1,52 +1,53 @@
-import inventoryDb from '../repository/inventory.db';
+import inventoryDB from '../repository/inventory.db';
+import userDB from '../repository/user.db';
 import { Inventory } from '../model/inventory';
+import { createError } from '../util/errors';
+import { requireInventoryRole } from './access.service';
+import type { InventoryRole } from '../util/validators';
 
-const getAllInventorys = async (): Promise<Inventory[]> => {
-    return await inventoryDb.getAllInventorys();
-};
+const getInventoriesByUserId = (userId: string) => inventoryDB.getInventoriesByUserId({ userId });
 
-const getInventoriesByUserId = async (userId: string): Promise<Inventory[]> => {
-    return await inventoryDb.getInventoriesByUserId({ userId });
-};
-
-const getInventoryById = async (id: number): Promise<Inventory> => {
-    const inventory = await inventoryDb.getInventoryById({ id });
-    if (!inventory) {
-        throw new Error(`Inventory with id ${id} does not exist.`);
-    }
+const getInventoryById = async (id: number, userId: string): Promise<Inventory> => {
+    await requireInventoryRole(userId, id, 'read');
+    const inventory = await inventoryDB.getInventoryById({ id });
+    if (!inventory) throw createError.notFound('Inventory not found');
     return inventory;
 };
 
-const createInventory = async (inventory: Inventory, ownerId: string): Promise<Inventory> => {
-    return await inventoryDb.createInventory(inventory, ownerId);
+const createInventory = (data: { name: string; description: string }, ownerId: string) =>
+    inventoryDB.createInventory(new Inventory(data), ownerId);
+
+const updateInventory = async (
+    id: number,
+    data: { name?: string; description?: string },
+    userId: string,
+): Promise<Inventory> => {
+    await requireInventoryRole(userId, id, 'write');
+    return inventoryDB.updateInventory({ id, ...data });
 };
 
 const deleteInventory = async (id: number, userId: string): Promise<void> => {
-    const role = await inventoryDb.checkUserAccess({ userId, inventoryId: id });
-    if (role !== 'owner') {
-        throw new Error('Only owners can delete inventories');
-    }
-    await inventoryDb.deleteInventory({ id });
+    await requireInventoryRole(userId, id, 'owner');
+    await inventoryDB.deleteInventory({ id });
 };
 
-const checkUserAccess = async (userId: string, inventoryId: number): Promise<string | null> => {
-    return await inventoryDb.checkUserAccess({ userId, inventoryId });
+const getInventoryUsers = async (inventoryId: number, userId: string) => {
+    await requireInventoryRole(userId, inventoryId, 'read');
+    return inventoryDB.getInventoryUsers({ inventoryId });
 };
 
+/** Adds a member, identified by email (what the UI sends) or user id. */
 const addUserToInventory = async (
-    userId: string,
     inventoryId: number,
-    role: string,
+    member: { email?: string; userId?: string; role: InventoryRole },
     requestingUserId: string,
 ): Promise<void> => {
-    const requestingUserRole = await inventoryDb.checkUserAccess({
-        userId: requestingUserId,
-        inventoryId,
-    });
-    if (requestingUserRole !== 'owner') {
-        throw new Error('Only owners can add users');
-    }
-    await inventoryDb.addUserToInventory({ userId, inventoryId, role });
+    await requireInventoryRole(requestingUserId, inventoryId, 'owner');
+    const user = member.userId
+        ? await userDB.getUserById({ id: member.userId })
+        : await userDB.getUserByEmail({ email: member.email! });
+    if (!user) throw createError.notFound('No registered user with that email');
+    await inventoryDB.addUserToInventory({ userId: user.getId(), inventoryId, role: member.role });
 };
 
 const removeUserFromInventory = async (
@@ -54,58 +55,18 @@ const removeUserFromInventory = async (
     inventoryId: number,
     requestingUserId: string,
 ): Promise<void> => {
-    const requestingUserRole = await inventoryDb.checkUserAccess({
-        userId: requestingUserId,
-        inventoryId,
-    });
-    if (requestingUserRole !== 'owner') {
-        throw new Error('Only owners can remove users');
-    }
-    if (userId === requestingUserId) {
-        throw new Error('Cannot remove yourself as owner');
-    }
-    await inventoryDb.removeUserFromInventory({ userId, inventoryId });
-};
-
-const getInventoryUsers = async (inventoryId: number, requestingUserId: string) => {
-    const role = await inventoryDb.checkUserAccess({
-        userId: requestingUserId,
-        inventoryId,
-    });
-    if (!role) {
-        throw new Error('Access denied');
-    }
-    return await inventoryDb.getInventoryUsers({ inventoryId });
-};
-
-const updateInventory = async (
-    id: number,
-    data: { name: string; description: string },
-    requestingUserId: string,
-): Promise<Inventory> => {
-    const role = await inventoryDb.checkUserAccess({
-        userId: requestingUserId,
-        inventoryId: id,
-    });
-    if (role !== 'owner' && role !== 'editor') {
-        throw new Error('Only owners and editors can update inventories');
-    }
-    return await inventoryDb.updateInventory({
-        id,
-        name: data.name,
-        description: data.description,
-    });
+    await requireInventoryRole(requestingUserId, inventoryId, 'owner');
+    if (userId === requestingUserId) throw createError.badRequest('Cannot remove yourself as owner');
+    await inventoryDB.removeUserFromInventory({ userId, inventoryId });
 };
 
 export default {
-    getAllInventorys,
     getInventoriesByUserId,
     getInventoryById,
     createInventory,
+    updateInventory,
     deleteInventory,
-    checkUserAccess,
+    getInventoryUsers,
     addUserToInventory,
     removeUserFromInventory,
-    getInventoryUsers,
-    updateInventory,
 };

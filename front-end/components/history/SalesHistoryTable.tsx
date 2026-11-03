@@ -97,12 +97,12 @@ export default function SalesHistoryTable({
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                         <span
                                             className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                                sale.payedCash
+                                                sale.paidCash
                                                     ? 'bg-green-100 text-green-800'
                                                     : 'bg-blue-100 text-blue-800'
                                             }`}
                                         >
-                                            {sale.payedCash ? 'Cash' : 'Card'}
+                                            {sale.paidCash ? 'Cash' : 'Card'}
                                         </span>
                                     </td>
                                     {canEdit && (

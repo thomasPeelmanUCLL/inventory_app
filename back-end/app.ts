@@ -13,7 +13,7 @@ import { integrationRouter } from './controller/integration.routes';
 import { auth } from './lib/auth';
 import { toNodeHandler } from 'better-auth/node';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
-import { requestTimer, checkDatabase, checkReadiness, addRequestId, logRequest } from './util/ops';
+import { checkDatabase, checkReadiness, addRequestId, logRequest } from './util/ops';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -76,7 +76,6 @@ app.use(
 app.set('trust proxy', 1);
 app.use(addRequestId);
 app.use(logRequest);
-app.use(requestTimer);
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -178,7 +177,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use(
-    ['/users', '/inventorys', '/items', '/soldItems', '/priceVariables'],
+    ['/users', '/inventorys', '/items', '/soldItems', '/priceVariables', '/integrations'],
     readLimiter,
     writeLimiter,
 );

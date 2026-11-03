@@ -65,11 +65,17 @@
  *       enum: [admin, user, guest]
  *       description: User role in the system
  */
-import express, { NextFunction, Request, Response } from 'express';
+
+import express from 'express';
 import userService from '../service/user.service';
+import { requireAuth } from '../middleware/auth.middleware';
+import { asyncHandler } from '../util/validators';
 import { userToDTO, usersToDTO } from '../dto/user.dto';
 
 const userRouter = express.Router();
+
+// These expose names and emails, so signed-in users only
+userRouter.use(requireAuth);
 
 /**
  * @swagger
@@ -97,32 +103,17 @@ const userRouter = express.Router();
  *               items:
  *                 $ref: '#/components/schemas/User'
  */
-userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
-    try {
+userRouter.get(
+    '/',
+    asyncHandler(async (req, res) => {
         const { email } = req.query;
-
         if (email) {
-            const user = await userService.getUserByEmail({ email: String(email) });
-            res.status(200).json([userToDTO(user)]);
+            res.json([userToDTO(await userService.getUserByEmail({ email: String(email) }))]);
         } else {
-            const users = await userService.getAllUsers();
-            res.status(200).json(usersToDTO(users || []));
+            res.json(usersToDTO(await userService.getAllUsers()));
         }
-    } catch (error) {
-        console.error('Error fetching users:', error);
-        if (error instanceof Error && error.message.includes('does not exist')) {
-            res.status(404).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            });
-        } else {
-            res.status(500).json({
-                error: 'Internal server error',
-                timestamp: new Date().toISOString(),
-            });
-        }
-    }
-});
+    }),
+);
 
 /**
  * @swagger
@@ -148,25 +139,12 @@ userRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
  *       404:
  *         description: User not found
  */
-userRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const user = await userService.getUserByName({ name: req.params.name });
-        res.status(200).json(userToDTO(user));
-    } catch (error) {
-        console.error('Error fetching user by name:', error);
-        if (error instanceof Error && error.message.includes('does not exist')) {
-            res.status(404).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            });
-        } else {
-            res.status(500).json({
-                error: 'Internal server error',
-                timestamp: new Date().toISOString(),
-            });
-        }
-    }
-});
+userRouter.get(
+    '/name/:name',
+    asyncHandler(async (req, res) => {
+        res.json(userToDTO(await userService.getUserByName({ name: req.params.name })));
+    }),
+);
 
 /**
  * @swagger
@@ -192,24 +170,11 @@ userRouter.get('/name/:name', async (req: Request, res: Response, next: NextFunc
  *       404:
  *         description: User not found
  */
-userRouter.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const user = await userService.getUserById({ id: req.params.id });
-        res.status(200).json(userToDTO(user));
-    } catch (error) {
-        console.error('Error fetching user by ID:', error);
-        if (error instanceof Error && error.message.includes('does not exist')) {
-            res.status(404).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            });
-        } else {
-            res.status(500).json({
-                error: 'Internal server error',
-                timestamp: new Date().toISOString(),
-            });
-        }
-    }
-});
+userRouter.get(
+    '/:id',
+    asyncHandler(async (req, res) => {
+        res.json(userToDTO(await userService.getUserById({ id: req.params.id })));
+    }),
+);
 
 export { userRouter };

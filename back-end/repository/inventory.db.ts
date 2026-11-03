@@ -1,247 +1,101 @@
-import { PrismaClient } from '@prisma/client';
+import database from './database';
 import { Inventory } from '../model/inventory';
+import type { InventoryRole } from '../util/validators';
 
-const prisma = new PrismaClient();
+const withMembers = {
+    users: { include: { user: { select: { id: true, name: true, email: true } } } },
+} as const;
+const withItemsAndMembers = { items: { include: { priceVariables: true } }, ...withMembers } as const;
 
-// Get all inventories for a specific user
+/** The list view only needs names and roles, not every item. */
 const getInventoriesByUserId = async ({ userId }: { userId: string }): Promise<Inventory[]> => {
-    const inventories = await prisma.inventory.findMany({
-        where: {
-            users: {
-                some: {
-                    userId: userId,
-                },
-            },
-        },
-        include: {
-            items: {
-                include: {
-                    priceVariables: true,
-                },
-            },
-            users: {
-                include: {
-                    user: true,
-                },
-            },
-        },
+    const inventories = await database.inventory.findMany({
+        where: { users: { some: { userId } } },
+        include: withMembers,
+        orderBy: { name: 'asc' },
     });
-    return inventories.map((inv) => Inventory.from(inv));
-};
-
-const getAllInventorys = async (): Promise<Inventory[]> => {
-    const inventorys = await prisma.inventory.findMany({
-        include: {
-            items: {
-                include: {
-                    priceVariables: true,
-                },
-            },
-        },
-    });
-    return inventorys.map((inventory) => Inventory.from(inventory));
+    return inventories.map(Inventory.from);
 };
 
 const getInventoryById = async ({ id }: { id: number }): Promise<Inventory | null> => {
-    const inventoryPrisma = await prisma.inventory.findUnique({
+    const inventory = await database.inventory.findUnique({
         where: { id },
         include: {
-            items: {
-                include: {
-                    priceVariables: true,
-                },
-            },
-            users: {
-                include: {
-                    user: true,
-                },
-            },
+            ...withMembers,
+            items: { include: { priceVariables: true }, orderBy: { name: 'asc' } },
         },
     });
-    return inventoryPrisma ? Inventory.from(inventoryPrisma) : null;
+    return inventory ? Inventory.from(inventory) : null;
 };
 
 const createInventory = async (inventory: Inventory, ownerId: string): Promise<Inventory> => {
-    const inventoryPrisma = await prisma.inventory.create({
+    const created = await database.inventory.create({
         data: {
             name: inventory.getName(),
             description: inventory.getDescription(),
-            users: {
-                create: {
-                    userId: ownerId,
-                    role: 'owner',
-                },
-            },
+            users: { create: { userId: ownerId, role: 'owner' } },
         },
-        include: {
-            items: {
-                include: {
-                    priceVariables: true,
-                },
-            },
-            users: {
-                include: {
-                    user: true,
-                },
-            },
-        },
+        include: withItemsAndMembers,
     });
-    return Inventory.from(inventoryPrisma);
-};
-
-const deleteInventory = async ({ id }: { id: number }): Promise<void> => {
-    await prisma.inventory.delete({
-        where: { id },
-    });
-};
-
-// Check if user has access to inventory
-const checkUserAccess = async ({
-    userId,
-    inventoryId,
-}: {
-    userId: string;
-    inventoryId: number;
-}): Promise<string | null> => {
-    const access = await prisma.inventoryUser.findUnique({
-        where: {
-            userId_inventoryId: {
-                userId,
-                inventoryId,
-            },
-        },
-    });
-    return access ? access.role : null;
-};
-
-// Add user to inventory
-const addUserToInventory = async ({
-    userId,
-    inventoryId,
-    role,
-}: {
-    userId: string;
-    inventoryId: number;
-    role: string;
-}): Promise<void> => {
-    await prisma.inventoryUser.create({
-        data: {
-            userId,
-            inventoryId,
-            role,
-        },
-    });
-};
-
-// Remove user from inventory
-const removeUserFromInventory = async ({
-    userId,
-    inventoryId,
-}: {
-    userId: string;
-    inventoryId: number;
-}): Promise<void> => {
-    await prisma.inventoryUser.delete({
-        where: {
-            userId_inventoryId: {
-                userId,
-                inventoryId,
-            },
-        },
-    });
+    return Inventory.from(created);
 };
 
 const updateInventory = async ({
     id,
-    name,
-    description,
+    ...data
 }: {
     id: number;
-    name: string;
-    description: string;
+    name?: string;
+    description?: string;
 }): Promise<Inventory> => {
-    const inventoryPrisma = await prisma.inventory.update({
-        where: { id },
-        data: {
-            name,
-            description,
-        },
-        include: {
-            items: {
-                include: {
-                    priceVariables: true,
-                },
-            },
-            users: {
-                include: {
-                    user: true,
-                },
-            },
-        },
-    });
-    return Inventory.from(inventoryPrisma);
+    const updated = await database.inventory.update({ where: { id }, data, include: withItemsAndMembers });
+    return Inventory.from(updated);
 };
 
-// Get users with access to inventory
-const getInventoryUsers = async ({ inventoryId }: { inventoryId: number }) => {
-    return await prisma.inventoryUser.findMany({
-        where: { inventoryId },
-        include: {
-            user: true,
-        },
-    });
+const deleteInventory = async ({ id }: { id: number }): Promise<void> => {
+    await database.inventory.delete({ where: { id } });
 };
 
-// Authorization helper functions
-const userHasAccess = async ({
+/** The user's role in the inventory, or null when they are not a member. */
+const getUserRole = async ({
     userId,
     inventoryId,
 }: {
     userId: string;
     inventoryId: number;
-}): Promise<boolean> => {
-    const access = await prisma.inventoryUser.findUnique({
-        where: {
-            userId_inventoryId: {
-                userId,
-                inventoryId,
-            },
-        },
+}): Promise<InventoryRole | null> => {
+    const membership = await database.inventoryUser.findUnique({
+        where: { userId_inventoryId: { userId, inventoryId } },
+        select: { role: true },
     });
-    return !!access;
+    return (membership?.role as InventoryRole | undefined) ?? null;
 };
 
-const userHasAccessViaItem = async ({
-    userId,
-    itemId,
-}: {
-    userId: string;
-    itemId: number;
-}): Promise<boolean> => {
-    const item = await prisma.item.findUnique({
-        where: { id: itemId },
-        select: { inventoryId: true },
-    });
+const getInventoryIdOfItem = async ({ itemId }: { itemId: number }): Promise<number | null> => {
+    const item = await database.item.findUnique({ where: { id: itemId }, select: { inventoryId: true } });
+    return item?.inventoryId ?? null;
+};
 
-    if (!item?.inventoryId) {
-        return false;
-    }
+const getInventoryUsers = ({ inventoryId }: { inventoryId: number }) =>
+    database.inventoryUser.findMany({ where: { inventoryId }, ...withMembers.users });
 
-    return userHasAccess({ userId, inventoryId: item.inventoryId });
+const addUserToInventory = async (data: { userId: string; inventoryId: number; role: InventoryRole }) => {
+    await database.inventoryUser.create({ data });
+};
+
+const removeUserFromInventory = async ({ userId, inventoryId }: { userId: string; inventoryId: number }) => {
+    await database.inventoryUser.delete({ where: { userId_inventoryId: { userId, inventoryId } } });
 };
 
 export default {
-    getAllInventorys,
+    getInventoriesByUserId,
     getInventoryById,
     createInventory,
+    updateInventory,
     deleteInventory,
-    getInventoriesByUserId,
-    checkUserAccess,
+    getUserRole,
+    getInventoryIdOfItem,
+    getInventoryUsers,
     addUserToInventory,
     removeUserFromInventory,
-    getInventoryUsers,
-    updateInventory,
-    // Authorization helpers
-    userHasAccess,
-    userHasAccessViaItem,
 };
