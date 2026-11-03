@@ -46,7 +46,7 @@ spec:
                   key: POSTGRES_PASSWORD
       containers:
         - name: backend
-          image: ghcr.io/thomaspeelmanucll/inventory-backend:sha-2176e6758351e8b224c7ab5d24210c757bbabf43
+          image: ghcr.io/thomaspeelmanucll/inventory-backend:sha-665fc38ca0bd5c3729c48f97028a98239308a27b
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
