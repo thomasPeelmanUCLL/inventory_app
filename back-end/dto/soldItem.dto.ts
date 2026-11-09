@@ -1,3 +1,4 @@
+import { PaymentMethod } from '@prisma/client';
 import { SoldItem } from '../model/soldItem';
 import type { InventoryAnalytics } from '../service/analytics.service';
 
@@ -7,7 +8,7 @@ export interface SoldItemDTO {
     finalSellPrice: string;
     priceVariableName: string | null;
     isCustomPrice: boolean;
-    paidCash: boolean;
+    paymentMethod: PaymentMethod;
     quantity: number;
     soldAt: string;
     totalSellValue: string;
@@ -27,7 +28,7 @@ export function soldItemToDTO(soldItem: SoldItem): SoldItemDTO {
         finalSellPrice: soldItem.getFinalSellPrice().toString(),
         priceVariableName: soldItem.getPriceVariableName() ?? null,
         isCustomPrice: soldItem.getIsCustomPrice(),
-        paidCash: soldItem.isPaidCash(),
+        paymentMethod: soldItem.getPaymentMethod(),
         quantity,
         soldAt: soldItem.getSoldAt().toISOString(),
         totalSellValue: money(sellTotal),
@@ -62,7 +63,7 @@ const totalsToDTO = ({ totalBuyPrice, totalSellPrice, totalProfit }: Totals) => 
 /** Analytics with money as 2-decimal strings and derived averages/margins filled in. */
 export function analyticsToDTO(analytics: InventoryAnalytics) {
     const { summary, paymentMethodBreakdown: payment } = analytics;
-    const paymentToDTO = (p: typeof payment.cash) => ({
+    const paymentToDTO = (p: typeof payment.CASH) => ({
         buyPrice: money(p.buyPrice),
         sellPrice: money(p.sellPrice),
         profit: money(p.profit),
@@ -74,8 +75,6 @@ export function analyticsToDTO(analytics: InventoryAnalytics) {
             ...totalsToDTO(summary),
             totalQuantitySold: summary.totalQuantitySold,
             totalTransactions: summary.totalTransactions,
-            cashTransactions: summary.cashTransactions,
-            nonCashTransactions: summary.nonCashTransactions,
             averageProfit: ratio(summary.totalProfit, summary.totalTransactions),
             profitMargin: ratio(summary.totalProfit, summary.totalSellPrice, 100),
         },
@@ -101,7 +100,11 @@ export function analyticsToDTO(analytics: InventoryAnalytics) {
             transactionCount: day.transactionCount,
             averageTransactionValue: ratio(day.totalSellPrice, day.transactionCount),
         })),
-        paymentMethodBreakdown: { cash: paymentToDTO(payment.cash), nonCash: paymentToDTO(payment.nonCash) },
+        paymentMethodBreakdown: {
+            CASH: paymentToDTO(payment.CASH),
+            CARD: paymentToDTO(payment.CARD),
+            DRINK_CARD: paymentToDTO(payment.DRINK_CARD),
+        },
         priceVariableBreakdown: analytics.priceVariableBreakdown.map((pv) => ({
             priceVariableName: pv.priceVariableName,
             count: pv.count,

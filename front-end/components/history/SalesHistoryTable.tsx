@@ -1,4 +1,5 @@
 import { SoldItem } from '@types';
+import { PAYMENT_METHODS } from '../../lib/payment';
 
 type SalesHistoryTableProps = {
     sales: SoldItem[];
@@ -96,13 +97,9 @@ export default function SalesHistoryTable({
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                         <span
-                                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                                sale.paidCash
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-blue-100 text-blue-800'
-                                            }`}
+                                            className={`px-2 py-1 text-xs font-semibold rounded-full ${PAYMENT_METHODS[sale.paymentMethod].badge}`}
                                         >
-                                            {sale.paidCash ? 'Cash' : 'Card'}
+                                            {PAYMENT_METHODS[sale.paymentMethod].label}
                                         </span>
                                     </td>
                                     {canEdit && (

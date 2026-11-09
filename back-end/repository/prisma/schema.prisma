@@ -8,48 +8,48 @@ datasource db {
 }
 
 model User {
-  id               String            @id @default(cuid())
-  email            String            @unique
-  emailVerified    Boolean           @default(false)
-  name             String
-  role             String            @default("user")
-  age              Int               @default(0)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  sessions         Session[]
-  accounts         Account[]
-  inventories      InventoryUser[]
+  id            String          @id @default(cuid())
+  email         String          @unique
+  emailVerified Boolean         @default(false)
+  name          String
+  role          String          @default("user")
+  age           Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  inventories   InventoryUser[]
 
   @@map("users")
 }
 
 model Session {
-  id        String    @id
+  id        String   @id
   userId    String
   expiresAt DateTime
-  token     String    @unique
+  token     String   @unique
   ipAddress String?
   userAgent String?
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("sessions")
 }
 
 model Account {
-  id             String    @id @default(cuid())
-  userId         String
-  accountId      String
-  providerId     String
-  accessToken    String?
-  refreshToken   String?
-  idToken        String?
-  expiresAt      DateTime?
-  password       String?
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  userId       String
+  accountId    String
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+  expiresAt    DateTime?
+  password     String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([providerId, accountId])
   @@map("accounts")
@@ -67,11 +67,11 @@ model Verification {
 }
 
 model Inventory {
-  id          Int               @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   name        String
   description String
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   items       Item[]
   users       InventoryUser[]
 
@@ -110,40 +110,49 @@ model PriceVariable {
 }
 
 model Item {
-  id                 Int               @id @default(autoincrement())
+  id                 Int             @id @default(autoincrement())
   name               String
   description        String
-  buyPrice           Decimal           @db.Decimal(10, 2)
+  buyPrice           Decimal         @db.Decimal(10, 2)
   quantity           Int
   buyedAt            DateTime?
   inventoryId        Int?
-  inventory          Inventory?        @relation(fields: [inventoryId], references: [id])
+  inventory          Inventory?      @relation(fields: [inventoryId], references: [id])
   priceVariables     PriceVariable[]
   soldItems          SoldItem[]
   websiteCategory    String?
   websiteEmoji       String?
-  websiteSortOrder   Int               @default(0)
-  memberPrice        Decimal?          @db.Decimal(10, 2)
-  nonMemberPrice     Decimal?          @db.Decimal(10, 2)
-  publishedToWebsite Boolean           @default(false)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  websiteSortOrder   Int             @default(0)
+  memberPrice        Decimal?        @db.Decimal(10, 2)
+  nonMemberPrice     Decimal?        @db.Decimal(10, 2)
+  publishedToWebsite Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@index([inventoryId], name: "idx_item_inventoryId")
   @@index([publishedToWebsite], name: "idx_item_publishedToWebsite")
   @@map("items")
 }
 
+/// How a sale was paid. DRINK_CARD = the club's prepaid drinking card.
+enum PaymentMethod {
+  CASH
+  CARD
+  DRINK_CARD
+}
+
 model SoldItem {
-  id                  Int     @id @default(autoincrement())
-  itemId              Int
-  item                Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  finalSellPrice      Decimal @db.Decimal(10, 2)
-  quantity            Int
-  priceVariableName   String?
-  isCustomPrice       Boolean @default(false)
-  paidCash            Boolean @default(false) @map("payedCash")
-  soldAt              DateTime @default(now())
+  id                Int           @id @default(autoincrement())
+  itemId            Int
+  item              Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  finalSellPrice    Decimal       @db.Decimal(10, 2)
+  quantity          Int
+  priceVariableName String?
+  isCustomPrice     Boolean       @default(false)
+  paymentMethod     PaymentMethod @default(CARD)
+  // Superseded by paymentMethod. Still written (true = CASH) so an older backend keeps working; drop later.
+  paidCash          Boolean       @default(false) @map("payedCash")
+  soldAt            DateTime      @default(now())
 
   @@index([itemId], name: "idx_soldItem_itemId")
   @@index([soldAt], name: "idx_soldItem_soldAt")

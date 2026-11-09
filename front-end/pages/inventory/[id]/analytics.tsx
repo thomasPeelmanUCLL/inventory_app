@@ -12,6 +12,9 @@ import PaymentMethodsCard from '../../../components/analytics/PaymentMethodsCard
 import PriceVariablesCard from '../../../components/analytics/PriceVariablesCard';
 import { getInventoryAnalytics } from '../../../lib/api';
 import { asMoney } from '../../../components/analytics/analyticsHelpers';
+import { PaymentBreakdown } from '../../../components/analytics/PaymentMethodsCard';
+import { PAYMENT_METHODS, PAYMENT_METHOD_ORDER } from '../../../lib/payment';
+import { PaymentMethod } from '@types';
 
 type DateRange = { start: Date; end: Date };
 
@@ -22,8 +25,6 @@ interface AnalyticsData {
         totalProfit: string | number;
         totalQuantitySold: number;
         totalTransactions: number;
-        cashTransactions: number;
-        nonCashTransactions: number;
     };
     topSellingItems: Array<{
         itemId: number;
@@ -58,8 +59,7 @@ interface AnalyticsData {
         }>;
     }>;
     paymentMethodBreakdown: {
-        cash: { buyPrice: string | number; sellPrice: string | number; profit: string | number };
-        nonCash: { buyPrice: string | number; sellPrice: string | number; profit: string | number };
+        [method in PaymentMethod]: PaymentBreakdown;
     };
     priceVariableBreakdown: Array<{
         priceVariableName: string;
@@ -121,8 +121,10 @@ export default function AnalyticsPage() {
             ['Total Cost', `€${asMoney(analyticsData.summary.totalBuyPrice)}`],
             ['Items Sold', String(analyticsData.summary.totalQuantitySold)],
             ['Transactions', String(analyticsData.summary.totalTransactions)],
-            ['Cash Payments', String(analyticsData.summary.cashTransactions)],
-            ['Card Payments', String(analyticsData.summary.nonCashTransactions)],
+            ...PAYMENT_METHOD_ORDER.map((method) => [
+                `${PAYMENT_METHODS[method].label} Payments`,
+                String(analyticsData.paymentMethodBreakdown[method].transactionCount),
+            ]),
         ];
         XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summaryRows), 'Summary');
 
@@ -181,19 +183,17 @@ export default function AnalyticsPage() {
         );
 
         const paymentMethodRows = [
-            ['Payment Method', 'Buy Price', 'Sell Price', 'Profit'],
-            [
-                'Cash',
-                asMoney(analyticsData.paymentMethodBreakdown.cash.buyPrice),
-                asMoney(analyticsData.paymentMethodBreakdown.cash.sellPrice),
-                asMoney(analyticsData.paymentMethodBreakdown.cash.profit),
-            ],
-            [
-                'Card',
-                asMoney(analyticsData.paymentMethodBreakdown.nonCash.buyPrice),
-                asMoney(analyticsData.paymentMethodBreakdown.nonCash.sellPrice),
-                asMoney(analyticsData.paymentMethodBreakdown.nonCash.profit),
-            ],
+            ['Payment Method', 'Sales', 'Buy Price', 'Sell Price', 'Profit'],
+            ...PAYMENT_METHOD_ORDER.map((method) => {
+                const totals = analyticsData.paymentMethodBreakdown[method];
+                return [
+                    PAYMENT_METHODS[method].label,
+                    String(totals.transactionCount),
+                    asMoney(totals.buyPrice),
+                    asMoney(totals.sellPrice),
+                    asMoney(totals.profit),
+                ];
+            }),
         ];
         XLSX.utils.book_append_sheet(
             workbook,
@@ -263,14 +263,11 @@ export default function AnalyticsPage() {
                     onChange={setSelectedDateRange}
                     onExport={exportToExcel}
                 />
-                <SummaryCards summary={analyticsData.summary} />
+                <SummaryCards summary={analyticsData.summary} paymentCounts={analyticsData.paymentMethodBreakdown} />
                 <TopSellingTable items={analyticsData.topSellingItems} />
                 <SalesByDayTable days={analyticsData.salesByDay} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <PaymentMethodsCard
-                        cash={analyticsData.paymentMethodBreakdown.cash}
-                        nonCash={analyticsData.paymentMethodBreakdown.nonCash}
-                    />
+                    <PaymentMethodsCard breakdown={analyticsData.paymentMethodBreakdown} />
                     <PriceVariablesCard entries={analyticsData.priceVariableBreakdown} />
                 </div>
                 <div className="flex justify-start">

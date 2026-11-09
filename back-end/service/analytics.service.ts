@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { PaymentMethod, Prisma } from '@prisma/client';
 import database from '../repository/database';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -65,7 +65,7 @@ export async function getInventoryAnalytics({
         select: {
             finalSellPrice: true,
             quantity: true,
-            paidCash: true,
+            paymentMethod: true,
             priceVariableName: true,
             soldAt: true,
             item: { select: { id: true, name: true, buyPrice: true } },
@@ -73,9 +73,14 @@ export async function getInventoryAnalytics({
         orderBy: { soldAt: 'asc' },
     });
 
-    const summary = { ...emptyTotals(), totalQuantitySold: 0, cashTransactions: 0, nonCashTransactions: 0 };
-    const cash: PaymentTotals = { ...emptyTotals(), transactionCount: 0 };
-    const nonCash: PaymentTotals = { ...emptyTotals(), transactionCount: 0 };
+    const summary = { ...emptyTotals(), totalQuantitySold: 0 };
+    const emptyPayment = (): PaymentTotals => ({ ...emptyTotals(), transactionCount: 0 });
+    // Every method is always present, so the UI can show a 0 row
+    const byPaymentMethod: Record<PaymentMethod, PaymentTotals> = {
+        CASH: emptyPayment(),
+        CARD: emptyPayment(),
+        DRINK_CARD: emptyPayment(),
+    };
     const byItem = new Map<number, ItemTotals>();
     const byDay = new Map<string, DayTotals>();
     const byPriceVariable = new Map<string, Totals & { priceVariableName: string; count: number }>();
@@ -90,10 +95,7 @@ export async function getInventoryAnalytics({
 
         addTo(summary, buy, sell);
         summary.totalQuantitySold += quantity;
-        if (sale.paidCash) summary.cashTransactions++;
-        else summary.nonCashTransactions++;
-
-        const method = sale.paidCash ? cash : nonCash;
+        const method = byPaymentMethod[sale.paymentMethod];
         addTo(method, buy, sell);
         method.transactionCount++;
 
@@ -153,7 +155,11 @@ export async function getInventoryAnalytics({
             })),
         // Sales come back sorted by soldAt, so days are already in order
         salesByDay: [...byDay.values()],
-        paymentMethodBreakdown: { cash: toPaymentDTO(cash), nonCash: toPaymentDTO(nonCash) },
+        paymentMethodBreakdown: {
+            CASH: toPaymentDTO(byPaymentMethod.CASH),
+            CARD: toPaymentDTO(byPaymentMethod.CARD),
+            DRINK_CARD: toPaymentDTO(byPaymentMethod.DRINK_CARD),
+        },
         priceVariableBreakdown: [...byPriceVariable.values()],
     };
 }

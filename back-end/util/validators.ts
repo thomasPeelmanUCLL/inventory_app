@@ -94,12 +94,20 @@ export type ItemUpdateInput = z.infer<typeof itemUpdateInput>;
 
 // ---- Sold items ----
 
-/** The column is paidCash; older clients sent payedCash or paidWithCash. Accept all three. */
-const normalizePaidCash = (body: unknown) => {
-    if (!body || typeof body !== 'object' || 'paidCash' in body) return body;
-    const { payedCash, paidWithCash, ...rest } = body as Record<string, unknown>;
-    const paidCash = payedCash ?? paidWithCash;
-    return paidCash === undefined ? rest : { ...rest, paidCash };
+export const PAYMENT_METHODS = ['CASH', 'CARD', 'DRINK_CARD'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * Sales carry a paymentMethod. Older clients sent a cash boolean instead (paidCash, payedCash
+ * or paidWithCash); that maps to CASH, or CARD when false.
+ */
+const normalizePaymentMethod = (body: unknown) => {
+    if (!body || typeof body !== 'object') return body;
+    const { paidCash, payedCash, paidWithCash, ...rest } = body as Record<string, unknown>;
+    if ('paymentMethod' in rest) return rest;
+    const legacyCash = paidCash ?? payedCash ?? paidWithCash;
+    if (legacyCash === undefined) return rest;
+    return { ...rest, paymentMethod: legacyCash === true || legacyCash === 'true' ? 'CASH' : 'CARD' };
 };
 
 const soldItemFields = z.object({
@@ -107,14 +115,18 @@ const soldItemFields = z.object({
     finalSellPrice: z.coerce.number().finite().positive('Sell price must be positive'),
     priceVariableName: z.string().min(1).max(255).optional(),
     isCustomPrice: z.coerce.boolean().optional().default(false),
-    paidCash: z.coerce.boolean().optional().default(false),
+    paymentMethod: z
+        .enum(PAYMENT_METHODS, {
+            errorMap: () => ({ message: 'Payment method must be CASH, CARD or DRINK_CARD' }),
+        })
+        .default('CARD'),
     quantity: z.coerce.number().int().positive('Quantity must be positive'),
     soldAt: z.coerce.date().optional(),
 });
 
-export const soldItemInput = z.preprocess(normalizePaidCash, soldItemFields);
+export const soldItemInput = z.preprocess(normalizePaymentMethod, soldItemFields);
 export const soldItemUpdateInput = z.preprocess(
-    normalizePaidCash,
+    normalizePaymentMethod,
     soldItemFields.omit({ itemId: true }).partial(),
 );
 

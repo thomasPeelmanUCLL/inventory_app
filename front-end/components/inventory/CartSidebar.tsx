@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { CartItem } from '@types';
+import { CartItem, PaymentMethod } from '@types';
+import PaymentMethodPicker from './PaymentMethodPicker';
+import { DEFAULT_PAYMENT_METHOD, PAYMENT_METHODS } from '../../lib/payment';
 
 interface CartSidebarProps {
     cart: CartItem[];
     onClose: () => void;
     onRemoveItem: (itemId: number) => void;
     onUpdateQuantity: (itemId: number, newQuantity: number) => void;
-    onCheckout: (paidWithCash: boolean) => void;
+    onCheckout: (paymentMethod: PaymentMethod) => void;
 }
 
 const CartSidebar: React.FC<CartSidebarProps> = ({
@@ -16,7 +18,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({
     onUpdateQuantity,
     onCheckout,
 }) => {
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card'>('cash');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
 
     const calculateCartTotal = () =>
         cart.reduce(
@@ -135,39 +137,18 @@ const CartSidebar: React.FC<CartSidebarProps> = ({
                                 </div>
 
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Payment method
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setSelectedPaymentMethod('cash')}
-                                            className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                                                selectedPaymentMethod === 'cash'
-                                                    ? 'bg-green-600 text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            }`}
-                                        >
-                                            Cash
-                                        </button>
-                                        <button
-                                            onClick={() => setSelectedPaymentMethod('card')}
-                                            className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                                                selectedPaymentMethod === 'card'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            }`}
-                                        >
-                                            Card
-                                        </button>
-                                    </div>
+                                    <PaymentMethodPicker
+                                        value={selectedPaymentMethod}
+                                        onChange={setSelectedPaymentMethod}
+                                    />
                                 </div>
                             </div>
 
                             <button
-                                onClick={() => onCheckout(selectedPaymentMethod === 'cash')}
+                                onClick={() => onCheckout(selectedPaymentMethod)}
                                 className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
                             >
-                                Checkout ({selectedPaymentMethod === 'cash' ? 'Cash' : 'Card'})
+                                Checkout ({PAYMENT_METHODS[selectedPaymentMethod].label})
                             </button>
                         </>
                     )}

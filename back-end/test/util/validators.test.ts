@@ -9,16 +9,25 @@ import {
 describe('soldItemInput', () => {
     const sale = { itemId: 1, finalSellPrice: 2.5, quantity: 1 };
 
-    it.each(['paidCash', 'payedCash', 'paidWithCash'])('keeps the cash flag sent as %s', (field) => {
-        expect(soldItemInput.parse({ ...sale, [field]: true })).toMatchObject({ paidCash: true });
+    it.each(['CASH', 'CARD', 'DRINK_CARD'])('accepts %s as payment method', (paymentMethod) => {
+        expect(soldItemInput.parse({ ...sale, paymentMethod })).toMatchObject({ paymentMethod });
+    });
+
+    it('rejects an unknown payment method', () => {
+        expect(soldItemInput.safeParse({ ...sale, paymentMethod: 'BITCOIN' }).success).toBe(false);
+    });
+
+    it.each(['paidCash', 'payedCash', 'paidWithCash'])('maps the old %s flag to CASH or CARD', (field) => {
+        expect(soldItemInput.parse({ ...sale, [field]: true })).toMatchObject({ paymentMethod: 'CASH' });
+        expect(soldItemInput.parse({ ...sale, [field]: false })).toMatchObject({ paymentMethod: 'CARD' });
     });
 
     it('defaults to card on create', () => {
-        expect(soldItemInput.parse(sale)).toMatchObject({ paidCash: false });
+        expect(soldItemInput.parse(sale)).toMatchObject({ paymentMethod: 'CARD' });
     });
 
-    it('leaves the cash flag untouched on update when it is not sent', () => {
-        expect(soldItemUpdateInput.parse({ quantity: 2 })).not.toHaveProperty('paidCash');
+    it('leaves the payment method untouched on update when it is not sent', () => {
+        expect(soldItemUpdateInput.parse({ quantity: 2 })).not.toHaveProperty('paymentMethod');
     });
 });
 

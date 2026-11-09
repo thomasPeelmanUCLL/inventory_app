@@ -8,7 +8,8 @@ import { createSoldItem } from '../../../lib/api';
 import { getDefaultSellPriceForItem } from '../../../lib/pricing';
 import { useInventoryPage } from '../../../hooks/useInventoryPage';
 import { useToast } from '../../../hooks/useToast';
-import { CartItem, Item, SellModalData } from '@types';
+import { CartItem, Item, PaymentMethod, SellModalData } from '@types';
+import { DEFAULT_PAYMENT_METHOD, PAYMENT_METHODS } from '../../../lib/payment';
 
 const errorMessage = (err: unknown, fallback: string) => (err instanceof Error && err.message) || fallback;
 
@@ -22,7 +23,7 @@ const InventoryDetailPage = () => {
     const [sellModal, setSellModal] = useState<SellModalData | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [showCart, setShowCart] = useState(false);
-    const [checkoutPaidCash, setCheckoutPaidCash] = useState<boolean | null>(null);
+    const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState<PaymentMethod | null>(null);
 
     const handleSellItem = (item: Item) => {
         const { finalSellPrice, priceVariableName } = getDefaultSellPriceForItem(item);
@@ -32,7 +33,7 @@ const InventoryDetailPage = () => {
             finalSellPrice,
             priceVariableName,
             isCustomPrice: false,
-            paymentMethod: 'cash',
+            paymentMethod: DEFAULT_PAYMENT_METHOD,
         });
     };
 
@@ -60,20 +61,20 @@ const InventoryDetailPage = () => {
         showToast('Added to cart');
     };
 
-    const sell = (entry: CartItem, paidCash: boolean) =>
+    const sell = (entry: CartItem, paymentMethod: PaymentMethod) =>
         createSoldItem({
             itemId: entry.item.id!,
             finalSellPrice: entry.finalSellPrice,
             quantity: entry.quantityToSell,
             priceVariableName: entry.priceVariableName,
             isCustomPrice: entry.isCustomPrice,
-            paidCash,
+            paymentMethod,
         });
 
     const handleBuyNow = async () => {
         if (!sellModal) return;
         try {
-            await sell({ ...sellModal, quantityToSell: sellModal.quantity }, sellModal.paymentMethod === 'cash');
+            await sell({ ...sellModal, quantityToSell: sellModal.quantity }, sellModal.paymentMethod);
             setSellModal(null);
             await page.reload();
             showToast('Sale recorded successfully');
@@ -83,12 +84,12 @@ const InventoryDetailPage = () => {
     };
 
     /** Sells the cart line by line; each line leaves the cart once sold, so a retry never sells it twice. */
-    const handleCheckout = async (paidCash: boolean) => {
-        setCheckoutPaidCash(null);
+    const handleCheckout = async (paymentMethod: PaymentMethod) => {
+        setCheckoutPaymentMethod(null);
         let sold = 0;
         try {
             for (const entry of cart) {
-                await sell(entry, paidCash);
+                await sell(entry, paymentMethod);
                 sold++;
                 setCart((prevCart) => prevCart.filter((line) => line !== entry));
             }
@@ -114,13 +115,13 @@ const InventoryDetailPage = () => {
         <InventoryPageLayout page={page} activeTab="overview" toast={toast}>
             {(inventory) => (
                 <>
-                    {checkoutPaidCash !== null && (
+                    {checkoutPaymentMethod !== null && (
                         <ConfirmDialog
                             title="Confirm checkout?"
-                            description={`Sell ${cart.length} item(s) from cart?`}
+                            description={`Sell ${cart.length} item(s) from cart, paid by ${PAYMENT_METHODS[checkoutPaymentMethod].label.toLowerCase()}?`}
                             confirmLabel="Checkout"
-                            onConfirm={() => handleCheckout(checkoutPaidCash)}
-                            onCancel={() => setCheckoutPaidCash(null)}
+                            onConfirm={() => handleCheckout(checkoutPaymentMethod)}
+                            onCancel={() => setCheckoutPaymentMethod(null)}
                         />
                     )}
 
@@ -161,7 +162,7 @@ const InventoryDetailPage = () => {
                             onUpdateQuantity={(itemId, quantityToSell) =>
                                 updateCart(itemId, (entry) => ({ ...entry, quantityToSell }))
                             }
-                            onCheckout={setCheckoutPaidCash}
+                            onCheckout={setCheckoutPaymentMethod}
                         />
                     )}
                 </>

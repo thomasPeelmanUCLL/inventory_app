@@ -1,5 +1,7 @@
 export type InventoryRole = 'owner' | 'editor' | 'viewer';
 export type PriceVariableType = 'PERCENTAGE' | 'FIXED';
+/** DRINK_CARD = the club's prepaid drinking card. */
+export type PaymentMethod = 'CASH' | 'CARD' | 'DRINK_CARD';
 
 export interface User {
     id: string;
@@ -40,7 +42,7 @@ export interface SoldItem {
     priceVariableName?: string;
     isCustomPrice?: boolean;
     quantity: number;
-    paidCash: boolean;
+    paymentMethod: PaymentMethod;
     soldAt: Date;
     item?: Item;
 }
@@ -107,5 +109,5 @@ export type SellModalData = {
     finalSellPrice: number;
     priceVariableName?: string;
     isCustomPrice?: boolean;
-    paymentMethod: 'cash' | 'card';
+    paymentMethod: PaymentMethod;
 };

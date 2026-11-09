@@ -1,6 +1,6 @@
 // Every non-auth call goes through the Next.js rewrite /api/backend/* -> backend (pod-to-pod).
 // Auth lives in lib/auth-client.ts (better-auth).
-import type { InventoryRole, PriceVariableType } from '@types';
+import type { InventoryRole, PaymentMethod, PriceVariableType } from '@types';
 
 function normalizeBaseUrl(rawValue?: string): string {
     const value = (rawValue || '').trim();
@@ -110,7 +110,7 @@ export type SalePayload = {
     quantity: number;
     priceVariableName?: string;
     isCustomPrice?: boolean;
-    paidCash: boolean;
+    paymentMethod: PaymentMethod;
 };
 
 export const getSoldItemsByInventoryId = (inventoryId: number) =>

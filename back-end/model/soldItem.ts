@@ -1,4 +1,4 @@
-import { SoldItem as SoldItemPrisma, Item as ItemPrisma, Prisma } from '@prisma/client';
+import { SoldItem as SoldItemPrisma, Item as ItemPrisma, PaymentMethod, Prisma } from '@prisma/client';
 import { BaseModel } from './base.model';
 import { Item, Money, toDecimal } from './item';
 import { createError } from '../util/errors';
@@ -10,7 +10,7 @@ type SoldItemFields = {
     quantity: number;
     priceVariableName?: string;
     isCustomPrice?: boolean;
-    paidCash: boolean;
+    paymentMethod: PaymentMethod;
     soldAt?: Date;
     item?: Item;
 };
@@ -20,7 +20,7 @@ export class SoldItem extends BaseModel {
     private finalSellPrice: Prisma.Decimal;
     private priceVariableName?: string;
     private isCustomPrice: boolean;
-    private paidCash: boolean;
+    private paymentMethod: PaymentMethod;
     private soldAt: Date;
     private item?: Item;
 
@@ -32,7 +32,7 @@ export class SoldItem extends BaseModel {
         this.finalSellPrice = toDecimal(soldItem.finalSellPrice);
         this.priceVariableName = soldItem.priceVariableName;
         this.isCustomPrice = soldItem.isCustomPrice ?? false;
-        this.paidCash = soldItem.paidCash;
+        this.paymentMethod = soldItem.paymentMethod;
         this.soldAt = soldItem.soldAt || new Date();
         this.item = soldItem.item;
     }
@@ -57,8 +57,8 @@ export class SoldItem extends BaseModel {
         return this.isCustomPrice;
     }
 
-    isPaidCash(): boolean {
-        return this.paidCash;
+    getPaymentMethod(): PaymentMethod {
+        return this.paymentMethod;
     }
 
     getSoldAt(): Date {
@@ -72,7 +72,7 @@ export class SoldItem extends BaseModel {
         if (price.isNaN() || price.lessThanOrEqualTo(0)) {
             throw createError.badRequest('Invalid finalSellPrice: must be a positive number');
         }
-        if (soldItem.paidCash == null) throw createError.badRequest('Paid cash status is required');
+        if (!soldItem.paymentMethod) throw createError.badRequest('Payment method is required');
         if (soldItem.quantity <= 0) throw createError.badRequest('Quantity must be a positive number');
     }
 
