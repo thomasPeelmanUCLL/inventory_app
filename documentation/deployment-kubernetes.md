@@ -35,8 +35,8 @@ kubectl -n inventory create secret generic postgres-secret \
 kubectl -n inventory create secret generic inventory-backend-secret \
   --from-literal=DATABASE_URL='mysql://inventory:<url-encoded-pw>@postgres.inventory.svc.cluster.local:3306/inventory' \
   --from-literal=BETTER_AUTH_SECRET="$(openssl rand -hex 32)" \
-  --from-literal=FRONTEND_URL='https://inventory.euroclasstravel.com' \
-  --from-literal=BACKEND_URL='https://inventory.euroclasstravel.com'
+  --from-literal=FRONTEND_URL='https://inventory.iswleuven.be' \
+  --from-literal=BACKEND_URL='https://inventory.iswleuven.be'
 
 kubectl -n inventory create secret generic inventory-integration-token \
   --from-literal=token="$(openssl rand -hex 32)"

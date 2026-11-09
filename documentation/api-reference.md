@@ -137,13 +137,13 @@ Body limit 10 MB. `trust proxy` is 1, so the client IP comes from the first prox
 # sign in and keep the cookie
 curl -c jar -H 'Content-Type: application/json' \
   -d '{"email":"me@example.com","password":"..."}' \
-  https://inventory.euroclasstravel.com/api/auth/sign-in/email
+  https://inventory.iswleuven.be/api/auth/sign-in/email
 
 # list my inventories
-curl -b jar https://inventory.euroclasstravel.com/api/backend/inventorys/my
+curl -b jar https://inventory.iswleuven.be/api/backend/inventorys/my
 
 # analytics for a range
-curl -b jar 'https://inventory.euroclasstravel.com/api/backend/soldItems/inventory/1/analytics?startDate=2026-01-01&endDate=2026-03-31'
+curl -b jar 'https://inventory.iswleuven.be/api/backend/soldItems/inventory/1/analytics?startDate=2026-01-01&endDate=2026-03-31'
 
 # integration catalogue (in-cluster)
 curl -H "X-Integration-Token: $TOKEN" http://inventory-backend.inventory.svc.cluster.local/integrations/iswleuven/catalogue

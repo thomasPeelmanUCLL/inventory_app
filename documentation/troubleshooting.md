@@ -62,8 +62,8 @@ kubectl -n inventory run dbg --rm -it --image=nicolaka/netshoot -- bash
   nc -zv postgres.inventory.svc.cluster.local 3306
 
 # ingress
-curl -vI https://inventory.euroclasstravel.com/
-curl -s https://inventory.euroclasstravel.com/api/auth/get-session
+curl -vI https://inventory.iswleuven.be/
+curl -s https://inventory.iswleuven.be/api/auth/get-session
 kubectl -n ingress-nginx logs deploy/ingress-nginx-controller --tail=50
 ```
 

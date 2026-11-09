@@ -14,7 +14,7 @@
 
 ```
 Browser
-  |  https://inventory.euroclasstravel.com
+  |  https://inventory.iswleuven.be
   v
 ingress-nginx
   |-- /api/auth    --> inventory-backend:80 --> pod :3000   (Better Auth)
