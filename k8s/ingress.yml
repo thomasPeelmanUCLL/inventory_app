@@ -6,7 +6,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: inventory.euroclasstravel.com
+    - host: inventory.iswleuven.be
       http:
         paths:
           - path: /api/backend
